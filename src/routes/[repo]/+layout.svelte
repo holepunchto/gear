@@ -136,7 +136,7 @@
 	<title>{repo.name} · Gear</title>
 </svelte:head>
 
-<main class="mx-auto max-w-[1100px] px-4 pt-6 pb-20 sm:px-6 sm:pt-8">
+<main class="mx-auto max-w-[1100px] px-4 pt-2 pb-20 sm:px-6 sm:pt-8">
 	<nav class="mb-3.5 flex items-center gap-1 text-sm text-neutral-500">
 		<a href="/" class="text-neutral-500 no-underline hover:text-accent-400"> Repositories </a>
 		<span class="text-neutral-700">/</span>
@@ -155,13 +155,7 @@
 						class="inline-flex items-center gap-1.5 rounded-full border border-accent-500/40 bg-accent-500/15 px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-accent-300 uppercase"
 						title="You are the writer of this repo"
 					>
-						<svg
-							width="11"
-							height="11"
-							viewBox="0 0 24 24"
-							fill="currentColor"
-							aria-hidden="true"
-						>
+						<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 							<path d="M12 2 3 6v6c0 5 3.8 9.4 9 10 5.2-.6 9-5 9-10V6l-9-4Z" />
 						</svg>
 						Owner
@@ -226,7 +220,7 @@
 
 		<div class="flex flex-wrap items-stretch gap-2">
 			<div
-				class="flex min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-neutral-800 bg-neutral-900 font-mono text-xs md:inline-flex md:max-w-[460px]"
+				class="flex max-w-full min-w-0 items-stretch overflow-hidden rounded-md border border-neutral-800 bg-neutral-900 font-mono text-xs md:inline-flex md:max-w-[460px]"
 			>
 				<span
 					class="shrink-0 border-r border-neutral-800 bg-neutral-950 px-2.5 py-1.5 font-sans text-xs font-medium text-neutral-400"
@@ -303,8 +297,8 @@
 		>
 			<div class="min-w-0 sm:col-span-3">
 				<p class="m-0 text-sm text-neutral-300">
-					Fork <strong class="font-semibold text-white">{repo.name}</strong> into a new writable
-					repository. Refs and objects are copied over — you'll be the writer.
+					Fork <strong class="font-semibold text-white">{repo.name}</strong> into a new writable repository.
+					Refs and objects are copied over — you'll be the writer.
 				</p>
 			</div>
 			<input
