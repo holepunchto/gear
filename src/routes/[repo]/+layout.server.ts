@@ -3,8 +3,11 @@ import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import { openRepo } from '$lib/server/repo';
 
-export const load: LayoutServerLoad = async ({ params, locals }) => {
+export const load: LayoutServerLoad = async ({ params, locals, depends }) => {
 	const name = params.repo;
+	// Tag this load so the client can ask for a re-run when an 'append'
+	// event tells us someone pushed new blocks.
+	depends('repo:' + name);
 	const remote = await openRepo(locals.db, name);
 	if (!remote) throw error(404, 'Repository not found');
 

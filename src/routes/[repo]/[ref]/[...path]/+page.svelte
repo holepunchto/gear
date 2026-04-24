@@ -60,7 +60,7 @@
 
 <!-- Toolbar: ref chip + item count -->
 <div
-	class="flex items-center gap-3 rounded-t-lg border border-b-0 border-neutral-800 bg-neutral-900 px-3.5 py-2.5"
+	class="flex flex-wrap items-center gap-2 rounded-t-lg border border-b-0 border-neutral-800 bg-neutral-900 px-3 py-2.5 sm:gap-3 sm:px-3.5"
 >
 	<span
 		class="inline-flex items-center gap-1.5 rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1 text-[13px] font-medium text-white"
@@ -218,11 +218,11 @@
 				{data.readme.name}
 			</div>
 			<div
-				class="prose prose-invert prose-neutral max-w-none px-7 py-6
+				class="prose prose-sm prose-invert prose-neutral max-w-none px-4 py-5 sm:prose-base sm:px-7 sm:py-6
 					prose-headings:scroll-mt-20
 					prose-a:text-accent-400 prose-a:no-underline hover:prose-a:underline
 					prose-code:rounded prose-code:bg-neutral-950 prose-code:px-1 prose-code:py-0.5 prose-code:font-mono prose-code:text-[0.9em] prose-code:text-neutral-200 prose-code:before:content-none prose-code:after:content-none
-					prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-4"
+					prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3 sm:prose-pre:p-4"
 			>
 				<SvelteMarkdown source={data.readme.content} />
 			</div>
@@ -232,11 +232,11 @@
 	<!-- FILE VIEW (text, small enough to render) -->
 	{#if isMarkdown && renderedMode}
 		<div
-			class="prose prose-invert prose-neutral max-w-none overflow-hidden rounded-b-lg border border-neutral-800 bg-neutral-900 px-7 py-6
+			class="prose prose-sm prose-invert prose-neutral max-w-none overflow-hidden rounded-b-lg border border-neutral-800 bg-neutral-900 px-4 py-5 sm:prose-base sm:px-7 sm:py-6
 				prose-headings:scroll-mt-20
 				prose-a:text-accent-400 prose-a:no-underline hover:prose-a:underline
 				prose-code:rounded prose-code:bg-neutral-950 prose-code:px-1 prose-code:py-0.5 prose-code:font-mono prose-code:text-[0.9em] prose-code:text-neutral-200 prose-code:before:content-none prose-code:after:content-none
-				prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-4"
+				prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3 sm:prose-pre:p-4"
 		>
 			<SvelteMarkdown source={data.content} />
 		</div>
