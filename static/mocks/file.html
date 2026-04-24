@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>index.js · bare-svelte · Gear</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">G</span>
+        <span class="wordmark">Gear</span>
+        <span class="pill">P2P</span>
+      </div>
+      <nav class="topnav">
+        <a href="index.html" class="active">Repositories</a>
+        <a href="settings.html">Settings</a>
+      </nav>
+      <div class="status">
+        <div class="peers"><span class="dot live"></span><strong>12</strong> peers</div>
+        <div class="identity"><span class="mono">9mht63…fpby</span><span class="icon">⧉</span></div>
+      </div>
+    </header>
+
+    <main>
+      <div class="breadcrumbs">
+        <a href="index.html">Repositories</a>
+        <span class="sep">/</span>
+        <a href="repo.html">bare-svelte</a>
+        <span class="sep">/</span>
+        <span class="current">index.js</span>
+      </div>
+
+      <div class="file-toolbar">
+        <button class="ref-select">
+          <span class="icon">⌥</span>
+          <span>main</span>
+          <span class="caret">▾</span>
+        </button>
+        <span class="ref-count"><span class="mono">a3f9c21</span> · 1.4 KB · 42 lines</span>
+        <span class="grow"></span>
+        <button class="btn sm ghost">Raw</button>
+        <button class="btn sm ghost">Copy</button>
+        <button class="btn sm">↓ Download</button>
+      </div>
+
+      <div class="file-view">
+        <table>
+          <tbody>
+            <tr><td class="gutter">1</td><td class="line"><span class="token-com">// bare-svelte — minimal Svelte 5 harness running on Bare</span></td></tr>
+            <tr><td class="gutter">2</td><td class="line"><span class="token-com">// Replicates over hyperswarm; no dev-server required.</span></td></tr>
+            <tr><td class="gutter">3</td><td class="line"></td></tr>
+            <tr><td class="gutter">4</td><td class="line"><span class="token-kw">const</span> Corestore <span class="token-kw">=</span> <span class="token-fn">require</span>(<span class="token-str">'corestore'</span>)</td></tr>
+            <tr><td class="gutter">5</td><td class="line"><span class="token-kw">const</span> Hyperswarm <span class="token-kw">=</span> <span class="token-fn">require</span>(<span class="token-str">'hyperswarm'</span>)</td></tr>
+            <tr><td class="gutter">6</td><td class="line"><span class="token-kw">const</span> { mount } <span class="token-kw">=</span> <span class="token-fn">require</span>(<span class="token-str">'./lib/svelte'</span>)</td></tr>
+            <tr><td class="gutter">7</td><td class="line"></td></tr>
+            <tr><td class="gutter">8</td><td class="line"><span class="token-kw">async function</span> <span class="token-fn">main</span>() {</td></tr>
+            <tr><td class="gutter">9</td><td class="line">  <span class="token-kw">const</span> store <span class="token-kw">=</span> <span class="token-kw">new</span> <span class="token-fn">Corestore</span>(<span class="token-str">'./data'</span>)</td></tr>
+            <tr><td class="gutter">10</td><td class="line">  <span class="token-kw">const</span> swarm <span class="token-kw">=</span> <span class="token-kw">new</span> <span class="token-fn">Hyperswarm</span>()</td></tr>
+            <tr><td class="gutter">11</td><td class="line"></td></tr>
+            <tr><td class="gutter">12</td><td class="line">  swarm.<span class="token-fn">on</span>(<span class="token-str">'connection'</span>, (conn) <span class="token-kw">=></span> {</td></tr>
+            <tr><td class="gutter">13</td><td class="line">    store.<span class="token-fn">replicate</span>(conn)</td></tr>
+            <tr><td class="gutter">14</td><td class="line">  })</td></tr>
+            <tr><td class="gutter">15</td><td class="line"></td></tr>
+            <tr><td class="gutter">16</td><td class="line">  <span class="token-kw">const</span> core <span class="token-kw">=</span> store.<span class="token-fn">get</span>({ name: <span class="token-str">'ui'</span> })</td></tr>
+            <tr><td class="gutter">17</td><td class="line">  <span class="token-kw">await</span> core.<span class="token-fn">ready</span>()</td></tr>
+            <tr><td class="gutter">18</td><td class="line">  swarm.<span class="token-fn">join</span>(core.discoveryKey, { server: <span class="token-kw">true</span>, client: <span class="token-kw">true</span> })</td></tr>
+            <tr><td class="gutter">19</td><td class="line"></td></tr>
+            <tr><td class="gutter">20</td><td class="line">  <span class="token-kw">const</span> app <span class="token-kw">=</span> <span class="token-kw">await</span> <span class="token-fn">mount</span>({ target: document.body, props: { core } })</td></tr>
+            <tr><td class="gutter">21</td><td class="line">  <span class="token-kw">return</span> app</td></tr>
+            <tr><td class="gutter">22</td><td class="line">}</td></tr>
+            <tr><td class="gutter">23</td><td class="line"></td></tr>
+            <tr><td class="gutter">24</td><td class="line"><span class="token-fn">main</span>().<span class="token-fn">catch</span>((err) <span class="token-kw">=></span> {</td></tr>
+            <tr><td class="gutter">25</td><td class="line">  console.<span class="token-fn">error</span>(err)</td></tr>
+            <tr><td class="gutter">26</td><td class="line">  <span class="token-fn">process</span>.<span class="token-fn">exit</span>(<span class="token-num">1</span>)</td></tr>
+            <tr><td class="gutter">27</td><td class="line">})</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </body>
+</html>
