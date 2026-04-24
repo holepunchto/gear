@@ -11,6 +11,16 @@
 	// subscription to /api/events keeps it fresh. Auto-reconnects on drop.
 	let peers = $state<number>(data.peers);
 
+	// Avatar initials — first two chars of the z32 identity, uppercased.
+	// Stable for a given key, so the user can recognise their own peer in
+	// a glance once they've seen it once.
+	const avatarInitials = $derived(
+		(data.identity ?? '').slice(0, 2).toUpperCase() || '··'
+	);
+
+	// Copy-feedback — flips for ~1s after a successful copy.
+	let copiedIdentity = $state(false);
+
 	onMount(() => {
 		const es = new EventSource('/api/events');
 		es.addEventListener('stats', (e) => {
@@ -30,6 +40,8 @@
 	async function copyIdentity() {
 		try {
 			await navigator.clipboard.writeText(data.identity);
+			copiedIdentity = true;
+			setTimeout(() => (copiedIdentity = false), 1200);
 		} catch {
 			// clipboard may be unavailable; ignore
 		}
@@ -41,21 +53,23 @@
 	<link rel="icon" type="image/svg+xml" href={favicon} />
 </svelte:head>
 
-<header
-	class="sticky top-0 z-10 border-b border-neutral-800 bg-black backdrop-blur"
->
+<header class="sticky top-0 z-10 border-b border-neutral-800 bg-black backdrop-blur">
+	<!-- 3-column grid keeps the nav truly centered relative to the viewport,
+		not just centered within whatever space the brand and right group
+		leave over. The auto-sized middle column hugs the nav while the two
+		1fr columns pad equally on each side. -->
 	<div
-		class="mx-auto flex max-w-[1100px] items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3"
+		class="mx-auto grid max-w-[1100px] grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3"
 	>
 		<a
 			href="/"
-			class="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight text-white no-underline"
+			class="flex shrink-0 items-center gap-2.5 justify-self-start font-semibold tracking-tight text-white no-underline"
 			aria-label="Gear — home"
 		>
 			<GearLogo class="text-accent-400" />
 		</a>
 
-		<nav class="flex min-w-0 flex-1 gap-1 overflow-x-auto sm:justify-center">
+		<nav class="flex min-w-0 max-w-full justify-self-center gap-1 overflow-x-auto">
 			{#each [{ href: '/', label: 'Repositories' }, { href: '/settings', label: 'Settings' }] as item}
 				<a
 					href={item.href}
@@ -69,7 +83,7 @@
 			{/each}
 		</nav>
 
-		<div class="flex shrink-0 items-center gap-2">
+		<div class="flex items-center gap-2 justify-self-end">
 			<div
 				class="inline-flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-300 tabular-nums sm:px-2.5"
 				title="Active peer connections"
@@ -82,23 +96,34 @@
 				<strong class="font-semibold text-white">{peers}</strong>
 				<span class="hidden sm:inline">peer{peers === 1 ? '' : 's'}</span>
 			</div>
+			<!-- Identity avatar — derived from the first 2 chars of the z32
+				public key. Stable per identity so the user recognises it,
+				and clicking copies the full key. We swap to a checkmark
+				briefly after a successful copy. -->
 			<button
 				type="button"
 				onclick={copyIdentity}
-				class="hidden items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900 px-2.5 py-1 font-mono text-xs text-neutral-300 transition-colors hover:border-neutral-700 hover:text-white sm:inline-flex"
-				title="Your public key — click to copy"
-			>
-				<span>{data.identityShort}</span>
-				<span class="opacity-60">⧉</span>
-			</button>
-			<button
-				type="button"
-				onclick={copyIdentity}
-				class="inline-flex items-center rounded-full border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-300 transition-colors hover:border-neutral-700 hover:text-white sm:hidden"
-				title="Your public key — click to copy"
+				class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-accent-500/40 bg-accent-500/15 font-mono text-[11px] font-semibold tracking-wide text-accent-200 transition-colors hover:border-accent-400 hover:bg-accent-500/25 hover:text-accent-100"
+				title={copiedIdentity ? 'Copied' : `Your public key — click to copy (${data.identityShort})`}
 				aria-label="Copy public key"
 			>
-				<span aria-hidden="true">⧉</span>
+				{#if copiedIdentity}
+					<svg
+						width="13"
+						height="13"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="3"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M5 13l4 4L19 7" />
+					</svg>
+				{:else}
+					<span aria-hidden="true">{avatarInitials}</span>
+				{/if}
 			</button>
 		</div>
 	</div>
