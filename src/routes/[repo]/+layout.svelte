@@ -7,9 +7,7 @@
 	const repo = $derived(data.repo);
 
 	// current ref (from URL if present, else HEAD)
-	const currentRef = $derived(
-		(page.params.ref as string | undefined) ?? repo.head ?? 'main'
-	);
+	const currentRef = $derived((page.params.ref as string | undefined) ?? repo.head ?? 'main');
 
 	async function copyUrl() {
 		try {
@@ -35,11 +33,6 @@
 			href: `/${repo.name}/tags`,
 			count: repo.tags.length,
 			match: (p: string) => p.endsWith('/tags')
-		},
-		{
-			label: 'Settings',
-			href: `/${repo.name}/settings`,
-			match: (p: string) => p.endsWith('/settings')
 		}
 	]);
 
@@ -57,9 +50,7 @@
 
 <main class="mx-auto max-w-[1100px] px-6 pt-8 pb-20">
 	<nav class="mb-3.5 flex items-center gap-1 text-sm text-neutral-500">
-		<a href="/" class="text-neutral-500 no-underline hover:text-accent-400">
-			Repositories
-		</a>
+		<a href="/" class="text-neutral-500 no-underline hover:text-accent-400"> Repositories </a>
 		<span class="text-neutral-700">/</span>
 		<span class="font-medium text-white">{repo.name}</span>
 	</nav>
@@ -70,7 +61,7 @@
 				{repo.name}
 				{#if repo.writable}
 					<span
-						class="ml-2 align-middle rounded-full bg-accent-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-accent-300"
+						class="ml-2 rounded-full bg-accent-500/15 px-2 py-0.5 align-middle text-[11px] font-semibold tracking-wider text-accent-300 uppercase"
 					>
 						Owner
 					</span>
@@ -128,9 +119,7 @@
 			<a
 				href={tab.href}
 				class="-mb-px border-b-2 px-3.5 py-2.5 text-sm font-medium no-underline transition-colors
-					{active
-					? 'border-accent-500 text-white'
-					: 'border-transparent text-neutral-400 hover:text-white'}"
+					{active ? 'border-accent-500 text-white' : 'border-transparent text-neutral-400 hover:text-white'}"
 			>
 				{tab.label}
 				{#if tab.count !== undefined}
