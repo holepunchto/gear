@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>bare-svelte · Gear</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">G</span>
+        <span class="wordmark">Gear</span>
+        <span class="pill">P2P</span>
+      </div>
+      <nav class="topnav">
+        <a href="index.html" class="active">Repositories</a>
+        <a href="settings.html">Settings</a>
+      </nav>
+      <div class="status">
+        <div class="peers"><span class="dot live"></span><strong>12</strong> peers</div>
+        <div class="identity"><span class="mono">9mht63…fpby</span><span class="icon">⧉</span></div>
+      </div>
+    </header>
+
+    <main>
+      <div class="breadcrumbs">
+        <a href="index.html">Repositories</a>
+        <span class="sep">/</span>
+        <span class="current">bare-svelte</span>
+      </div>
+
+      <div class="repo-hero">
+        <div>
+          <h1>bare-svelte</h1>
+          <div class="sub">
+            <span><strong style="color: var(--fg)">247</strong> blocks</span>
+            <span class="sep">·</span>
+            <span>
+              <span class="peers" style="padding: 2px 8px; font-size: 11px">
+                <span class="dot live"></span><strong>3</strong> peers
+              </span>
+            </span>
+            <span class="sep">·</span>
+            <span>Last updated <strong style="color: var(--fg)">2 minutes ago</strong></span>
+          </div>
+        </div>
+        <div class="clone-box">
+          <span class="label">Clone</span>
+          <span class="url">git+pear://0.247.9mht63egrgxsumbsnftx89cntxopco9sopy98inubcweqz71fpby/bare-svelte</span>
+          <button title="Copy">⧉</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <a href="#" class="active">Files</a>
+        <a href="#">Branches <span class="count">3</span></a>
+        <a href="#">Tags <span class="count">5</span></a>
+        <a href="#">Peers <span class="count">3</span></a>
+        <a href="#">Settings</a>
+      </div>
+
+      <div class="file-toolbar">
+        <button class="ref-select">
+          <span class="icon">⌥</span>
+          <span>main</span>
+          <span class="caret">▾</span>
+        </button>
+        <span class="ref-count"><strong>3</strong> branches · <strong>5</strong> tags</span>
+        <span class="grow"></span>
+        <button class="btn sm ghost">Go to file</button>
+        <button class="btn sm">↓ Download ZIP</button>
+      </div>
+
+      <table class="file-table">
+        <tbody>
+          <tr class="commit-row">
+            <td colspan="4">
+              <span class="author">odinsson</span>
+              fix: tag rev-list now includes tag object itself
+              <span style="margin-left: 12px; color: var(--fg-dim)" class="mono">a3f9c21</span>
+              <span style="float: right">2 minutes ago</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="icon dir">▸</td>
+            <td class="name"><a href="#">.github</a></td>
+            <td class="msg">chore: ci matrix for darwin + linux</td>
+            <td class="time">3 days ago</td>
+          </tr>
+          <tr>
+            <td class="icon dir">▸</td>
+            <td class="name"><a href="#">lib</a></td>
+            <td class="msg">refactor: split db into layered helpers</td>
+            <td class="time">2 minutes ago</td>
+          </tr>
+          <tr>
+            <td class="icon dir">▸</td>
+            <td class="name"><a href="#">src</a></td>
+            <td class="msg">feat: add drive viewer scaffolding</td>
+            <td class="time">1 hour ago</td>
+          </tr>
+          <tr>
+            <td class="icon dir">▸</td>
+            <td class="name"><a href="#">test</a></td>
+            <td class="msg">test: cover annotated tag push path</td>
+            <td class="time">5 hours ago</td>
+          </tr>
+          <tr>
+            <td class="icon">·</td>
+            <td class="name"><a href="#">.gitignore</a></td>
+            <td class="msg">initial commit</td>
+            <td class="time">3 months ago</td>
+          </tr>
+          <tr>
+            <td class="icon">·</td>
+            <td class="name"><a href="file.html">README.md</a></td>
+            <td class="msg">docs: mention blind peers</td>
+            <td class="time">2 days ago</td>
+          </tr>
+          <tr>
+            <td class="icon">·</td>
+            <td class="name"><a href="#">package.json</a></td>
+            <td class="msg">chore: bump hyperbee2 to 2.7.1</td>
+            <td class="time">3 days ago</td>
+          </tr>
+          <tr>
+            <td class="icon">·</td>
+            <td class="name"><a href="file.html">index.js</a></td>
+            <td class="msg">feat: initial svelte + bare harness</td>
+            <td class="time">1 week ago</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="readme">
+        <div class="readme-header">
+          <span>📖</span>
+          <span>README.md</span>
+        </div>
+        <div class="readme-body">
+          <h1>bare-svelte</h1>
+          <p>
+            Svelte scaffolding running on <a href="#">Bare</a>, peer-to-peer from day one.
+            Clone directly from peers — no servers required.
+          </p>
+          <h2>Install</h2>
+          <pre><code>gip add git+pear://0.247.9mht63…/bare-svelte
+git clone gip::bare-svelte</code></pre>
+          <h2>Usage</h2>
+          <p>
+            Import <code>bare-svelte</code> into your project and mount it the same way you
+            would a vanilla Svelte app. Replication happens in the background via
+            <code>corestore</code> + <code>hyperswarm</code>.
+          </p>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
