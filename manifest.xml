@@ -3,7 +3,7 @@
   <uses-sdk android:minSdkVersion="31" android:targetSdkVersion="36" />
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-  <application android:label="Gear" android:usesCleartextTraffic="true">
+  <application android:label="Gear" android:usesCleartextTraffic="true" android:icon="@mipmap/ic_launcher">
     <activity android:name="to.holepunch.bare.Activity" android:exported="true" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />

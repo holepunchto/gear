@@ -14,9 +14,7 @@
 	// Avatar initials — first two chars of the z32 identity, uppercased.
 	// Stable for a given key, so the user can recognise their own peer in
 	// a glance once they've seen it once.
-	const avatarInitials = $derived(
-		(data.identity ?? '').slice(0, 2).toUpperCase() || '··'
-	);
+	const avatarInitials = $derived((data.identity ?? '').slice(0, 2).toUpperCase() || '··');
 
 	// Copy-feedback — flips for ~1s after a successful copy.
 	let copiedIdentity = $state(false);
@@ -53,7 +51,7 @@
 	<link rel="icon" type="image/svg+xml" href={favicon} />
 </svelte:head>
 
-<header class="sticky top-0 z-10 border-b border-neutral-800 bg-black backdrop-blur">
+<header class="sticky top-0 z-10 border-b border-neutral-800 bg-black pt-8 backdrop-blur sm:pt-0">
 	<!-- 3-column grid keeps the nav truly centered relative to the viewport,
 		not just centered within whatever space the brand and right group
 		leave over. The auto-sized middle column hugs the nav while the two
@@ -69,7 +67,7 @@
 			<GearLogo class="text-accent-400" />
 		</a>
 
-		<nav class="flex min-w-0 max-w-full justify-self-center gap-1 overflow-x-auto">
+		<nav class="flex max-w-full min-w-0 gap-1 justify-self-center overflow-x-auto">
 			{#each [{ href: '/', label: 'Repositories' }, { href: '/settings', label: 'Settings' }] as item}
 				<a
 					href={item.href}
@@ -104,7 +102,9 @@
 				type="button"
 				onclick={copyIdentity}
 				class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-accent-500/40 bg-accent-500/15 font-mono text-[11px] font-semibold tracking-wide text-accent-200 transition-colors hover:border-accent-400 hover:bg-accent-500/25 hover:text-accent-100"
-				title={copiedIdentity ? 'Copied' : `Your public key — click to copy (${data.identityShort})`}
+				title={copiedIdentity
+					? 'Copied'
+					: `Your public key — click to copy (${data.identityShort})`}
 				aria-label="Copy public key"
 			>
 				{#if copiedIdentity}
@@ -129,6 +129,6 @@
 	</div>
 </header>
 
-<div class="min-h-[calc(100vh-57px)] bg-neutral-950 text-neutral-200">
+<div class="min-h-[calc(100vh-90px)] bg-neutral-950 text-neutral-200">
 	{@render children()}
 </div>
