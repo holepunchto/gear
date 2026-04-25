@@ -9,7 +9,7 @@
 
 	// Live peer count — SSR gives us the initial value, then an EventSource
 	// subscription to /api/events keeps it fresh. Auto-reconnects on drop.
-	let peers = $state<number>(data.peers);
+	let peers = $state<number>(0);
 
 	// Avatar initials — first two chars of the z32 identity, uppercased.
 	// Stable for a given key, so the user can recognise their own peer in

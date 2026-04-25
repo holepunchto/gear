@@ -5,6 +5,7 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals }) => {
 	const publicKey = await locals.db.getPublicKey();
 	const blindPeers = await locals.db.getBlindPeers();
+	const seedReadOnly = await locals.db.getSeedReadOnly();
 
 	const swarm = (locals.db as unknown as { swarm?: { connections?: Set<unknown>; dht?: { nodes?: { length: number } } } }).swarm;
 	const connections = swarm?.connections?.size ?? 0;
@@ -13,6 +14,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		identity: Id.encode(publicKey),
 		blindPeers,
+		seedReadOnly,
 		stats: {
 			connections,
 			dhtNodes
@@ -55,5 +57,15 @@ export const actions: Actions = {
 		if (!removed) return fail(404, { removePeer: { error: 'Peer not found' } });
 
 		return { removePeer: { ok: true } };
+	},
+
+	// Toggle whether we act as a swarm server for repos we've cloned but
+	// don't own. Default ON — turning it off makes us a leech-only client,
+	// useful for low-bandwidth/metered connections.
+	setSeedReadOnly: async ({ request, locals }) => {
+		const form = await request.formData();
+		const enabled = form.get('enabled') === 'on';
+		await locals.db.setSeedReadOnly(enabled);
+		return { setSeedReadOnly: { ok: true, enabled } };
 	}
 };

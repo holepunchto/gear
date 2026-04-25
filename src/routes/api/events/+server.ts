@@ -4,17 +4,34 @@ import type { RequestHandler } from './$types';
 // via EventSource; we send a snapshot every ~2s. Cheap enough (it's reading
 // a Set.size and an array length) and avoids needing to tap into every swarm
 // event.
-const TICK_MS = 2000;
+const TICK_MS = 5000;
 
 type SwarmLike = {
 	connections?: Set<unknown>;
 	dht?: { nodes?: { length: number } };
 };
 
-function snapshot(db: unknown) {
+async function getPeers(db: any) {
+	const names = await db.getRepoNames();
+
+	const entries = await Promise.all(
+		names.map((name: string) => db.getCore(name, { server: false, client: false }))
+	);
+
+	const peers = new Set();
+	for (const e of entries) {
+		for (const p of e.core.peers) {
+			peers.add(p.remotePublicKey.toString('hex'));
+		}
+	}
+
+	return peers.size;
+}
+
+async function snapshot(db: unknown) {
 	const swarm = (db as { swarm?: SwarmLike }).swarm;
 	return {
-		peers: swarm?.connections?.size ?? 0,
+		peers: await getPeers(db),
 		dhtNodes: swarm?.dht?.nodes?.length ?? 0
 	};
 }
@@ -30,18 +47,16 @@ export const GET: RequestHandler = async ({ locals }) => {
 			const send = (event: string, data: unknown) => {
 				if (closed) return;
 				try {
-					controller.enqueue(
-						encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-					);
+					controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 				} catch {
 					closed = true;
 				}
 			};
 
 			// Initial burst so the UI doesn't sit on a stale SSR value.
-			send('stats', snapshot(locals.db));
+			snapshot(locals.db).then((snap) => send('stats', snap));
 
-			tick = setInterval(() => send('stats', snapshot(locals.db)), TICK_MS);
+			tick = setInterval(async () => send('stats', await snapshot(locals.db)), TICK_MS);
 
 			// Heartbeat — keeps intermediaries from closing idle connections.
 			heartbeat = setInterval(() => {

@@ -8,7 +8,6 @@
 	let submittingAdd = $state(false);
 	let submittingCreate = $state(false);
 
-	const totalPeers = $derived(data.repos.reduce((sum, r) => sum + r.peers, 0));
 	const seeding = $derived(data.repos.filter((r) => r.peers > 0).length);
 
 	async function copy(text: string) {
@@ -30,16 +29,10 @@
 </svelte:head>
 
 <main class="mx-auto max-w-[1100px] px-4 pt-6 pb-20 sm:px-6 sm:pt-8">
-	<div class="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-		<div class="min-w-0">
-			<h1 class="m-0 text-xl font-semibold tracking-tight text-white sm:text-[22px]">
-				Your repositories
-			</h1>
-			<p class="mt-1 text-sm text-neutral-400">
-				{data.repos.length} repositor{data.repos.length === 1 ? 'y' : 'ies'}
-				· {seeding} active · {totalPeers} peer{totalPeers === 1 ? '' : 's'}
-			</p>
-		</div>
+	<div class="flex-rowitems-end mb-6 flex items-center justify-between gap-3 sm:gap-4">
+		<h1 class="m-0 text-xl font-semibold tracking-tight text-white sm:text-[22px]">
+			Your repositories
+		</h1>
 		<div class="flex gap-2">
 			<button
 				type="button"
@@ -126,6 +119,12 @@
 			</p>
 		</div>
 	{:else}
+		<div class="min-w-0 pb-4">
+			<p class="mt-1 text-sm text-neutral-400">
+				{data.repos.length} repositor{data.repos.length === 1 ? 'y' : 'ies'}
+				· {seeding} seeding
+			</p>
+		</div>
 		<div class="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
 			<ul class="m-0 list-none p-0">
 				{#each data.repos as repo (repo.name)}
