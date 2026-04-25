@@ -1,12 +1,24 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	let submittingAdd = $state(false);
 	let copied = $state(false);
+
+	// Optimistic mirror of the toggle. We flip it on click, let Svelte update
+	// the hidden input, and only then submit the form — that way the form
+	// data sent to the server reflects the new desired state.
+	let seedReadOnly = $state<boolean>(data.seedReadOnly);
+	let seedForm: HTMLFormElement;
+
+	async function toggleSeedReadOnly() {
+		seedReadOnly = !seedReadOnly;
+		await tick(); // ensure the hidden input reflects the new value
+		seedForm.requestSubmit();
+	}
 
 	// Live network stats — initial SSR snapshot gets replaced by /api/events.
 	let stats = $state({ ...data.stats });
@@ -111,6 +123,61 @@
 					{stats.dhtNodes}
 				</div>
 			</div>
+		</div>
+	</section>
+
+	<!-- SEEDING -->
+	<section class="mb-5 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+		<div class="border-b border-neutral-800 px-5 py-3.5">
+			<h2 class="m-0 text-[15px] font-semibold text-white">Seeding</h2>
+			<p class="m-0 mt-0.5 text-xs text-neutral-400">
+				Help others by reseeding repositories you've cloned.
+			</p>
+		</div>
+		<div class="px-5 py-5">
+			<form
+				bind:this={seedForm}
+				method="POST"
+				action="?/setSeedReadOnly"
+				use:enhance={() => {
+					// Optimistic flip already happened on click; just submit and
+					// let the loader rerun. No spinner — the server-side toggle
+					// is local-only and essentially instantaneous.
+					return async ({ update }) => {
+						await update();
+					};
+				}}
+				class="flex items-start justify-between gap-4"
+			>
+				<div class="min-w-0">
+					<div class="text-sm font-medium text-white">Seed cloned repositories</div>
+					<p class="mt-1 text-xs text-neutral-400">
+						When on, your device announces repos you've cloned on the DHT so other peers can pull
+						from you. Turn off on metered connections.
+					</p>
+				</div>
+				<!-- Hidden input carries the desired state to the server.
+					Reactive — when seedReadOnly flips, the value updates,
+					and we wait a tick before submitting so the form payload
+					sees the new value. -->
+				<input type="hidden" name="enabled" value={seedReadOnly ? 'on' : 'off'} />
+				<button
+					type="button"
+					role="switch"
+					aria-checked={seedReadOnly}
+					onclick={toggleSeedReadOnly}
+					class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-neutral-700 transition-colors {seedReadOnly
+						? 'bg-accent-500/80'
+						: 'bg-neutral-800'}"
+					aria-label="Toggle seed cloned repositories"
+				>
+					<span
+						class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform {seedReadOnly
+							? 'translate-x-6'
+							: 'translate-x-1'}"
+					></span>
+				</button>
+			</form>
 		</div>
 	</section>
 
