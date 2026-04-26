@@ -1,6 +1,12 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { openRepo, listTree, findReadme } from '$lib/server/repo';
+import {
+	openRepo,
+	listTree,
+	findReadme,
+	getFileMeta,
+	attachCommitsToTree
+} from '$lib/server/repo';
 
 /** Max bytes we'll render inline. Above this, show a "too large" placeholder. */
 const FILE_PREVIEW_MAX = 1_000_000; // 1 MB
@@ -77,12 +83,19 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const items = await listTree(drive, folder);
 	const readme = folder === '/' ? await findReadme(drive, items, folder, README_PREVIEW_MAX) : null;
 
+	// Attach last-commit metadata to each tree row. The branch key in
+	// @gip/files is the ref the commit was pushed under — for branches we
+	// pass the ref name through; tags use a 'tags/<name>' prefix in the
+	// store, and we can support that later when the UI shows trees for tags.
+	const fileMeta = await getFileMeta(remote, params.ref);
+	const itemsWithCommits = attachCommitsToTree(items, fileMeta, folder);
+
 	return {
 		kind: 'tree' as const,
 		ref: params.ref,
 		path: cleanPath,
 		folder,
-		items,
+		items: itemsWithCommits,
 		readme
 	};
 };

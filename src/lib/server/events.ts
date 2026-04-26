@@ -39,8 +39,16 @@ type ConnLike = {
 	on(event: string, listener: () => void): void;
 };
 
+type BlindPeerLike = { connected: boolean };
+type BlindPeeringLike = { blindPeers: Map<unknown, BlindPeerLike> };
+
 export type GlobalStats = {
+	// Total live peers — swarm connections + connected blind peers. Blind
+	// peers connect directly via dht.connect() and never fire the swarm's
+	// 'connection' event, so we count them separately and sum here.
 	peers: number;
+	swarmPeers: number;
+	blindPeers: number;
 	dhtNodes: number;
 };
 
@@ -59,6 +67,13 @@ class EventHub extends EventEmitter {
 	private repoState = new Map<string, RepoStats>();
 	private db: GipDB | null = null;
 	private swarm: SwarmLike | null = null;
+	private blind: BlindPeeringLike | null = null;
+	// Cached count of connected blind peers — recomputed on a low-frequency
+	// poll because blind-peering doesn't emit per-peer connect events. The
+	// poll is one timer per process (not per SSE client) and only fires
+	// 'stats' when the count actually changes.
+	private blindPeerCount = 0;
+	private blindPoll: ReturnType<typeof setInterval> | null = null;
 
 	constructor() {
 		super();
@@ -85,20 +100,58 @@ class EventHub extends EventEmitter {
 		swarm.on('connection', (conn) => {
 			const key = b4a.toString(conn.remotePublicKey, 'hex');
 			this.peerKeys.add(key);
+			// Swarm connection arriving is a strong hint blind peers may
+			// have just connected too (network came up, etc.) — recount
+			// opportunistically so the UI doesn't have to wait for the
+			// next poll tick.
+			this.recountBlindPeers();
 			this.emit('stats');
 			conn.on('close', () => {
 				this.peerKeys.delete(key);
+				this.recountBlindPeers();
 				this.emit('stats');
 			});
 		});
+
+		// Blind peers don't ride the swarm — they connect via dht.connect()
+		// directly and the BlindPeer class doesn't emit lifecycle events.
+		// Poll the count at a low cadence (one timer per process, fanned
+		// out via 'stats' to all SSE clients) and only emit when it changed.
+		//
+		// Fall back to `_blind` for published gip-transport versions that
+		// don't yet expose a `get blind()` getter — the field is always
+		// there, the getter is just sugar over it.
+		const dbAny = db as unknown as { blind?: BlindPeeringLike; _blind?: BlindPeeringLike };
+		this.blind = dbAny.blind ?? dbAny._blind ?? null;
+		if (this.blind) {
+			this.recountBlindPeers();
+			this.blindPoll = setInterval(() => {
+				if (this.recountBlindPeers()) this.emit('stats');
+			}, 2000);
+		}
+	}
+
+	private recountBlindPeers(): boolean {
+		if (!this.blind) return false;
+		let n = 0;
+		for (const bp of this.blind.blindPeers.values()) {
+			if (bp.connected) n++;
+		}
+		if (n === this.blindPeerCount) return false;
+		this.blindPeerCount = n;
+		return true;
 	}
 
 	/**
 	 * Synchronous global stats snapshot. Cheap — reads two sizes/lengths.
 	 */
 	getStats(): GlobalStats {
+		const swarmPeers = this.peerKeys.size;
+		const blindPeers = this.blindPeerCount;
 		return {
-			peers: this.peerKeys.size,
+			peers: swarmPeers + blindPeers,
+			swarmPeers,
+			blindPeers,
 			dhtNodes: this.swarm?.dht?.nodes?.length ?? 0
 		};
 	}

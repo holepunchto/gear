@@ -9,6 +9,32 @@
 	let submittingAdd = $state(false);
 	let submittingCreate = $state(false);
 
+	// Two-step delete to avoid an extra modal: first click arms the row, the
+	// second confirms. Auto-disarms after 4s so a forgotten arm doesn't sit
+	// there waiting to nuke a repo by accident.
+	let pendingDelete = $state<string | null>(null);
+	let pendingDeleteTimer: ReturnType<typeof setTimeout> | null = null;
+	let deleting = $state<string | null>(null);
+	let deleteError = $state<string | null>(null);
+
+	function armDelete(name: string) {
+		pendingDelete = name;
+		deleteError = null;
+		if (pendingDeleteTimer) clearTimeout(pendingDeleteTimer);
+		pendingDeleteTimer = setTimeout(() => {
+			pendingDelete = null;
+			pendingDeleteTimer = null;
+		}, 4000);
+	}
+
+	function cancelDelete() {
+		pendingDelete = null;
+		if (pendingDeleteTimer) {
+			clearTimeout(pendingDeleteTimer);
+			pendingDeleteTimer = null;
+		}
+	}
+
 	// Mirror the loader's repo list as reactive state so per-repo SSE updates
 	// can patch individual rows in place. We keep the original derived data
 	// for first paint and re-sync if the loader runs again.
@@ -216,7 +242,83 @@
 							>
 								Open
 							</a>
+							{#if pendingDelete === repo.name}
+								<form
+									method="POST"
+									action="?/delete"
+									use:enhance={() => {
+										deleting = repo.name;
+										return async ({ result, update }) => {
+											if (result.type === 'success') {
+												// Drop locally so the row disappears
+												// without waiting for a full reload.
+												repos = repos.filter((r) => r.name !== repo.name);
+												pendingDelete = null;
+												if (pendingDeleteTimer) {
+													clearTimeout(pendingDeleteTimer);
+													pendingDeleteTimer = null;
+												}
+											} else if (result.type === 'failure') {
+												const f = result.data?.delete as { error?: string } | undefined;
+												deleteError = f?.error ?? 'Delete failed';
+											} else if (result.type === 'error') {
+												deleteError = result.error?.message ?? 'Delete failed';
+											} else {
+												await update();
+											}
+											deleting = null;
+										};
+									}}
+									class="contents"
+								>
+									<input type="hidden" name="name" value={repo.name} />
+									<button
+										type="submit"
+										disabled={deleting === repo.name}
+										class="inline-flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/15 px-2.5 py-1 text-xs font-semibold text-red-200 hover:bg-red-500/25 disabled:opacity-60"
+										title="Click again to permanently delete"
+									>
+										{deleting === repo.name ? 'Deleting…' : 'Confirm delete'}
+									</button>
+									<button
+										type="button"
+										onclick={cancelDelete}
+										class="rounded-md px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white"
+									>
+										Cancel
+									</button>
+								</form>
+							{:else}
+								<button
+									type="button"
+									onclick={() => armDelete(repo.name)}
+									title="Delete repository"
+									aria-label="Delete {repo.name}"
+									class="rounded-md px-2 py-1 text-neutral-500 hover:bg-red-500/15 hover:text-red-300"
+								>
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										aria-hidden="true"
+									>
+										<path d="M3 6h18" />
+										<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+										<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+										<path d="M10 11v6" />
+										<path d="M14 11v6" />
+									</svg>
+								</button>
+							{/if}
 						</div>
+						{#if deleteError && pendingDelete === repo.name}
+							<p class="m-0 w-full text-xs text-red-400 sm:basis-full">{deleteError}</p>
+						{/if}
 					</li>
 				{/each}
 			</ul>

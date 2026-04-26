@@ -2,6 +2,7 @@
 	import type { PageProps } from './$types';
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { page } from '$app/state';
+	import CommitMessage from '$lib/components/CommitMessage.svelte';
 
 	let { data }: PageProps = $props();
 
@@ -36,6 +37,30 @@
 		if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
 		if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
 		return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+	}
+
+	// Recency hint for the apricot accent — within the last day.
+	const RECENT_MS = 24 * 60 * 60 * 1000;
+	function isRecent(timestampSeconds: number) {
+		return Date.now() - timestampSeconds * 1000 < RECENT_MS;
+	}
+
+	function relativeTime(timestampSeconds: number) {
+		const ms = Date.now() - timestampSeconds * 1000;
+		if (ms < 60_000) return 'just now';
+		const m = Math.floor(ms / 60_000);
+		if (m < 60) return `${m}m ago`;
+		const h = Math.floor(m / 60);
+		if (h < 24) return `${h}h ago`;
+		const d = Math.floor(h / 24);
+		if (d < 30) return `${d}d ago`;
+		const mo = Math.floor(d / 30);
+		if (mo < 12) return `${mo}mo ago`;
+		return `${Math.floor(mo / 12)}y ago`;
+	}
+
+	function isoDate(timestampSeconds: number) {
+		return new Date(timestampSeconds * 1000).toISOString();
 	}
 </script>
 
@@ -175,18 +200,40 @@
 									</svg>
 								{/if}
 							</td>
-							<td class="py-2.5 pr-4 pl-2 align-middle">
+							<td class="w-1/3 max-w-0 py-2.5 pr-4 pl-2 align-middle">
 								<a
 									href="/{repoName}/{ref}{item.path}"
-									class="font-medium text-white no-underline hover:text-accent-400"
+									class="block truncate font-medium text-white no-underline hover:text-accent-400"
 								>
 									{item.name}
 								</a>
 							</td>
+							<td class="hidden max-w-0 py-2.5 pr-4 align-middle text-xs text-neutral-500 sm:table-cell">
+								{#if item.commit}
+									<div class="block truncate">
+										<CommitMessage parsed={item.commit.message} variant="compact" />
+									</div>
+								{:else}
+									<span class="text-neutral-700">—</span>
+								{/if}
+							</td>
 							<td
-								class="w-20 py-2.5 pr-5 pl-0 text-right align-middle font-mono text-xs text-neutral-500 tabular-nums"
+								class="w-24 py-2.5 pr-5 pl-0 text-right align-middle font-mono text-xs tabular-nums whitespace-nowrap"
 							>
-								{item.kind === 'file' ? formatSize(item.size) : '—'}
+								{#if item.commit}
+									<span
+										class={isRecent(item.commit.timestamp)
+											? 'text-apricot-300'
+											: 'text-neutral-500'}
+										title={isoDate(item.commit.timestamp)}
+									>
+										{relativeTime(item.commit.timestamp)}
+									</span>
+								{:else}
+									<span class="text-neutral-500">
+										{item.kind === 'file' ? formatSize(item.size) : '—'}
+									</span>
+								{/if}
 							</td>
 						</tr>
 					{/each}
