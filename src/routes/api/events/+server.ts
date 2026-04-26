@@ -1,45 +1,26 @@
 import type { RequestHandler } from './$types';
+import { events, type RepoStats } from '$lib/server/events';
 
-// Live global stats stream — peer connections + DHT nodes. Clients subscribe
-// via EventSource; we send a snapshot every ~2s. Cheap enough (it's reading
-// a Set.size and an array length) and avoids needing to tap into every swarm
-// event.
-const TICK_MS = 5000;
-
-type SwarmLike = {
-	connections?: Set<unknown>;
-	dht?: { nodes?: { length: number } };
-};
-
-async function getPeers(db: any) {
-	const names = await db.getRepoNames();
-
-	const entries = await Promise.all(
-		names.map((name: string) => db.getCore(name, { server: false, client: false }))
-	);
-
-	const peers = new Set();
-	for (const e of entries) {
-		for (const p of e.core.peers) {
-			peers.add(p.remotePublicKey.toString('hex'));
-		}
-	}
-
-	return peers.size;
-}
-
-async function snapshot(db: unknown) {
-	const swarm = (db as { swarm?: SwarmLike }).swarm;
-	return {
-		peers: await getPeers(db),
-		dhtNodes: swarm?.dht?.nodes?.length ?? 0
-	};
-}
+// Live global stats stream — peer count, DHT nodes, AND per-repo updates
+// for every known repo. Backed by a shared EventHub: the hub wires to swarm
+// events ONCE at boot and we just subscribe here. No per-connection polling,
+// no timers other than the heartbeat that keeps the SSE connection alive
+// through proxies.
+//
+// Why repo updates ride the global stream: the home page wants to live-
+// update every row (block counts, peer counts) without opening one SSE
+// connection per repo (browsers cap HTTP/1.1 to ~6 per host). One global
+// stream → all repo events fan out from a single hub listener.
 
 export const GET: RequestHandler = async ({ locals }) => {
+	// Attach every known repo so the hub starts emitting 'repo' events for
+	// them. Idempotent — repeated calls are no-ops once a core is wired.
+	await events.attachAll(locals.db);
+
 	const encoder = new TextEncoder();
-	let tick: ReturnType<typeof setInterval> | null = null;
 	let heartbeat: ReturnType<typeof setInterval> | null = null;
+	let onStats: (() => void) | null = null;
+	let onRepo: ((payload: { name: string } & RepoStats) => void) | null = null;
 
 	const stream = new ReadableStream({
 		start(controller) {
@@ -53,12 +34,19 @@ export const GET: RequestHandler = async ({ locals }) => {
 				}
 			};
 
-			// Initial burst so the UI doesn't sit on a stale SSR value.
-			snapshot(locals.db).then((snap) => send('stats', snap));
+			// Immediate snapshot so the UI doesn't sit on stale SSR data.
+			send('stats', events.getStats());
 
-			tick = setInterval(async () => send('stats', await snapshot(locals.db)), TICK_MS);
+			// Subscribe — hub fires 'stats' on every relevant swarm event
+			// (connection open/close).
+			onStats = () => send('stats', events.getStats());
+			events.on('stats', onStats);
 
-			// Heartbeat — keeps intermediaries from closing idle connections.
+			// Repo updates fan out here too. Payload: { name, length, peers }.
+			onRepo = (payload) => send('repo', payload);
+			events.on('repo', onRepo);
+
+			// Heartbeat — keeps intermediaries from closing the idle connection.
 			heartbeat = setInterval(() => {
 				if (closed) return;
 				try {
@@ -69,9 +57,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 			}, 30_000);
 		},
 		cancel() {
-			if (tick) clearInterval(tick);
+			if (onStats) events.off('stats', onStats);
+			if (onRepo) events.off('repo', onRepo);
 			if (heartbeat) clearInterval(heartbeat);
-			tick = null;
+			onStats = null;
+			onRepo = null;
 			heartbeat = null;
 		}
 	});
