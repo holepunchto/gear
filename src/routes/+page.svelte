@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { onMount } from 'svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -8,7 +9,40 @@
 	let submittingAdd = $state(false);
 	let submittingCreate = $state(false);
 
-	const seeding = $derived(data.repos.filter((r) => r.peers > 0).length);
+	// Mirror the loader's repo list as reactive state so per-repo SSE updates
+	// can patch individual rows in place. We keep the original derived data
+	// for first paint and re-sync if the loader runs again.
+	let repos: typeof data.repos = $state(data.repos.map((r) => ({ ...r })));
+	$effect(() => {
+		repos = data.repos.map((r) => ({ ...r }));
+	});
+
+	const seeding = $derived(repos.filter((r) => r.peers > 0).length);
+
+	onMount(() => {
+		// Single SSE connection for the whole page — global 'stats' is handled
+		// by the layout, here we just listen for 'repo' updates and patch the
+		// matching row. New blocks land in the list with no polling.
+		const es = new EventSource('/api/events');
+		es.addEventListener('repo', (e) => {
+			try {
+				const payload = JSON.parse((e as MessageEvent).data) as {
+					name: string;
+					length: number;
+					peers: number;
+				};
+				const idx = repos.findIndex((r) => r.name === payload.name);
+				if (idx === -1) return;
+				const cur = repos[idx];
+				// Recompute the URL — its block component encodes the length.
+				const newUrl = cur.url.replace(/^(git\+pear:\/\/0\.)\d+(\..*)$/, `$1${payload.length}$2`);
+				repos[idx] = { ...cur, length: payload.length, peers: payload.peers, url: newUrl };
+			} catch {
+				// malformed payload — drop it
+			}
+		});
+		return () => es.close();
+	});
 
 	async function copy(text: string) {
 		try {
@@ -111,7 +145,7 @@
 		{/if}
 	</form>
 
-	{#if data.repos.length === 0}
+	{#if repos.length === 0}
 		<div class="rounded-lg border border-neutral-800 bg-neutral-900 px-6 py-12 text-center">
 			<h3 class="m-0 text-base font-semibold text-white">No repositories yet</h3>
 			<p class="mt-1.5 text-sm text-neutral-400">
@@ -121,13 +155,13 @@
 	{:else}
 		<div class="min-w-0 pb-4">
 			<p class="mt-1 text-sm text-neutral-400">
-				{data.repos.length} repositor{data.repos.length === 1 ? 'y' : 'ies'}
+				{repos.length} repositor{repos.length === 1 ? 'y' : 'ies'}
 				· {seeding} seeding
 			</p>
 		</div>
 		<div class="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
 			<ul class="m-0 list-none p-0">
-				{#each data.repos as repo (repo.name)}
+				{#each repos as repo (repo.name)}
 					<li
 						class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 p-4 px-5 transition-colors last:border-b-0 hover:bg-neutral-800/40 sm:flex-nowrap"
 					>

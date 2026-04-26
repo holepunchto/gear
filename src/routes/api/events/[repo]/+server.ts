@@ -1,33 +1,26 @@
 import type { RequestHandler } from './$types';
-import { openRepo } from '$lib/server/repo';
+import { events } from '$lib/server/events';
 
-// Per-repo live stats stream. Emits whenever the core grows (someone pushed
-// commits) or when the peer count changes. We poll peer count on an interval
-// because the underlying list can change without a convenient event; length
-// updates piggyback on hypercore's 'append'.
-const POLL_MS = 2000;
-
-type CoreLike = {
-	length: number;
-	peers: { length: number };
-	on(event: string, listener: () => void): void;
-	off(event: string, listener: () => void): void;
-};
+// Per-repo live stats stream. Backed by the shared EventHub — the hub
+// lazily attaches core listeners ('append', 'peer-add', 'peer-remove') the
+// first time any client subscribes for this repo, then fans them out to
+// every SSE client subscribed to the same name. No per-client polling.
 
 export const GET: RequestHandler = async ({ params, locals }) => {
-	const remote = await openRepo(locals.db, params.repo);
-	if (!remote) {
+	const name = params.repo;
+
+	// Lazy attach — first subscriber for this repo wires the core listeners.
+	await events.ensureRepoAttached(locals.db, name);
+
+	const initial = events.getRepoStats(name);
+	if (!initial) {
 		return new Response('not found', { status: 404 });
 	}
 
-	const core = remote.core as CoreLike;
 	const encoder = new TextEncoder();
-
-	let lastLength = core.length;
-	let lastPeers = core.peers.length;
-	let appendListener: (() => void) | null = null;
-	let poll: ReturnType<typeof setInterval> | null = null;
 	let heartbeat: ReturnType<typeof setInterval> | null = null;
+	let onRepo: (() => void) | null = null;
+	let onAppend: ((delta: { from: number; to: number; added: number }) => void) | null = null;
 
 	const stream = new ReadableStream({
 		start(controller) {
@@ -35,43 +28,27 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			const send = (event: string, data: unknown) => {
 				if (closed) return;
 				try {
-					controller.enqueue(
-						encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-					);
+					controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 				} catch {
 					closed = true;
 				}
 			};
 
-			const snapshot = () => ({
-				length: core.length,
-				peers: core.peers.length
-			});
-
 			// Initial snapshot.
-			send('repo', snapshot());
+			send('repo', initial);
 
-			// 'append' fires when new blocks land — the most interesting signal
-			// ("someone just pushed"). We emit a dedicated 'append' event with
-			// the delta so the UI can show something cool like a flash.
-			appendListener = () => {
-				const from = lastLength;
-				lastLength = core.length;
-				send('append', { from, to: lastLength, added: lastLength - from });
-				send('repo', snapshot());
+			// Repo state updates (length + peer count). Fires whenever the
+			// underlying core emits append, peer-add or peer-remove.
+			onRepo = () => {
+				const stats = events.getRepoStats(name);
+				if (stats) send('repo', stats);
 			};
-			core.on('append', appendListener);
+			events.on(`repo:${name}`, onRepo);
 
-			// Poll for peer count changes. Only emit when it actually moved so
-			// we don't spam the wire.
-			poll = setInterval(() => {
-				const peers = core.peers.length;
-				if (peers !== lastPeers || core.length !== lastLength) {
-					lastPeers = peers;
-					lastLength = core.length;
-					send('repo', snapshot());
-				}
-			}, POLL_MS);
+			// Dedicated append events with deltas — handy for UI flashes
+			// and "X new commits" toasts.
+			onAppend = (delta) => send('append', delta);
+			events.on(`append:${name}`, onAppend);
 
 			heartbeat = setInterval(() => {
 				if (closed) return;
@@ -83,11 +60,11 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			}, 30_000);
 		},
 		cancel() {
-			if (appendListener) core.off('append', appendListener);
-			if (poll) clearInterval(poll);
+			if (onRepo) events.off(`repo:${name}`, onRepo);
+			if (onAppend) events.off(`append:${name}`, onAppend);
 			if (heartbeat) clearInterval(heartbeat);
-			appendListener = null;
-			poll = null;
+			onRepo = null;
+			onAppend = null;
 			heartbeat = null;
 		}
 	});
