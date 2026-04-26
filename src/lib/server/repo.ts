@@ -1,4 +1,6 @@
+import { parseCommit } from 'gip-remote';
 import type { GipDB } from './gip';
+import { parseCommitMessage, type ParsedCommit } from './commit-parse';
 
 /**
  * Get a Remote by name, reusing the cached instance if we've opened it before
@@ -10,6 +12,200 @@ export async function openRepo(db: GipDB, name: string) {
 		remote = await db.getRepo(name);
 	}
 	return remote;
+}
+
+// gip-remote stores branch + per-file commit metadata in HyperDB collections
+// `@gip/branches` and `@gip/files`. The Remote class doesn't expose them
+// publicly yet, so these helpers reach into `_db` directly. When gip-remote
+// publishes equivalents we should swap to those.
+
+type RemoteWithDB = {
+	_db: {
+		get(collection: string, query: object): Promise<unknown>;
+		find(collection: string, query?: object): AsyncIterable<unknown>;
+	};
+	getObject(oid: string): Promise<{ type: string; size: number; data: Buffer } | null>;
+};
+
+export type CommitMeta = {
+	oid: string;
+	author: string | null;
+	message: string;
+	timestamp: number;
+	parents: string[];
+};
+
+export type FileMeta = {
+	path: string;
+	oid: string;
+	mode: number;
+	size: number;
+	author: string | null;
+	message: string;
+	timestamp: number;
+};
+
+export type BranchHead = {
+	commitOid: string;
+	treeOid: string;
+	author: string | null;
+	message: string;
+	timestamp: number;
+};
+
+/**
+ * Read the @gip/branches record for `branch` and return the commit metadata
+ * stored at HEAD. This is what `push()` denormalizes onto the branch record:
+ * one round-trip, no parent walk.
+ */
+export async function getBranchHead(remote: unknown, branch: string): Promise<BranchHead | null> {
+	const r = remote as RemoteWithDB;
+	const b = (await r._db.get('@gip/branches', { name: branch })) as
+		| {
+				commitOid: string;
+				treeOid: string;
+				author: string | null;
+				message: string;
+				timestamp: number;
+		  }
+		| null;
+	if (!b) return null;
+	return {
+		commitOid: b.commitOid,
+		treeOid: b.treeOid,
+		author: b.author,
+		message: b.message,
+		timestamp: b.timestamp
+	};
+}
+
+/**
+ * Walk the parent chain from `headOid` and return up to `limit` commits in
+ * topological order (HEAD first). First-parent walk only — merges aren't
+ * traversed into their second parent. That matches what GitHub's "Commits"
+ * tab shows by default and keeps the cost predictable.
+ */
+export async function getCommitHistory(
+	remote: unknown,
+	headOid: string,
+	limit = 200
+): Promise<CommitMeta[]> {
+	const r = remote as RemoteWithDB;
+	const out: CommitMeta[] = [];
+	let current: string | null = headOid;
+	const seen = new Set<string>();
+	while (current && out.length < limit && !seen.has(current)) {
+		seen.add(current);
+		const obj = await r.getObject(current);
+		if (!obj || obj.type !== 'commit') break;
+		const parsed = parseCommit(obj.data) as {
+			parents: string[];
+			author: string | null;
+			message: string;
+			timestamp: number;
+		};
+		out.push({
+			oid: current,
+			author: parsed.author,
+			message: parsed.message,
+			timestamp: parsed.timestamp,
+			parents: parsed.parents
+		});
+		current = parsed.parents[0] ?? null;
+	}
+	return out;
+}
+
+/**
+ * Count commits reachable from `headOid` by walking *all* parents (so merge
+ * branches contribute their own commits). Bounded by `limit` so we don't
+ * choke on huge histories — caller can show "N+" when limit hits.
+ */
+export async function getCommitCount(
+	remote: unknown,
+	headOid: string,
+	limit = 1000
+): Promise<{ count: number; capped: boolean }> {
+	const r = remote as RemoteWithDB;
+	const seen = new Set<string>();
+	const stack: string[] = [headOid];
+	while (stack.length && seen.size < limit) {
+		const oid = stack.pop()!;
+		if (seen.has(oid)) continue;
+		seen.add(oid);
+		const obj = await r.getObject(oid);
+		if (!obj || obj.type !== 'commit') continue;
+		const parsed = parseCommit(obj.data) as { parents: string[] };
+		for (const p of parsed.parents) if (!seen.has(p)) stack.push(p);
+	}
+	return { count: seen.size, capped: stack.length > 0 };
+}
+
+/**
+ * All file rows for a branch, keyed by path. Each row carries the commit
+ * metadata of the *last push that touched its blob* (gip-remote upserts
+ * unchanged rows on every push today, so until that's fixed every row will
+ * read as HEAD — see notes in gip-remote/index.js push()).
+ */
+export async function getFileMeta(remote: unknown, branch: string): Promise<Map<string, FileMeta>> {
+	const r = remote as RemoteWithDB;
+	const out = new Map<string, FileMeta>();
+	for await (const row of r._db.find('@gip/files', { branch })) {
+		const f = row as FileMeta;
+		out.set(f.path, f);
+	}
+	return out;
+}
+
+/**
+ * For a tree listing (direct children at `folder`), attach the most recent
+ * commit metadata that touches each entry. Files get their own row's data;
+ * directories get the max-timestamp row whose path lives anywhere under
+ * `dir/`.
+ */
+export type TreeEntryWithCommit = {
+	name: string;
+	path: string;
+	kind: 'file' | 'dir';
+	size: number;
+	commit: { author: string | null; message: ParsedCommit; timestamp: number } | null;
+};
+
+export function attachCommitsToTree(
+	items: { name: string; path: string; kind: 'file' | 'dir'; size: number }[],
+	files: Map<string, FileMeta>,
+	folder: string
+): TreeEntryWithCommit[] {
+	const prefix = folder === '/' ? '/' : folder + '/';
+
+	// Pre-bucket file metadata by direct child name so we don't re-scan the
+	// whole map per directory entry. For files at this level it's a direct
+	// hit; for directories we fold to max-timestamp on the fly.
+	const dirLatest = new Map<string, FileMeta>();
+	for (const [path, meta] of files) {
+		if (!path.startsWith(prefix)) continue;
+		const rest = path.slice(prefix.length);
+		const slashIdx = rest.indexOf('/');
+		if (slashIdx === -1) continue; // direct file, handled below
+		const dir = rest.slice(0, slashIdx);
+		const cur = dirLatest.get(dir);
+		if (!cur || meta.timestamp > cur.timestamp) dirLatest.set(dir, meta);
+	}
+
+	return items.map((item) => {
+		let commit: TreeEntryWithCommit['commit'] = null;
+		const m = item.kind === 'file' ? files.get(item.path) : dirLatest.get(item.name);
+		if (m) {
+			// Parse the message once on the server so the
+			// conventional-commits-parser bundle never reaches the client.
+			commit = {
+				author: m.author,
+				message: parseCommitMessage(m.message),
+				timestamp: m.timestamp
+			};
+		}
+		return { ...item, commit };
+	});
 }
 
 /**

@@ -4,6 +4,7 @@
 	import type { Snippet } from 'svelte';
 	import { goto, invalidate } from '$app/navigation';
 	import { enhance } from '$app/forms';
+	import CommitMessage from '$lib/components/CommitMessage.svelte';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
 
@@ -108,7 +109,18 @@
 			label: 'Files',
 			href: `/${repo.name}/${currentRef}/`,
 			match: (p: string) =>
-				!p.endsWith('/branches') && !p.endsWith('/tags') && !p.endsWith('/settings')
+				!p.endsWith('/branches') &&
+				!p.endsWith('/tags') &&
+				!p.endsWith('/commits') &&
+				!p.endsWith('/settings')
+		},
+		{
+			label: 'Commits',
+			href: `/${repo.name}/commits`,
+			count: repo.commitCount?.capped
+				? `${repo.commitCount.count}+`
+				: (repo.commitCount?.count ?? undefined),
+			match: (p: string) => p.endsWith('/commits')
 		},
 		{
 			label: 'Branches',
@@ -123,6 +135,33 @@
 			match: (p: string) => p.endsWith('/tags')
 		}
 	]);
+
+	// "Recent" — within the last 24h. Used to flag freshly-pushed commits
+	// with the apricot tertiary, our reserved "attention, not error" hue.
+	const RECENT_MS = 24 * 60 * 60 * 1000;
+	function isRecent(timestampSeconds: number) {
+		return Date.now() - timestampSeconds * 1000 < RECENT_MS;
+	}
+
+	// Relative time in the same shape git/GitHub use — short, no "ago"
+	// for compactness in the summary line. Tooltips carry the ISO date.
+	function relativeTime(timestampSeconds: number) {
+		const ms = Date.now() - timestampSeconds * 1000;
+		if (ms < 60_000) return 'just now';
+		const m = Math.floor(ms / 60_000);
+		if (m < 60) return `${m}m ago`;
+		const h = Math.floor(m / 60);
+		if (h < 24) return `${h}h ago`;
+		const d = Math.floor(h / 24);
+		if (d < 30) return `${d}d ago`;
+		const mo = Math.floor(d / 30);
+		if (mo < 12) return `${mo}mo ago`;
+		return `${Math.floor(mo / 12)}y ago`;
+	}
+
+	function isoDate(timestampSeconds: number) {
+		return new Date(timestampSeconds * 1000).toISOString();
+	}
 
 	const shortUrl = $derived.by(() => {
 		const m = repo.url.match(/^(git\+pear:\/\/[^.]+\.[^.]+\.)([^/]+)(\/.+)$/);
@@ -193,11 +232,11 @@
 			{/if}
 			<div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-neutral-500">
 				<span
-					class="transition-colors duration-500 {pushFlash ? 'text-accent-300' : ''}"
+					class="transition-colors duration-500 {pushFlash ? 'text-apricot-300' : ''}"
 					title={pushFlash ? 'New blocks just landed' : undefined}
 				>
 					<strong
-						class="font-semibold tabular-nums {pushFlash ? 'text-accent-200' : 'text-neutral-200'}"
+						class="font-semibold tabular-nums {pushFlash ? 'text-apricot-200' : 'text-neutral-200'}"
 					>
 						{liveLength.toLocaleString()}
 					</strong>
@@ -215,6 +254,18 @@
 					<strong class="font-semibold text-white tabular-nums">{livePeers}</strong>
 					peer{livePeers === 1 ? '' : 's'}
 				</span>
+				{#if repo.commitCount && repo.commitCount.count > 0}
+					<span class="text-neutral-700">·</span>
+					<a
+						href="/{repo.name}/commits"
+						class="text-neutral-400 no-underline hover:text-accent-300"
+					>
+						<strong class="font-semibold text-neutral-200 tabular-nums">
+							{repo.commitCount.capped ? `${repo.commitCount.count}+` : repo.commitCount.count}
+						</strong>
+						commit{repo.commitCount.count === 1 ? '' : 's'}
+					</a>
+				{/if}
 			</div>
 		</div>
 
@@ -329,6 +380,49 @@
 				<p class="m-0 text-sm text-red-400 sm:col-span-3">{forkError}</p>
 			{/if}
 		</form>
+	{/if}
+
+	{#if repo.headCommit}
+		{@const c = repo.headCommit}
+		<!-- Head commit summary — what GitHub shows under the clone bar.
+			Apricot accent for "fresh" (within 24h) so the eye lands on
+			activity without misreading it as an error. -->
+		<a
+			href="/{repo.name}/commits"
+			class="mb-3 flex items-start gap-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 no-underline transition-colors hover:border-neutral-700 hover:bg-neutral-800/60 sm:px-4"
+			title="View commit history"
+		>
+			<div
+				class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full {isRecent(c.timestamp)
+					? 'bg-apricot-500/15 text-apricot-300 ring-1 ring-apricot-500/30'
+					: 'bg-neutral-800 text-neutral-400'}"
+				aria-hidden="true"
+			>
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="3" />
+					<path d="M3 12h6" />
+					<path d="M15 12h6" />
+				</svg>
+			</div>
+			<div class="min-w-0 flex-1">
+				<div class="text-[13.5px]">
+					<CommitMessage parsed={c.message} variant="inline" />
+				</div>
+				<div class="mt-0.5 text-[11.5px] text-neutral-500">
+					<span class="text-neutral-300">{c.author ?? 'unknown'}</span>
+					committed
+					<span
+						class="{isRecent(c.timestamp) ? 'text-apricot-300' : 'text-neutral-400'}"
+						title={isoDate(c.timestamp)}
+					>
+						{relativeTime(c.timestamp)}
+					</span>
+					<span class="ml-2 hidden font-mono text-neutral-600 sm:inline">
+						{c.oid.slice(0, 7)}
+					</span>
+				</div>
+			</div>
+		</a>
 	{/if}
 
 	<nav class="mb-5 flex gap-1 overflow-x-auto border-b border-neutral-800">

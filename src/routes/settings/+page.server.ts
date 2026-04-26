@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import Id from 'hypercore-id-encoding';
+import { events } from '$lib/server/events';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -7,17 +8,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const blindPeers = await locals.db.getBlindPeers();
 	const seedReadOnly = await locals.db.getSeedReadOnly();
 
-	const swarm = (locals.db as unknown as { swarm?: { connections?: Set<unknown>; dht?: { nodes?: { length: number } } } }).swarm;
-	const connections = swarm?.connections?.size ?? 0;
-	const dhtNodes = swarm?.dht?.nodes?.length ?? 0;
+	// Use the EventHub for stats so the SSR snapshot matches what live SSE
+	// updates will produce. `peers` here is swarm connections + connected
+	// blind peers — the latter never fire 'connection' on the swarm because
+	// blind-peering connects via dht.connect() directly.
+	const s = events.getStats();
 
 	return {
 		identity: Id.encode(publicKey),
 		blindPeers,
 		seedReadOnly,
 		stats: {
-			connections,
-			dhtNodes
+			connections: s.peers,
+			swarmPeers: s.swarmPeers,
+			blindPeers: s.blindPeers,
+			dhtNodes: s.dhtNodes
 		}
 	};
 };
