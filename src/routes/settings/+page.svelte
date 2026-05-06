@@ -29,6 +29,7 @@
 			try {
 				const s = JSON.parse((e as MessageEvent).data);
 				stats = {
+					...stats,
 					connections: typeof s.peers === 'number' ? s.peers : stats.connections,
 					dhtNodes: typeof s.dhtNodes === 'number' ? s.dhtNodes : stats.dhtNodes
 				};

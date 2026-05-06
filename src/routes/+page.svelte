@@ -3,11 +3,28 @@
 	import { onMount } from 'svelte';
 	import type { PageProps } from './$types';
 
+	type Repo = {
+		name: string;
+		key: string;
+		length: number;
+		peers: number;
+		writable: boolean;
+		url: string;
+	};
+	type DiscoverRepo = {
+		name: string;
+		url: string;
+		description?: string;
+		inLibrary: boolean;
+	};
+
 	let { data, form }: PageProps = $props();
 
 	let showNewForm = $state(false);
 	let submittingAdd = $state(false);
 	let submittingCreate = $state(false);
+
+	let addingRepo = $state<string | null>(null);
 
 	// Two-step delete to avoid an extra modal: first click arms the row, the
 	// second confirms. Auto-disarms after 4s so a forgotten arm doesn't sit
@@ -38,12 +55,18 @@
 	// Mirror the loader's repo list as reactive state so per-repo SSE updates
 	// can patch individual rows in place. We keep the original derived data
 	// for first paint and re-sync if the loader runs again.
-	let repos: typeof data.repos = $state(data.repos.map((r) => ({ ...r })));
+	let repos: Repo[] = $state((data.repos as Repo[]).map((r) => ({ ...r })));
+	let discover: DiscoverRepo[] = $state<DiscoverRepo[]>([]);
 	$effect(() => {
-		repos = data.repos.map((r) => ({ ...r }));
+		data.discover.then((d: DiscoverRepo[]) => {
+			discover = d.filter((r) => !r.inLibrary).map((r) => ({ ...r }));
+		});
+	});
+	$effect(() => {
+		repos = (data.repos as Repo[]).map((r) => ({ ...r }));
 	});
 
-	const seeding = $derived(repos.filter((r) => r.peers > 0).length);
+	const seeding = $derived(repos.filter((r: Repo) => r.peers > 0).length);
 
 	onMount(() => {
 		// Single SSE connection for the whole page — global 'stats' is handled
@@ -58,11 +81,17 @@
 					peers: number;
 				};
 				const idx = repos.findIndex((r) => r.name === payload.name);
-				if (idx === -1) return;
-				const cur = repos[idx];
-				// Recompute the URL — its block component encodes the length.
-				const newUrl = cur.url.replace(/^(git\+pear:\/\/0\.)\d+(\..*)$/, `$1${payload.length}$2`);
-				repos[idx] = { ...cur, length: payload.length, peers: payload.peers, url: newUrl };
+				if (idx !== -1) {
+					const cur = repos[idx];
+					// Recompute the URL — its block component encodes the length.
+					const newUrl = cur.url.replace(/^(git\+pear:\/\/0\.)\d+(\..*)$/, `$1${payload.length}$2`);
+					repos[idx] = { ...cur, length: payload.length, peers: payload.peers, url: newUrl };
+				}
+				// Mark as in-library in the discover list if it just appeared
+				const didx = discover.findIndex((r) => r.name === payload.name);
+				if (didx !== -1 && !discover[didx].inLibrary) {
+					discover[didx] = { ...discover[didx], inLibrary: true };
+				}
 			} catch {
 				// malformed payload — drop it
 			}
@@ -324,4 +353,72 @@
 			</ul>
 		</div>
 	{/if}
+
+	<section class="mt-10">
+		<h2 class="mb-4 text-base font-semibold text-white">Discover</h2>
+		{#await data.discover}
+			<div class="text-center">
+				<span
+					class="inline-block h-10 w-10 animate-spin rounded-full border-2 border-transparent border-t-apricot-500 text-xs"
+				>
+				</span>
+			</div>
+		{:then _}
+			{#if discover.length === 0}
+				<p class="text-center text-xs text-neutral-500">You've added all available repositories.</p>
+			{:else}
+				<div class="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+					<ul class="m-0 list-none p-0">
+						{#each discover as repo (repo.name)}
+							<li
+								class="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 p-4 px-5 last:border-b-0 sm:flex-nowrap"
+							>
+								{#if addingRepo === repo.name}
+									<div
+										class="absolute top-0 right-0 bottom-0 left-0 flex items-center justify-center bg-accent-500/15"
+									>
+										<span class="text-xs text-white">Adding...</span>
+									</div>
+								{/if}
+								<div class="min-w-0 flex-1">
+									<div class="text-[15px] font-semibold text-white">{repo.name}</div>
+									{#if repo.description}
+										<div class="mt-0.5 text-sm text-neutral-400">{repo.description}</div>
+									{/if}
+								</div>
+
+								<div class="shrink-0">
+									{#if repo.inLibrary}
+										<span class="text-xs text-neutral-500">In library</span>
+									{:else}
+										<form
+											method="POST"
+											action="?/addFromSource"
+											use:enhance={() => {
+												addingRepo = repo.name;
+												return async ({ update }) => {
+													await update();
+													addingRepo = null;
+												};
+											}}
+										>
+											<input type="hidden" name="name" value={repo.name} />
+											<input type="hidden" name="url" value={repo.url} />
+											<button
+												type="submit"
+												disabled={!!addingRepo}
+												class="inline-flex cursor-pointer items-center rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Add
+											</button>
+										</form>
+									{/if}
+								</div>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+		{/await}
+	</section>
 </main>
