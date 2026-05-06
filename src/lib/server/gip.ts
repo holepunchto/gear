@@ -13,5 +13,5 @@ export function getDB(): Promise<GipDB> {
 		const db = new GipLocalDB({ dir });
 		g.__gip = db.ready().then(() => db);
 	}
-	return g.__gip;
+	return g.__gip!;
 }

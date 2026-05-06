@@ -9,6 +9,15 @@ export default defineConfig({
 		// CJS-native and has bare-* subpath imports that aren't meant to be
 		// bundled. Keep it external so bare resolves it from node_modules at
 		// runtime — matches what the adapter's esbuild step already does.
-		external: ['gip-transport']
+		external: [
+			'gip-transport',
+			'gip-remote',
+			'hyperbee2',
+			'hyperdb',
+			'hyperdht',
+			'mirror-drive',
+			'corestore',
+			'bundlebee-import'
+		]
 	}
 });
