@@ -1,9 +1,10 @@
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { vitePlugin as bareExternals } from 'sveltekit-adapter-bare';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit()],
+	plugins: [tailwindcss(), sveltekit(), bareExternals()],
 	ssr: {
 		// gip-transport brings in the whole hypercore / sodium-native tree. It's
 		// CJS-native and has bare-* subpath imports that aren't meant to be

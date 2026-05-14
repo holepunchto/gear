@@ -1,4 +1,3 @@
-import BundlebeeImport from 'bundlebee-import';
 import { dev } from '$app/environment';
 import type { GipDB } from './gip.js';
 
@@ -14,6 +13,8 @@ export type SourceRepoData = {
 };
 
 export async function getAllSourceRepos(gip: GipDB): Promise<SourceRepoData[]> {
+	const BundlebeeImport = (await import('bundlebee-import')).default;
+
 	const { sources } = dev
 		? await import('../../../ota/index.js')
 		: await BundlebeeImport(
