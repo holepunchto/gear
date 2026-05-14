@@ -375,9 +375,9 @@
 							>
 								{#if addingRepo === repo.name}
 									<div
-										class="absolute top-0 right-0 bottom-0 left-0 flex items-center justify-center bg-accent-500/15"
+										class="absolute top-0 right-0 bottom-0 left-0 flex items-center justify-center bg-accent-800/90"
 									>
-										<span class="text-xs text-white">Adding...</span>
+										<span class="text-sm font-black text-neutral-200">Adding...</span>
 									</div>
 								{/if}
 								<div class="min-w-0 flex-1">
