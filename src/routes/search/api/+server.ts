@@ -5,16 +5,64 @@ import { getSearchPlugin } from '$lib/server/search';
 import type { RequestHandler } from './$types';
 
 const STOP_WORDS = new Set([
-	'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had',
-	'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his',
-	'how', 'its', 'now', 'may', 'new', 'see', 'two', 'use', 'way', 'who',
-	'with', 'this', 'that', 'from', 'have', 'they', 'will', 'been', 'more',
-	'when', 'also', 'into', 'than', 'then', 'some', 'what', 'your', 'each',
-	'over', 'such', 'used', 'any', 'via',
+	'the',
+	'and',
+	'for',
+	'are',
+	'but',
+	'not',
+	'you',
+	'all',
+	'can',
+	'had',
+	'her',
+	'was',
+	'one',
+	'our',
+	'out',
+	'day',
+	'get',
+	'has',
+	'him',
+	'his',
+	'how',
+	'its',
+	'now',
+	'may',
+	'new',
+	'see',
+	'two',
+	'use',
+	'way',
+	'who',
+	'with',
+	'this',
+	'that',
+	'from',
+	'have',
+	'they',
+	'will',
+	'been',
+	'more',
+	'when',
+	'also',
+	'into',
+	'than',
+	'then',
+	'some',
+	'what',
+	'your',
+	'each',
+	'over',
+	'such',
+	'used',
+	'any',
+	'via'
 ]);
 
 function tokenizeQuery(text: string): string {
-	return text.toLowerCase()
+	return text
+		.toLowerCase()
 		.split(/[^a-z0-9]+/)
 		.filter((w) => w.length >= 3 && !STOP_WORDS.has(w))
 		.join(' ');
@@ -37,7 +85,10 @@ function timeout<T>(ms: number, fallback: T): Promise<T> {
 	return new Promise((resolve) => setTimeout(() => resolve(fallback), ms));
 }
 
-async function fetchMeta(db: any, hex: string): Promise<{ name: string; description: string; url: string }> {
+async function fetchMeta(
+	db: any,
+	hex: string
+): Promise<{ name: string; description: string; url: string }> {
 	const fallback = { name: hex.slice(0, 12) + '…', description: '', url: '' };
 	const keyBuf = Buffer.from(hex, 'hex');
 	try {
@@ -53,10 +104,10 @@ async function fetchMeta(db: any, hex: string): Promise<{ name: string; descript
 				return {
 					name: pkg.name ?? hex.slice(0, 12) + '…',
 					description: pkg.description ?? '',
-					url: `git+pear://${z32}/${pkg.name}`,
+					url: `git+pear://${z32}/${pkg.name}`
 				};
 			})(),
-			timeout(8000, null),
+			timeout(8000, null)
 		]);
 		return result ?? fallback;
 	} catch {
@@ -66,29 +117,35 @@ async function fetchMeta(db: any, hex: string): Promise<{ name: string; descript
 
 export const GET: RequestHandler = async ({ url }) => {
 	const query = url.searchParams.get('q')?.trim() ?? '';
-	const bootstrap = url.searchParams.get('bootstrap')?.trim() ?? '';
-	const nameIndexID = url.searchParams.get('nameIndexID')?.trim() ?? '';
-	const fullIndexID = url.searchParams.get('fullIndexID')?.trim() ?? '';
+	const bootstrap = '127.0.0.1:62688';
+	const nameIndexID = '25032ce809a1c133016b9853badbffb30a0e28f0d27c0d2d5751d45afc42f6a6';
+	const fullIndexID = '0865d6c073d41e3299d0d08cc5ceff31edc92c909c9d9e08c6bbedd9c25cd8bd';
 
-	if (!query || !bootstrap) return json({ names: [], results: [] });
+	if (!query) return json({ names: [], results: [] });
 
-	const [{ plugin, ready }, db] = await Promise.all([
-		getSearchPlugin(bootstrap),
-		getDB(),
-	]);
+	const [{ plugin, ready }, db] = await Promise.all([getSearchPlugin(bootstrap), getDB()]);
 	await ready;
 
 	const fullQuery = tokenizeQuery(query);
 
-	type RawResult = Record<string, { keywords: Record<string, { positions: number[]; df: number }> }>;
+	type RawResult = Record<
+		string,
+		{ keywords: Record<string, { positions: number[]; df: number }> }
+	>;
 
 	const [rawNames, rawFull] = await Promise.all([
 		nameIndexID
-			? plugin.keywordSearch(nameIndexID, 160, 'utf8').prefixQuery(query).catch(() => [])
+			? plugin
+					.keywordSearch(nameIndexID, 160, 'utf8')
+					.prefixQuery(query)
+					.catch(() => [])
 			: Promise.resolve([]),
 		fullIndexID && fullQuery
-			? plugin.keywordSearch(fullIndexID, 160, 'utf8').searchOr(fullQuery).catch(() => ({}))
-			: Promise.resolve({}),
+			? plugin
+					.keywordSearch(fullIndexID, 160, 'utf8')
+					.searchOr(fullQuery)
+					.catch(() => ({}))
+			: Promise.resolve({})
 	]);
 
 	const fullSearch = fullIndexID ? plugin.keywordSearch(fullIndexID, 160, 'utf8') : null;
@@ -115,7 +172,7 @@ export const GET: RequestHandler = async ({ url }) => {
 				inName,
 				inDescription,
 				inReadme,
-				descriptionSnippet: snippet(description, matchedTerms),
+				descriptionSnippet: snippet(description, matchedTerms)
 			};
 		})
 	);

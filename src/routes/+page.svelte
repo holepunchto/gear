@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
+	import { slide } from 'svelte/transition';
 	import type { PageProps } from './$types';
-	import Search from '$lib/components/Search.svelte';
 
 	type Repo = {
 		name: string;
@@ -21,16 +21,14 @@
 
 	let { data, form }: PageProps = $props();
 
-	let searchActive = $state(false);
-	let showNewForm = $state(false);
+	let addPanelOpen = $state(false);
+	let addTab = $state<'url' | 'new'>('url');
 	let submittingAdd = $state(false);
 	let submittingCreate = $state(false);
 
 	let addingRepo = $state<string | null>(null);
 
-	// Two-step delete to avoid an extra modal: first click arms the row, the
-	// second confirms. Auto-disarms after 4s so a forgotten arm doesn't sit
-	// there waiting to nuke a repo by accident.
+	// Two-step delete: first click arms, second confirms. Auto-disarms after 4s.
 	let pendingDelete = $state<string | null>(null);
 	let pendingDeleteTimer: ReturnType<typeof setTimeout> | null = null;
 	let deleting = $state<string | null>(null);
@@ -54,9 +52,6 @@
 		}
 	}
 
-	// Mirror the loader's repo list as reactive state so per-repo SSE updates
-	// can patch individual rows in place. We keep the original derived data
-	// for first paint and re-sync if the loader runs again.
 	let repos: Repo[] = $state((data.repos as Repo[]).map((r) => ({ ...r })));
 	let discover: DiscoverRepo[] = $state<DiscoverRepo[]>([]);
 	$effect(() => {
@@ -71,9 +66,6 @@
 	const seeding = $derived(repos.filter((r: Repo) => r.peers > 0).length);
 
 	onMount(() => {
-		// Single SSE connection for the whole page — global 'stats' is handled
-		// by the layout, here we just listen for 'repo' updates and patch the
-		// matching row. New blocks land in the list with no polling.
 		const es = new EventSource('/api/events');
 		es.addEventListener('repo', (e) => {
 			try {
@@ -85,11 +77,9 @@
 				const idx = repos.findIndex((r) => r.name === payload.name);
 				if (idx !== -1) {
 					const cur = repos[idx];
-					// Recompute the URL — its block component encodes the length.
 					const newUrl = cur.url.replace(/^(git\+pear:\/\/0\.)\d+(\..*)$/, `$1${payload.length}$2`);
 					repos[idx] = { ...cur, length: payload.length, peers: payload.peers, url: newUrl };
 				}
-				// Mark as in-library in the discover list if it just appeared
 				const didx = discover.findIndex((r) => r.name === payload.name);
 				if (didx !== -1 && !discover[didx].inLibrary) {
 					discover[didx] = { ...discover[didx], inLibrary: true };
@@ -120,164 +110,207 @@
 </svelte:head>
 
 <main class="mx-auto max-w-[1100px] px-4 pt-6 pb-20 sm:px-6 sm:pt-8">
-	<div class="mb-6">
-		<Search bind:active={searchActive} />
-	</div>
 
-	{#if !searchActive}
-	<div class="flex-rowitems-end mb-6 flex items-center justify-between gap-3 sm:gap-4">
-		<h1 class="m-0 text-xl font-semibold tracking-tight text-white sm:text-[22px]">
-			Your repositories
-		</h1>
-		<div class="flex gap-2">
-			<button
-				type="button"
-				onclick={() => (showNewForm = !showNewForm)}
-				class="inline-flex items-center gap-1.5 rounded-md border border-neutral-700 bg-neutral-900 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:border-neutral-600 hover:bg-neutral-800"
-			>
-				+ New repository
-			</button>
-		</div>
-	</div>
-
-	{#if showNewForm}
-		<form
-			method="POST"
-			action="?/create"
-			use:enhance={() => {
-				submittingCreate = true;
-				return async ({ update }) => {
-					await update();
-					submittingCreate = false;
-				};
-			}}
-			class="mb-5 grid grid-cols-1 gap-2 rounded-lg border border-dashed border-neutral-700 bg-neutral-900 p-4 sm:grid-cols-[1fr_auto]"
-		>
-			<input
-				type="text"
-				name="name"
-				placeholder="my-new-repo"
-				autocomplete="off"
-				required
-				pattern="[a-zA-Z0-9_\-]+"
-				class="min-w-0 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-[13px] text-white placeholder:text-neutral-600 focus:border-accent-500 focus:ring-4 focus:ring-accent-500/20 focus:outline-none"
-			/>
-			<button
-				type="submit"
-				disabled={submittingCreate}
-				class="inline-flex items-center justify-center gap-1.5 rounded-md bg-accent-500 px-3.5 py-2 text-sm font-semibold text-accent-900 shadow-sm transition-colors hover:bg-accent-400 disabled:opacity-60"
-			>
-				{submittingCreate ? 'Creating…' : 'Create'}
-			</button>
-			{#if form?.create?.error}
-				<p class="m-0 text-sm text-red-400 sm:col-span-2">{form.create.error}</p>
+	<!-- ─── Toolbar ───────────────────────────────────────────────────────── -->
+	<div class="mb-4 flex items-center justify-between gap-4">
+		<div class="flex items-baseline gap-2.5">
+			<h1 class="m-0 text-sm font-semibold text-white">Repositories</h1>
+			{#if repos.length > 0}
+				<span class="text-xs text-neutral-600">
+					{repos.length}&thinsp;{repos.length === 1 ? 'repo' : 'repos'}
+					<span class="mx-1">·</span>
+					{seeding}&thinsp;seeding
+				</span>
 			{/if}
-		</form>
+		</div>
+
+		<button
+			type="button"
+			onclick={() => (addPanelOpen = !addPanelOpen)}
+			class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors
+				{addPanelOpen
+					? 'border border-neutral-700 text-neutral-400 hover:border-neutral-600 hover:text-white'
+					: 'bg-accent-500 text-accent-900 hover:bg-accent-400'}"
+		>
+			{addPanelOpen ? '✕ Cancel' : '+ Add'}
+		</button>
+	</div>
+
+	<!-- ─── Add panel ─────────────────────────────────────────────────────── -->
+	{#if addPanelOpen}
+		<div transition:slide={{ duration: 180 }} class="mb-5 overflow-hidden rounded-xl border border-neutral-800">
+
+			<!-- Segmented control -->
+			<div class="border-b border-neutral-800 p-2.5">
+				<div class="flex rounded-lg bg-neutral-950 p-0.5">
+					<button
+						type="button"
+						onclick={() => (addTab = 'url')}
+						class="flex-1 cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors
+							{addTab === 'url'
+								? 'bg-neutral-800 text-white'
+								: 'text-neutral-500 hover:text-neutral-400'}"
+					>
+						Add from URL
+					</button>
+					<button
+						type="button"
+						onclick={() => (addTab = 'new')}
+						class="flex-1 cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors
+							{addTab === 'new'
+								? 'bg-neutral-800 text-white'
+								: 'text-neutral-500 hover:text-neutral-400'}"
+					>
+						Create new
+					</button>
+				</div>
+			</div>
+
+			<!-- Form body -->
+			<div class="bg-neutral-900 p-4">
+				{#if addTab === 'url'}
+					<form
+						method="POST"
+						action="?/add"
+						use:enhance={() => {
+							submittingAdd = true;
+							return async ({ update, result }) => {
+								await update();
+								submittingAdd = false;
+								if (result.type !== 'failure' && result.type !== 'error') addPanelOpen = false;
+							};
+						}}
+						class="flex flex-col gap-2 sm:flex-row"
+					>
+						<input
+							type="text"
+							name="url"
+							placeholder="git+pear://0.247.abc123…/repo-name"
+							autocomplete="off"
+							required
+							class="min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 font-mono text-[13px] text-white placeholder:text-neutral-600 focus:border-accent-500/60 focus:ring-2 focus:ring-accent-500/20 focus:outline-none"
+						/>
+						<button
+							type="submit"
+							disabled={submittingAdd}
+							class="inline-flex shrink-0 items-center justify-center rounded-md bg-accent-500 px-4 py-2 text-sm font-semibold text-accent-900 transition-colors hover:bg-accent-400 disabled:opacity-60"
+						>
+							{submittingAdd ? 'Syncing…' : 'Sync'}
+						</button>
+						{#if form?.add?.error}
+							<p class="m-0 w-full text-xs text-red-400">{form.add.error}</p>
+						{/if}
+					</form>
+				{:else}
+					<form
+						method="POST"
+						action="?/create"
+						use:enhance={() => {
+							submittingCreate = true;
+							return async ({ update, result }) => {
+								await update();
+								submittingCreate = false;
+								if (result.type !== 'failure' && result.type !== 'error') addPanelOpen = false;
+							};
+						}}
+						class="flex flex-col gap-2 sm:flex-row"
+					>
+						<input
+							type="text"
+							name="name"
+							placeholder="my-new-repo"
+							autocomplete="off"
+							required
+							pattern="[a-zA-Z0-9_\-]+"
+							class="min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 font-mono text-[13px] text-white placeholder:text-neutral-600 focus:border-accent-500/60 focus:ring-2 focus:ring-accent-500/20 focus:outline-none"
+						/>
+						<button
+							type="submit"
+							disabled={submittingCreate}
+							class="inline-flex shrink-0 items-center justify-center rounded-md bg-accent-500 px-4 py-2 text-sm font-semibold text-accent-900 transition-colors hover:bg-accent-400 disabled:opacity-60"
+						>
+							{submittingCreate ? 'Creating…' : 'Create'}
+						</button>
+						{#if form?.create?.error}
+							<p class="m-0 w-full text-xs text-red-400">{form.create.error}</p>
+						{/if}
+					</form>
+				{/if}
+			</div>
+		</div>
 	{/if}
 
-	<form
-		method="POST"
-		action="?/add"
-		use:enhance={() => {
-			submittingAdd = true;
-			return async ({ update }) => {
-				await update();
-				submittingAdd = false;
-			};
-		}}
-		class="mb-5 grid grid-cols-1 gap-2 rounded-lg border border-dashed border-neutral-700 bg-neutral-900 p-4 sm:grid-cols-[1fr_auto]"
-	>
-		<input
-			type="text"
-			name="url"
-			placeholder="git+pear://0.247.abc123…xyz/repo-name"
-			autocomplete="off"
-			required
-			class="min-w-0 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-[13px] text-white placeholder:text-neutral-600 focus:border-accent-500 focus:ring-4 focus:ring-accent-500/20 focus:outline-none"
-		/>
-		<button
-			type="submit"
-			disabled={submittingAdd}
-			class="inline-flex items-center justify-center gap-1.5 rounded-md bg-accent-500 px-3.5 py-2 text-sm font-semibold text-accent-900 shadow-sm transition-colors hover:bg-accent-400 disabled:opacity-60"
-		>
-			{submittingAdd ? 'Syncing…' : 'Add from URL'}
-		</button>
-		{#if form?.add?.error}
-			<p class="m-0 text-sm text-red-400 sm:col-span-2">{form.add.error}</p>
-		{/if}
-	</form>
-
+	<!-- ─── Repo list ─────────────────────────────────────────────────────── -->
 	{#if repos.length === 0}
-		<div class="rounded-lg border border-neutral-800 bg-neutral-900 px-6 py-12 text-center">
-			<h3 class="m-0 text-base font-semibold text-white">No repositories yet</h3>
-			<p class="mt-1.5 text-sm text-neutral-400">
-				Create a new one or add an existing <span class="font-mono">git+pear://</span> URL above.
+		<div class="rounded-xl border border-neutral-800 bg-neutral-900/20 px-6 py-14 text-center">
+			<p class="mb-1 font-mono text-2xl text-neutral-700">◈</p>
+			<h3 class="m-0 text-sm font-semibold text-white">No repositories yet</h3>
+			<p class="mt-1.5 text-xs text-neutral-500">
+				Create one or paste a <span class="font-mono text-neutral-400">git+pear://</span> URL above.
 			</p>
 		</div>
 	{:else}
-		<div class="min-w-0 pb-4">
-			<p class="mt-1 text-sm text-neutral-400">
-				{repos.length} repositor{repos.length === 1 ? 'y' : 'ies'}
-				· {seeding} seeding
-			</p>
-		</div>
-		<div class="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+		<div class="overflow-hidden rounded-xl border border-neutral-800">
 			<ul class="m-0 list-none p-0">
 				{#each repos as repo (repo.name)}
 					<li
-						class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 p-4 px-5 transition-colors last:border-b-0 hover:bg-neutral-800/40 sm:flex-nowrap"
+						class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 bg-neutral-900 px-5 py-3.5 transition-colors last:border-b-0 hover:bg-neutral-800/50 sm:flex-nowrap"
 					>
 						<div class="min-w-0 flex-1">
 							{#if repo.writable}
-								<!-- Kicker sits above the name in a fixed position so it
-									reads the same way on every row, regardless of how
-									long the repo name is. -->
 								<div
-									class="mb-0.5 text-[10px] font-semibold tracking-[0.14em] text-accent-300 uppercase"
-									title="You are the writer of this repo"
+									class="mb-0.5 text-[10px] font-semibold tracking-[0.12em] text-accent-400/70 uppercase"
+									title="You are the owner of this repository"
 								>
 									Owner
 								</div>
 							{/if}
-							<div class="flex items-center gap-2.5 text-[15px] font-semibold">
-								<a href="/{repo.name}" class="text-white no-underline hover:text-accent-400">
+							<div class="flex items-center gap-2">
+								<a href="/{repo.name}" class="font-mono text-[14px] font-semibold text-white no-underline hover:text-accent-400 transition-colors">
 									{repo.name}
 								</a>
 							</div>
-							<div
-								class="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-neutral-500"
-							>
+							<div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600">
 								<span>
-									<strong class="font-semibold text-neutral-200"
-										>{repo.length.toLocaleString()}</strong
-									>
-									block{repo.length === 1 ? '' : 's'}
+									<strong class="font-medium text-neutral-300">{repo.length.toLocaleString()}</strong>
+									{' '}blocks
 								</span>
-								<span>
-									<strong class="font-semibold text-neutral-200">{repo.peers}</strong>
-									peer{repo.peers === 1 ? '' : 's'}
+								<span class="flex items-center gap-1.5">
+									{#if repo.peers > 0}
+										<span class="inline-block h-1.5 w-1.5 rounded-full bg-accent-400 animate-pulse-soft"></span>
+									{/if}
+									<strong class="font-medium text-neutral-300">{repo.peers}</strong>
+									{' '}peer{repo.peers === 1 ? '' : 's'}
 								</span>
-								<span class="hidden min-w-0 truncate font-mono sm:inline" title={repo.url}>
+								<span class="hidden min-w-0 truncate font-mono text-[11px] sm:inline" title={repo.url}>
 									{shortUrl(repo.url)}
 								</span>
 							</div>
 						</div>
-						<div class="flex shrink-0 items-center gap-2">
+
+						<div class="flex shrink-0 items-center gap-1.5">
 							<button
 								type="button"
 								onclick={() => copy(repo.url)}
 								title="Copy URL"
 								aria-label="Copy URL"
-								class="rounded-md px-2 py-1 text-neutral-500 hover:bg-neutral-800 hover:text-white"
+								class="rounded p-1.5 text-neutral-600 transition-colors hover:bg-neutral-700/60 hover:text-neutral-300"
 							>
-								⧉
+								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+									<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+									<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+								</svg>
 							</button>
 							<a
 								href="/{repo.name}"
-								class="inline-flex items-center rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white no-underline hover:bg-neutral-700"
+								class="inline-flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-200 no-underline transition-colors hover:border-neutral-600 hover:bg-neutral-700 hover:text-white"
 							>
 								Open
+								<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+									<path d="M5 12h14M12 5l7 7-7 7"/>
+								</svg>
 							</a>
+
 							{#if pendingDelete === repo.name}
 								<form
 									method="POST"
@@ -286,8 +319,6 @@
 										deleting = repo.name;
 										return async ({ result, update }) => {
 											if (result.type === 'success') {
-												// Drop locally so the row disappears
-												// without waiting for a full reload.
 												repos = repos.filter((r) => r.name !== repo.name);
 												pendingDelete = null;
 												if (pendingDeleteTimer) {
@@ -311,17 +342,17 @@
 									<button
 										type="submit"
 										disabled={deleting === repo.name}
-										class="inline-flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/15 px-2.5 py-1 text-xs font-semibold text-red-200 hover:bg-red-500/25 disabled:opacity-60"
+										class="inline-flex items-center gap-1 rounded border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-60"
 										title="Click again to permanently delete"
 									>
-										{deleting === repo.name ? 'Deleting…' : 'Confirm delete'}
+										{deleting === repo.name ? 'Deleting…' : 'Confirm'}
 									</button>
 									<button
 										type="button"
 										onclick={cancelDelete}
-										class="rounded-md px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white"
+										class="rounded p-1.5 text-neutral-600 transition-colors hover:text-neutral-400"
 									>
-										Cancel
+										✕
 									</button>
 								</form>
 							{:else}
@@ -330,11 +361,11 @@
 									onclick={() => armDelete(repo.name)}
 									title="Delete repository"
 									aria-label="Delete {repo.name}"
-									class="rounded-md px-2 py-1 text-neutral-500 hover:bg-red-500/15 hover:text-red-300"
+									class="rounded p-1.5 text-neutral-700 transition-colors hover:bg-red-500/10 hover:text-red-400"
 								>
 									<svg
-										width="14"
-										height="14"
+										width="13"
+										height="13"
 										viewBox="0 0 24 24"
 										fill="none"
 										stroke="currentColor"
@@ -352,6 +383,7 @@
 								</button>
 							{/if}
 						</div>
+
 						{#if deleteError && pendingDelete === repo.name}
 							<p class="m-0 w-full text-xs text-red-400 sm:basis-full">{deleteError}</p>
 						{/if}
@@ -361,42 +393,44 @@
 		</div>
 	{/if}
 
-	<section class="mt-10">
-		<h2 class="mb-4 text-base font-semibold text-white">Discover</h2>
+	<!-- ─── Discover ──────────────────────────────────────────────────────── -->
+	<section class="mt-12">
+		<div class="mb-5 flex items-center gap-3">
+			<span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Discover</span>
+			<div class="h-px flex-1 bg-neutral-800"></div>
+		</div>
+
 		{#await data.discover}
-			<div class="text-center">
-				<span
-					class="inline-block h-10 w-10 animate-spin rounded-full border-2 border-transparent border-t-apricot-500 text-xs"
-				>
-				</span>
+			<div class="flex justify-center py-8">
+				<span class="h-5 w-5 animate-spin rounded-full border-2 border-neutral-800 border-t-neutral-500"></span>
 			</div>
 		{:then _}
 			{#if discover.length === 0}
-				<p class="text-center text-xs text-neutral-500">You've added all available repositories.</p>
+				<p class="text-xs text-neutral-600">All available repositories are already in your library.</p>
 			{:else}
-				<div class="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+				<div class="overflow-hidden rounded-xl border border-neutral-800">
 					<ul class="m-0 list-none p-0">
 						{#each discover as repo (repo.name)}
 							<li
-								class="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 p-4 px-5 last:border-b-0 sm:flex-nowrap"
+								class="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 bg-neutral-900 px-5 py-3.5 last:border-b-0 sm:flex-nowrap"
 							>
 								{#if addingRepo === repo.name}
 									<div
-										class="absolute top-0 right-0 bottom-0 left-0 flex items-center justify-center bg-accent-800/90"
+										class="absolute inset-0 flex items-center justify-center bg-accent-900/80"
 									>
-										<span class="text-sm font-black text-neutral-200">Adding...</span>
+										<span class="text-xs font-semibold text-accent-200">Adding…</span>
 									</div>
 								{/if}
 								<div class="min-w-0 flex-1">
-									<div class="text-[15px] font-semibold text-white">{repo.name}</div>
+									<div class="font-mono text-[14px] font-semibold text-white">{repo.name}</div>
 									{#if repo.description}
-										<div class="mt-0.5 text-sm text-neutral-400">{repo.description}</div>
+										<div class="mt-0.5 text-xs text-neutral-500">{repo.description}</div>
 									{/if}
 								</div>
 
 								<div class="shrink-0">
 									{#if repo.inLibrary}
-										<span class="text-xs text-neutral-500">In library</span>
+										<span class="text-xs text-neutral-600">In library</span>
 									{:else}
 										<form
 											method="POST"
@@ -414,7 +448,7 @@
 											<button
 												type="submit"
 												disabled={!!addingRepo}
-												class="inline-flex cursor-pointer items-center rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+												class="inline-flex cursor-pointer items-center rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-200 transition-colors hover:border-neutral-600 hover:bg-neutral-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
 											>
 												Add
 											</button>
@@ -428,5 +462,4 @@
 			{/if}
 		{/await}
 	</section>
-	{/if}
 </main>

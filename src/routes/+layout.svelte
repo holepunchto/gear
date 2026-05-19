@@ -25,10 +25,8 @@
 	onMount(() => {
 		function handleGlobalKeydown(e: KeyboardEvent) {
 			if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-				if (page.url.pathname !== '/') {
-					e.preventDefault();
-					overlayOpen = true;
-				}
+				e.preventDefault();
+				overlayOpen = true;
 			} else if (e.key === 'Escape' && overlayOpen) {
 				overlayOpen = false;
 			}
@@ -48,6 +46,13 @@
 			es.close();
 			document.removeEventListener('keydown', handleGlobalKeydown);
 		};
+	});
+
+	$effect(() => {
+		if (overlayOpen) {
+			document.body.style.overflow = 'hidden';
+			return () => { document.body.style.overflow = ''; };
+		}
 	});
 
 	const isActive = (href: string) =>
@@ -70,52 +75,62 @@
 </svelte:head>
 
 <header class="sticky top-0 z-10 border-b border-neutral-800 bg-black pt-8 backdrop-blur sm:pt-0">
-	<!-- 3-column grid keeps the nav truly centered relative to the viewport,
-		not just centered within whatever space the brand and right group
-		leave over. The auto-sized middle column hugs the nav while the two
-		1fr columns pad equally on each side. -->
-	<div
-		class="mx-auto grid max-w-[1100px] grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3"
-	>
-		<a
-			href="/"
-			class="flex shrink-0 items-center gap-2.5 justify-self-start font-semibold tracking-tight text-white no-underline"
-			aria-label="Gear — home"
+	<div class="mx-auto flex max-w-[1100px] items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-2.5">
+
+		<!-- Logo + nav -->
+		<div class="flex shrink-0 items-center gap-0.5">
+			<a
+				href="/"
+				class="flex shrink-0 items-center gap-2 pr-1 font-semibold tracking-tight text-white no-underline"
+				aria-label="Gear — home"
+			>
+				<GearLogo class="text-accent-400" />
+			</a>
+			<div class="mx-1.5 hidden h-4 w-px bg-neutral-800 sm:block"></div>
+			<nav class="hidden items-center gap-0.5 sm:flex">
+				{#each [{ href: '/', label: 'Repos' }, { href: '/settings', label: 'Settings' }] as item}
+					<a
+						href={item.href}
+						class="shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap no-underline transition-colors
+							{isActive(item.href)
+							? 'bg-pear-900 text-white'
+							: 'text-neutral-400 hover:bg-pear-700/60 hover:text-white'}"
+					>
+						{item.label}
+					</a>
+				{/each}
+			</nav>
+		</div>
+
+		<!-- Search trigger — fills remaining space -->
+		<button
+			type="button"
+			onclick={() => (overlayOpen = true)}
+			title="Search repositories (⌘K)"
+			aria-label="Search repositories"
+			class="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-left transition-colors hover:border-neutral-700"
 		>
-			<GearLogo class="text-accent-400" />
-		</a>
+			<svg
+				width="13"
+				height="13"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="shrink-0 text-neutral-600"
+				aria-hidden="true"
+			>
+				<circle cx="11" cy="11" r="8" />
+				<path d="m21 21-4.35-4.35" />
+			</svg>
+			<span class="flex-1 font-mono text-[13px] text-neutral-600">Search repositories…</span>
+			<kbd class="hidden shrink-0 rounded border border-neutral-800 bg-neutral-800/60 px-1.5 py-0.5 font-sans text-[10px] text-neutral-600 sm:inline">⌘K</kbd>
+		</button>
 
-		<nav class="flex max-w-full min-w-0 gap-1 justify-self-center overflow-x-auto">
-			{#each [{ href: '/', label: 'Repositories' }, { href: '/settings', label: 'Settings' }] as item}
-				<a
-					href={item.href}
-					class="shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap no-underline transition-colors sm:px-3
-						{isActive(item.href)
-						? 'bg-pear-900 text-white'
-						: 'text-neutral-400 hover:bg-pear-700/60 hover:text-white'}"
-				>
-					{item.label}
-				</a>
-			{/each}
-		</nav>
-
-		<div class="flex items-center gap-2 justify-self-end">
-			{#if page.url.pathname !== '/'}
-				<button
-					type="button"
-					onclick={() => (overlayOpen = true)}
-					title="Search repositories (⌘K)"
-					aria-label="Search repositories"
-					class="flex items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 hover:text-white"
-				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-						<circle cx="11" cy="11" r="8" />
-						<path d="m21 21-4.35-4.35" />
-					</svg>
-					<span class="hidden sm:inline text-xs">Search</span>
-					<kbd class="hidden sm:inline rounded border border-neutral-700 bg-neutral-800 px-1 py-0.5 font-sans text-[10px] text-neutral-500">⌘K</kbd>
-				</button>
-			{/if}
+		<!-- Peers + avatar -->
+		<div class="flex shrink-0 items-center gap-2">
 			<div
 				class="inline-flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-300 tabular-nums sm:px-2.5"
 				title="Active peer connections"
@@ -128,14 +143,10 @@
 				<strong class="font-semibold text-white">{peers}</strong>
 				<span class="hidden sm:inline">peer{peers === 1 ? '' : 's'}</span>
 			</div>
-			<!-- Identity avatar — derived from the first 2 chars of the z32
-				public key. Stable per identity so the user recognises it,
-				and clicking copies the full key. We swap to a checkmark
-				briefly after a successful copy. -->
 			<button
 				type="button"
 				onclick={copyIdentity}
-				class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-accent-500/40 bg-accent-500/15 font-mono text-[11px] font-semibold tracking-wide text-accent-200 transition-colors hover:border-accent-400 hover:bg-accent-500/25 hover:text-accent-100"
+				class="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-accent-500/40 bg-accent-500/15 font-mono text-[11px] font-semibold tracking-wide text-accent-200 transition-colors hover:border-accent-400 hover:bg-accent-500/25 hover:text-accent-100"
 				title={copiedIdentity
 					? 'Copied'
 					: `Your public key — click to copy (${data.identityShort})`}
@@ -180,7 +191,7 @@
 			onclick={() => (overlayOpen = false)}
 			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') overlayOpen = false; }}
 		></div>
-		<div class="relative z-10 w-full max-w-[640px] rounded-2xl border border-neutral-700 bg-neutral-950 p-4 shadow-2xl">
+		<div class="relative z-10 flex max-h-[calc(100vh-6rem)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl">
 			<Search autofocus={true} />
 		</div>
 	</div>
