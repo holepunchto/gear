@@ -5,13 +5,37 @@ import { persistent } from 'bare-storage';
 // Re-export the runtime type so App.Locals can reference it.
 export type GipDB = InstanceType<typeof GipLocalDB>;
 
+const BLIND_PEERS = [
+	'qiysd9x3cwk47wb1khrbiw1ie8gj9uttnt3mwcgr9obthb96kxxo',
+	'4esc4a9go8rcad43kkgtrr4uyqssuo1w9p1ozyy3b14jzq77fijy',
+];
+
 const g = globalThis as unknown as { __gip?: Promise<GipDB> };
 
 export function getDB(): Promise<GipDB> {
 	if (!g.__gip) {
 		const dir = isAndroid || isIOS ? persistent() : undefined;
 		const db = new GipLocalDB({ dir });
-		g.__gip = db.ready().then(() => db);
+		g.__gip = db.ready().then(async () => {
+			if (!db.blind) {
+				for (const peer of BLIND_PEERS) await db.addBlindPeer(peer);
+
+				// Blind peers are now persisted but only take effect on next startup
+				// via config. For the current session, wire them up manually.
+				const [{ default: BlindPeering }, { default: Wakeup }, { default: hid }] =
+					await Promise.all([
+						import('blind-peering'),
+						import('protomux-wakeup'),
+						import('hypercore-id-encoding'),
+					]);
+				const keys = BLIND_PEERS.map((p: string) => hid.decode(p));
+				const wakeup = new Wakeup();
+				const d = db as any;
+				d._wakeup = wakeup;
+				d._blind = new BlindPeering(db.swarm.dht, d._store, { wakeup, keys });
+			}
+			return db;
+		});
 	}
 	return g.__gip!;
 }

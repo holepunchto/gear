@@ -16,6 +16,8 @@ export default defineConfig({
 			'hyperbee2',
 			'hyperdb',
 			'hyperdht',
+			'hypersearch',
+			'sodium-universal',
 			'mirror-drive',
 			'corestore',
 			'bundlebee-import'

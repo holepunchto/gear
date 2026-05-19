@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
 	import type { PageProps } from './$types';
+	import Search from '$lib/components/Search.svelte';
 
 	type Repo = {
 		name: string;
@@ -20,6 +21,7 @@
 
 	let { data, form }: PageProps = $props();
 
+	let searchActive = $state(false);
 	let showNewForm = $state(false);
 	let submittingAdd = $state(false);
 	let submittingCreate = $state(false);
@@ -118,6 +120,11 @@
 </svelte:head>
 
 <main class="mx-auto max-w-[1100px] px-4 pt-6 pb-20 sm:px-6 sm:pt-8">
+	<div class="mb-6">
+		<Search bind:active={searchActive} />
+	</div>
+
+	{#if !searchActive}
 	<div class="flex-rowitems-end mb-6 flex items-center justify-between gap-3 sm:gap-4">
 		<h1 class="m-0 text-xl font-semibold tracking-tight text-white sm:text-[22px]">
 			Your repositories
@@ -421,4 +428,5 @@
 			{/if}
 		{/await}
 	</section>
+	{/if}
 </main>

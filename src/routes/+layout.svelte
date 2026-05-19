@@ -4,8 +4,11 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import GearLogo from '$lib/GearLogo.svelte';
+	import Search from '$lib/components/Search.svelte';
 
 	let { children, data } = $props();
+
+	let overlayOpen = $state(false);
 
 	// Live peer count — SSR gives us the initial value, then an EventSource
 	// subscription to /api/events keeps it fresh. Auto-reconnects on drop.
@@ -20,6 +23,18 @@
 	let copiedIdentity = $state(false);
 
 	onMount(() => {
+		function handleGlobalKeydown(e: KeyboardEvent) {
+			if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+				if (page.url.pathname !== '/') {
+					e.preventDefault();
+					overlayOpen = true;
+				}
+			} else if (e.key === 'Escape' && overlayOpen) {
+				overlayOpen = false;
+			}
+		}
+		document.addEventListener('keydown', handleGlobalKeydown);
+
 		const es = new EventSource('/api/events');
 		es.addEventListener('stats', (e) => {
 			try {
@@ -29,7 +44,10 @@
 				// malformed payload — drop it
 			}
 		});
-		return () => es.close();
+		return () => {
+			es.close();
+			document.removeEventListener('keydown', handleGlobalKeydown);
+		};
 	});
 
 	const isActive = (href: string) =>
@@ -82,6 +100,22 @@
 		</nav>
 
 		<div class="flex items-center gap-2 justify-self-end">
+			{#if page.url.pathname !== '/'}
+				<button
+					type="button"
+					onclick={() => (overlayOpen = true)}
+					title="Search repositories (⌘K)"
+					aria-label="Search repositories"
+					class="flex items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 hover:text-white"
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<circle cx="11" cy="11" r="8" />
+						<path d="m21 21-4.35-4.35" />
+					</svg>
+					<span class="hidden sm:inline text-xs">Search</span>
+					<kbd class="hidden sm:inline rounded border border-neutral-700 bg-neutral-800 px-1 py-0.5 font-sans text-[10px] text-neutral-500">⌘K</kbd>
+				</button>
+			{/if}
 			<div
 				class="inline-flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-300 tabular-nums sm:px-2.5"
 				title="Active peer connections"
@@ -128,6 +162,29 @@
 		</div>
 	</div>
 </header>
+
+{#if overlayOpen}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div
+		role="dialog"
+		aria-modal="true"
+		aria-label="Search repositories"
+		class="fixed inset-0 z-50 flex items-start justify-center px-4 pt-16"
+		onkeydown={(e) => { if (e.key === 'Escape') overlayOpen = false; }}
+	>
+		<div
+			class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+			role="button"
+			tabindex="-1"
+			aria-label="Close search"
+			onclick={() => (overlayOpen = false)}
+			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') overlayOpen = false; }}
+		></div>
+		<div class="relative z-10 w-full max-w-[640px] rounded-2xl border border-neutral-700 bg-neutral-950 p-4 shadow-2xl">
+			<Search autofocus={true} />
+		</div>
+	</div>
+{/if}
 
 <div class="min-h-[calc(100vh-90px)] bg-neutral-950 text-neutral-200">
 	{@render children()}
