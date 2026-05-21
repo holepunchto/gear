@@ -1,37 +1,41 @@
 <script lang="ts">
-	interface Result {
+	import { goto } from '$app/navigation';
+
+	interface SearchHit {
 		hex: string;
-		url: string;
-		name: string;
 		matchedTerms: string[];
 		inName: boolean;
 		inDescription: boolean;
 		inReadme: boolean;
-		descriptionSnippet: string;
 	}
 
-	interface ResultWithReadme extends Result {
+	interface ResultState extends SearchHit {
+		name?: string;
+		description?: string;
+		repoUrl?: string;
 		readmeSnippet?: string;
-		readmeLoading?: boolean;
+		metaLoading: boolean;
+		readmeLoading: boolean;
 	}
 
 	let {
 		active = $bindable(false),
 		autofocus = false,
-		size = 'default'
+		onclose
 	} = $props<{
 		active?: boolean;
 		autofocus?: boolean;
-		size?: 'default' | 'lg';
+		onclose?: () => void;
 	}>();
 
 	let query = $state('');
 	let searching = $state(false);
 	let names = $state<string[]>([]);
-	let results = $state<ResultWithReadme[]>([]);
+	let results = $state<ResultState[]>([]);
 	let inputEl = $state<HTMLInputElement | undefined>();
-
-	const isLg = $derived(size === 'lg');
+	let opening = $state<string | null>(null);
+	let openErrorHex = $state<string | null>(null);
+	let openError = $state<string | null>(null);
 
 	const ghost = $derived(
 		names.length > 0 && query.length > 0 && names[0].startsWith(query) ? names[0] : null
@@ -74,6 +78,93 @@
 		);
 	}
 
+	async function openResult(result: ResultState) {
+		if (!result.repoUrl || opening) return;
+		opening = result.hex;
+		openError = null;
+		openErrorHex = null;
+
+		const fd = new FormData();
+		fd.append('url', result.repoUrl);
+
+		try {
+			const res = await fetch('/?/add', {
+				method: 'POST',
+				body: fd,
+				headers: { 'x-sveltekit-action': 'true' }
+			});
+			const data = await res.json();
+			if (data.type === 'redirect') {
+				onclose?.();
+				await goto(data.location);
+			} else {
+				openErrorHex = result.hex;
+				openError = data.data?.add?.error ?? 'Failed to add repository';
+				opening = null;
+			}
+		} catch {
+			openErrorHex = result.hex;
+			openError = 'Failed to open repository';
+			opening = null;
+		}
+	}
+
+	async function loadReadme(hit: SearchHit, repoUrl: string, isCancelled: () => boolean) {
+		const rp = new URLSearchParams({ url: repoUrl, terms: hit.matchedTerms.join(',') });
+		try {
+			const d: { readme: string } = await fetch(`/search/readme?${rp}`).then((r) => r.json());
+			if (isCancelled()) return;
+			const i = results.findIndex((r) => r.hex === hit.hex);
+			if (i !== -1) results[i] = { ...results[i], readmeSnippet: d.readme || undefined, readmeLoading: false };
+		} catch {
+			if (isCancelled()) return;
+			const i = results.findIndex((r) => r.hex === hit.hex);
+			if (i !== -1) results[i] = { ...results[i], readmeLoading: false };
+		}
+	}
+
+	async function loadMeta(hit: SearchHit, isCancelled: () => boolean, attempt = 0) {
+		if (isCancelled()) return;
+		try {
+			const meta: { name: string; description: string; repoUrl: string } = await fetch(
+				`/search/meta?hex=${hit.hex}`
+			).then((r) => r.json());
+
+			if (isCancelled()) return;
+
+			// Empty response means Pear DHT hasn't connected yet — retry with backoff.
+			if (!meta.name && attempt < 4) {
+				await new Promise((resolve) => setTimeout(resolve, 3000 * (attempt + 1)));
+				return loadMeta(hit, isCancelled, attempt + 1);
+			}
+
+			const idx = results.findIndex((r) => r.hex === hit.hex);
+			if (idx === -1) return;
+			results[idx] = {
+				...results[idx],
+				name: meta.name || undefined,
+				description: meta.description || undefined,
+				repoUrl: meta.repoUrl || undefined,
+				metaLoading: false
+			};
+
+			if (hit.inReadme && meta.repoUrl) {
+				loadReadme(hit, meta.repoUrl, isCancelled);
+			} else {
+				const i = results.findIndex((r) => r.hex === hit.hex);
+				if (i !== -1) results[i] = { ...results[i], readmeLoading: false };
+			}
+		} catch {
+			if (isCancelled()) return;
+			if (attempt < 4) {
+				await new Promise((resolve) => setTimeout(resolve, 3000 * (attempt + 1)));
+				return loadMeta(hit, isCancelled, attempt + 1);
+			}
+			const idx = results.findIndex((r) => r.hex === hit.hex);
+			if (idx !== -1) results[idx] = { ...results[idx], metaLoading: false, readmeLoading: false };
+		}
+	}
+
 	$effect(() => {
 		const q = query.trim();
 
@@ -87,46 +178,39 @@
 		searching = true;
 
 		const timer = setTimeout(async () => {
-			const params = new URLSearchParams({ q });
 			try {
-				const res = await fetch(`/search/api?${params}`);
+				const res = await fetch(`/search/api?${new URLSearchParams({ q })}`);
 				if (cancelled) return;
+
 				const data = await res.json();
 				names = data.names ?? [];
-				const fetched: ResultWithReadme[] = (data.results ?? []).map((r: Result) => ({
-					...r,
-					readmeSnippet: undefined,
-					readmeLoading: r.inReadme
-				}));
-				results = fetched;
-				for (const result of fetched) {
-					if (!result.inReadme || cancelled) continue;
-					const rp = new URLSearchParams({ url: result.url, terms: result.matchedTerms.join(',') });
-					fetch(`/search/readme?${rp}`)
-						.then((r) => r.json())
-						.then((d) => {
-							if (cancelled) return;
-							results = results.map((r) =>
-								r.hex === result.hex
-									? { ...r, readmeSnippet: d.readme ?? '', readmeLoading: false }
-									: r
-							);
-						})
-						.catch(() => {
-							if (!cancelled) {
-								results = results.map((r) =>
-									r.hex === result.hex ? { ...r, readmeLoading: false } : r
-								);
-							}
-						});
+				const hits: SearchHit[] = data.results ?? [];
+
+				// Replace results with fresh loading stubs — mutate in-place so
+				// Svelte 5's Proxy picks up the length change cleanly.
+				results.splice(
+					0,
+					results.length,
+					...hits.map((h) => ({
+						...h,
+						metaLoading: true,
+						readmeLoading: h.inReadme
+					}))
+				);
+				searching = false;
+
+				// isCancelled is a getter so retries always check the live flag
+				// from this specific effect run, not a stale closure.
+				const isCancelled = () => cancelled;
+				for (const hit of hits) {
+					loadMeta(hit, isCancelled);
 				}
 			} catch {
 				if (!cancelled) {
 					names = [];
 					results = [];
+					searching = false;
 				}
-			} finally {
-				if (!cancelled) searching = false;
 			}
 		}, 300);
 
@@ -177,13 +261,21 @@
 		<ul class="mt-4 space-y-3">
 			{#each results as result (result.hex)}
 				<li class="rounded-lg border border-neutral-800 bg-neutral-900 px-5 py-4">
+					<!-- Header: name/skeleton + match badges -->
 					<div class="flex items-start justify-between gap-4">
-						<div>
-							<span class="font-mono text-[15px] leading-snug font-semibold text-white"
-								>{result.name}</span
-							>
-							{#if result.url}
-								<p class="mt-0.5 font-mono text-[11px] text-neutral-500">{result.url}</p>
+						<div class="min-w-0 flex-1">
+							{#if result.metaLoading}
+								<div class="h-4 w-36 animate-pulse rounded bg-neutral-800"></div>
+								<div class="mt-1.5 h-2.5 w-52 animate-pulse rounded bg-neutral-800/60"></div>
+							{:else}
+								<span class="font-mono text-[15px] font-semibold leading-snug text-white">
+									{result.name ?? result.hex.slice(0, 12) + '…'}
+								</span>
+								{#if result.repoUrl}
+									<p class="mt-0.5 min-w-0 truncate font-mono text-[11px] text-neutral-500">
+										{result.repoUrl}
+									</p>
+								{/if}
 							{/if}
 						</div>
 						<div class="mt-0.5 flex shrink-0 gap-1">
@@ -199,25 +291,74 @@
 						</div>
 					</div>
 
-					{#if result.descriptionSnippet}
+					<!-- Description -->
+					{#if !result.metaLoading && result.description}
 						<p class="mt-1.5 text-sm leading-relaxed text-neutral-300">
-							{@html highlight(result.descriptionSnippet, result.matchedTerms)}
+							{@html highlight(result.description, result.matchedTerms)}
 						</p>
 					{/if}
 
+					<!-- Readme: skeleton while loading, snippet when ready -->
 					{#if result.readmeLoading}
-						<p class="mt-2 border-t border-neutral-800 pt-2 text-xs text-neutral-600">loading readme…</p>
+						<div class="mt-2 space-y-1.5 border-t border-neutral-800 pt-2">
+							<div class="h-2.5 w-full animate-pulse rounded bg-neutral-800"></div>
+							<div class="h-2.5 w-11/12 animate-pulse rounded bg-neutral-800"></div>
+							<div class="h-2.5 w-4/5 animate-pulse rounded bg-neutral-800/60"></div>
+						</div>
 					{:else if result.readmeSnippet}
 						<p class="mt-2 border-t border-neutral-800 pt-2 font-mono text-xs leading-relaxed whitespace-pre-wrap text-neutral-400">
 							{@html highlight(result.readmeSnippet, result.matchedTerms)}
 						</p>
 					{/if}
 
-					<div class="mt-2.5 flex flex-wrap gap-1.5">
-						{#each result.matchedTerms as term}
-							<span class="rounded-full bg-accent-500/10 px-2 py-0.5 font-mono text-[11px] text-accent-300">{term}</span>
-						{/each}
+					<!-- Footer: matched terms + open button -->
+					<div class="mt-3 flex items-center justify-between gap-3">
+						<div class="flex flex-wrap gap-1.5">
+							{#each result.matchedTerms as term}
+								<span class="rounded-full bg-accent-500/10 px-2 py-0.5 font-mono text-[11px] text-accent-300">{term}</span>
+							{/each}
+						</div>
+
+						<button
+							type="button"
+							onclick={() => openResult(result)}
+							disabled={result.metaLoading || !result.repoUrl || opening === result.hex}
+							class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-200 transition-colors hover:border-neutral-600 hover:bg-neutral-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+						>
+							{#if opening === result.hex}
+								<svg
+									class="h-3 w-3 animate-spin text-neutral-400"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2.5"
+									aria-hidden="true"
+								>
+									<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+								</svg>
+								Adding…
+							{:else}
+								Open
+								<svg
+									width="10"
+									height="10"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2.5"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									aria-hidden="true"
+								>
+									<path d="M5 12h14M12 5l7 7-7 7" />
+								</svg>
+							{/if}
+						</button>
 					</div>
+
+					{#if openErrorHex === result.hex && openError}
+						<p class="mt-1.5 text-xs text-red-400">{openError}</p>
+					{/if}
 				</li>
 			{/each}
 		</ul>

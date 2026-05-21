@@ -122,7 +122,7 @@ async function main() {
 	const repos = loadRepos();
 	console.log(`Loaded ${repos.length} repos: ${repos.map((r) => r.name).join(', ')}\n`);
 
-	const testnet = await createTestnet(10, {});
+	const testnet = await createTestnet(10, { host: '192.168.178.118' });
 	const { host, port } = testnet.bootstrap[0];
 	console.log(`Bootstrap: ${host}:${port}\n`);
 

@@ -39,7 +39,6 @@
 		}
 	},
 	"dependencies": {
-		"@holepunchto/repo-template": "file:../hypersearch",
 		"bare-crypto": "^1.13.7",
 		"bare-fetch": "^2.9.0",
 		"bare-fs": "^4.7.1",
@@ -51,14 +50,14 @@
 		"bare-storage": "^1.1.0",
 		"bare-stream": "^2.13.1",
 		"bare-url": "^2.4.2",
-		"bundlebee": "file:../bundlebee",
-		"bundlebee-import": "file:../pear-import",
+		"blind-peering": "^2.1.1",
 		"gip-remote": "^1.2.8",
 		"gip-transport": "^1.8.2",
 		"hyperbee2": "^2.9.3",
 		"hyperdb": "^6.6.1",
 		"hyperdht": "^6.32.0",
-		"hypersearch": "file:../hypersearch"
+		"hypersearch": "file:../hypersearch",
+		"protomux-wakeup": "^2.9.0"
 	},
 	"devDependencies": {
 		"@humanspeak/svelte-markdown": "^1.4.1",

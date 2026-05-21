@@ -12,12 +12,6 @@
 		writable: boolean;
 		url: string;
 	};
-	type DiscoverRepo = {
-		name: string;
-		url: string;
-		description?: string;
-		inLibrary: boolean;
-	};
 
 	let { data, form }: PageProps = $props();
 
@@ -53,12 +47,7 @@
 	}
 
 	let repos: Repo[] = $state((data.repos as Repo[]).map((r) => ({ ...r })));
-	let discover: DiscoverRepo[] = $state<DiscoverRepo[]>([]);
-	$effect(() => {
-		data.discover.then((d: DiscoverRepo[]) => {
-			discover = d.filter((r) => !r.inLibrary).map((r) => ({ ...r }));
-		});
-	});
+
 	$effect(() => {
 		repos = (data.repos as Repo[]).map((r) => ({ ...r }));
 	});
@@ -79,10 +68,6 @@
 					const cur = repos[idx];
 					const newUrl = cur.url.replace(/^(git\+pear:\/\/0\.)\d+(\..*)$/, `$1${payload.length}$2`);
 					repos[idx] = { ...cur, length: payload.length, peers: payload.peers, url: newUrl };
-				}
-				const didx = discover.findIndex((r) => r.name === payload.name);
-				if (didx !== -1 && !discover[didx].inLibrary) {
-					discover[didx] = { ...discover[didx], inLibrary: true };
 				}
 			} catch {
 				// malformed payload — drop it
@@ -110,7 +95,6 @@
 </svelte:head>
 
 <main class="mx-auto max-w-[1100px] px-4 pt-6 pb-20 sm:px-6 sm:pt-8">
-
 	<!-- ─── Toolbar ───────────────────────────────────────────────────────── -->
 	<div class="mb-4 flex items-center justify-between gap-4">
 		<div class="flex items-baseline gap-2.5">
@@ -129,8 +113,8 @@
 			onclick={() => (addPanelOpen = !addPanelOpen)}
 			class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors
 				{addPanelOpen
-					? 'border border-neutral-700 text-neutral-400 hover:border-neutral-600 hover:text-white'
-					: 'bg-accent-500 text-accent-900 hover:bg-accent-400'}"
+				? 'border border-neutral-700 text-neutral-400 hover:border-neutral-600 hover:text-white'
+				: 'bg-accent-500 text-accent-900 hover:bg-accent-400'}"
 		>
 			{addPanelOpen ? '✕ Cancel' : '+ Add'}
 		</button>
@@ -138,32 +122,32 @@
 
 	<!-- ─── Add panel ─────────────────────────────────────────────────────── -->
 	{#if addPanelOpen}
-		<div transition:slide={{ duration: 180 }} class="mb-5 overflow-hidden rounded-xl border border-neutral-800">
-
-			<!-- Segmented control -->
-			<div class="border-b border-neutral-800 p-2.5">
-				<div class="flex rounded-lg bg-neutral-950 p-0.5">
-					<button
-						type="button"
-						onclick={() => (addTab = 'url')}
-						class="flex-1 cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors
-							{addTab === 'url'
-								? 'bg-neutral-800 text-white'
-								: 'text-neutral-500 hover:text-neutral-400'}"
-					>
-						Add from URL
-					</button>
-					<button
-						type="button"
-						onclick={() => (addTab = 'new')}
-						class="flex-1 cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors
-							{addTab === 'new'
-								? 'bg-neutral-800 text-white'
-								: 'text-neutral-500 hover:text-neutral-400'}"
-					>
-						Create new
-					</button>
-				</div>
+		<div
+			transition:slide={{ duration: 180 }}
+			class="mb-5 overflow-hidden rounded-xl border border-neutral-800"
+		>
+			<!-- Tab bar -->
+			<div class="flex border-b border-neutral-800 px-3">
+				<button
+					type="button"
+					onclick={() => (addTab = 'url')}
+					class="cursor-pointer border-b-2 px-3 py-2.5 text-xs font-medium transition-colors
+						{addTab === 'url'
+						? 'border-accent-500 text-white'
+						: 'border-transparent text-neutral-500 hover:text-neutral-400'}"
+				>
+					Add from URL
+				</button>
+				<button
+					type="button"
+					onclick={() => (addTab = 'new')}
+					class="cursor-pointer border-b-2 px-3 py-2.5 text-xs font-medium transition-colors
+						{addTab === 'new'
+						? 'border-accent-500 text-white'
+						: 'border-transparent text-neutral-500 hover:text-neutral-400'}"
+				>
+					Create new
+				</button>
 			</div>
 
 			<!-- Form body -->
@@ -266,23 +250,35 @@
 								</div>
 							{/if}
 							<div class="flex items-center gap-2">
-								<a href="/{repo.name}" class="font-mono text-[14px] font-semibold text-white no-underline hover:text-accent-400 transition-colors">
+								<a
+									href="/{repo.name}"
+									class="font-mono text-[14px] font-semibold text-white no-underline transition-colors hover:text-accent-400"
+								>
 									{repo.name}
 								</a>
 							</div>
-							<div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600">
+							<div
+								class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600"
+							>
 								<span>
-									<strong class="font-medium text-neutral-300">{repo.length.toLocaleString()}</strong>
+									<strong class="font-medium text-neutral-300"
+										>{repo.length.toLocaleString()}</strong
+									>
 									{' '}blocks
 								</span>
 								<span class="flex items-center gap-1.5">
 									{#if repo.peers > 0}
-										<span class="inline-block h-1.5 w-1.5 rounded-full bg-accent-400 animate-pulse-soft"></span>
+										<span
+											class="inline-block h-1.5 w-1.5 animate-pulse-soft rounded-full bg-accent-400"
+										></span>
 									{/if}
 									<strong class="font-medium text-neutral-300">{repo.peers}</strong>
 									{' '}peer{repo.peers === 1 ? '' : 's'}
 								</span>
-								<span class="hidden min-w-0 truncate font-mono text-[11px] sm:inline" title={repo.url}>
+								<span
+									class="hidden min-w-0 truncate font-mono text-[11px] sm:inline"
+									title={repo.url}
+								>
 									{shortUrl(repo.url)}
 								</span>
 							</div>
@@ -296,9 +292,19 @@
 								aria-label="Copy URL"
 								class="rounded p-1.5 text-neutral-600 transition-colors hover:bg-neutral-700/60 hover:text-neutral-300"
 							>
-								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-									<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-									<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+								<svg
+									width="13"
+									height="13"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									aria-hidden="true"
+								>
+									<rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+									<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
 								</svg>
 							</button>
 							<a
@@ -306,8 +312,18 @@
 								class="inline-flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-200 no-underline transition-colors hover:border-neutral-600 hover:bg-neutral-700 hover:text-white"
 							>
 								Open
-								<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-									<path d="M5 12h14M12 5l7 7-7 7"/>
+								<svg
+									width="10"
+									height="10"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2.5"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									aria-hidden="true"
+								>
+									<path d="M5 12h14M12 5l7 7-7 7" />
 								</svg>
 							</a>
 
@@ -392,74 +408,4 @@
 			</ul>
 		</div>
 	{/if}
-
-	<!-- ─── Discover ──────────────────────────────────────────────────────── -->
-	<section class="mt-12">
-		<div class="mb-5 flex items-center gap-3">
-			<span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Discover</span>
-			<div class="h-px flex-1 bg-neutral-800"></div>
-		</div>
-
-		{#await data.discover}
-			<div class="flex justify-center py-8">
-				<span class="h-5 w-5 animate-spin rounded-full border-2 border-neutral-800 border-t-neutral-500"></span>
-			</div>
-		{:then _}
-			{#if discover.length === 0}
-				<p class="text-xs text-neutral-600">All available repositories are already in your library.</p>
-			{:else}
-				<div class="overflow-hidden rounded-xl border border-neutral-800">
-					<ul class="m-0 list-none p-0">
-						{#each discover as repo (repo.name)}
-							<li
-								class="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 bg-neutral-900 px-5 py-3.5 last:border-b-0 sm:flex-nowrap"
-							>
-								{#if addingRepo === repo.name}
-									<div
-										class="absolute inset-0 flex items-center justify-center bg-accent-900/80"
-									>
-										<span class="text-xs font-semibold text-accent-200">Adding…</span>
-									</div>
-								{/if}
-								<div class="min-w-0 flex-1">
-									<div class="font-mono text-[14px] font-semibold text-white">{repo.name}</div>
-									{#if repo.description}
-										<div class="mt-0.5 text-xs text-neutral-500">{repo.description}</div>
-									{/if}
-								</div>
-
-								<div class="shrink-0">
-									{#if repo.inLibrary}
-										<span class="text-xs text-neutral-600">In library</span>
-									{:else}
-										<form
-											method="POST"
-											action="?/addFromSource"
-											use:enhance={() => {
-												addingRepo = repo.name;
-												return async ({ update }) => {
-													await update();
-													addingRepo = null;
-												};
-											}}
-										>
-											<input type="hidden" name="name" value={repo.name} />
-											<input type="hidden" name="url" value={repo.url} />
-											<button
-												type="submit"
-												disabled={!!addingRepo}
-												class="inline-flex cursor-pointer items-center rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-200 transition-colors hover:border-neutral-600 hover:bg-neutral-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												Add
-											</button>
-										</form>
-									{/if}
-								</div>
-							</li>
-						{/each}
-					</ul>
-				</div>
-			{/if}
-		{/await}
-	</section>
 </main>
