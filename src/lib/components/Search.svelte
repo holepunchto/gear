@@ -7,12 +7,12 @@
 		inName: boolean;
 		inDescription: boolean;
 		inReadme: boolean;
+		name?: string;
+		repoUrl?: string;
 	}
 
 	interface ResultState extends SearchHit {
-		name?: string;
 		description?: string;
-		repoUrl?: string;
 		readmeSnippet?: string;
 		metaLoading: boolean;
 		readmeLoading: boolean;
@@ -41,41 +41,108 @@
 		names.length > 0 && query.length > 0 && names[0].startsWith(query) ? names[0] : null
 	);
 
-	$effect(() => {
-		active = query.trim().length > 0;
-	});
-
-	$effect(() => {
-		if (autofocus) inputEl?.focus();
-	});
+	$effect(() => { active = query.trim().length > 0; });
+	$effect(() => { if (autofocus) inputEl?.focus(); });
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Tab') {
+		if (e.key === 'Tab' || (e.key === 'ArrowRight' && ghost)) {
 			e.preventDefault();
 			if (ghost) query = ghost;
-		} else if (e.key === 'ArrowRight' && ghost) {
-			e.preventDefault();
-			query = ghost;
 		}
 	}
 
 	function escapeHtml(text: string): string {
-		return text.replace(
-			/[&<>"]/g,
-			(c: string) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c
-		);
+		return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
 	}
 
 	function highlight(text: string, terms: string[]): string {
 		if (!text || terms.length === 0) return escapeHtml(text);
-		const pattern = new RegExp(
-			`\\b(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`,
-			'gi'
-		);
-		return escapeHtml(text).replace(
-			pattern,
-			'<mark class="bg-yellow-400/25 text-yellow-100 rounded px-0.5">$1</mark>'
-		);
+		const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+		const pattern = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi');
+		return escapeHtml(text).replace(pattern, '<mark class="bg-yellow-400/25 text-yellow-100 rounded px-0.5">$1</mark>');
+	}
+
+	function updateResult(hex: string, patch: Partial<ResultState>) {
+		const i = results.findIndex((r) => r.hex === hex);
+		if (i !== -1) results[i] = { ...results[i], ...patch };
+	}
+
+	async function loadReadme(hit: SearchHit, repoUrl: string, isCancelled: () => boolean) {
+		const rp = new URLSearchParams({ url: repoUrl, terms: hit.matchedTerms.join(',') });
+		try {
+			const { readme } = await fetch(`/search/readme?${rp}`).then((r) => r.json());
+			if (isCancelled()) return;
+			updateResult(hit.hex, { readmeSnippet: readme || undefined, readmeLoading: false });
+		} catch {
+			if (isCancelled()) return;
+			updateResult(hit.hex, { readmeLoading: false });
+		}
+	}
+
+	async function loadMeta(hit: SearchHit, isCancelled: () => boolean, attempt = 0) {
+		if (isCancelled()) return;
+		try {
+			const meta: { name: string; description: string; repoUrl: string } = await fetch(
+				`/search/meta?hex=${hit.hex}`
+			).then((r) => r.json());
+
+			if (isCancelled()) return;
+
+			if (!meta.name && attempt < 4) {
+				await new Promise((resolve) => setTimeout(resolve, 3000 * (attempt + 1)));
+				return loadMeta(hit, isCancelled, attempt + 1);
+			}
+
+			updateResult(hit.hex, {
+				name: meta.name || undefined,
+				description: meta.description || undefined,
+				repoUrl: meta.repoUrl || undefined,
+				metaLoading: false
+			});
+
+			if (hit.inReadme && meta.repoUrl) {
+				loadReadme(hit, meta.repoUrl, isCancelled);
+			} else {
+				updateResult(hit.hex, { readmeLoading: false });
+			}
+		} catch {
+			if (isCancelled()) return;
+			if (attempt < 4) {
+				await new Promise((resolve) => setTimeout(resolve, 3000 * (attempt + 1)));
+				return loadMeta(hit, isCancelled, attempt + 1);
+			}
+			updateResult(hit.hex, { metaLoading: false, readmeLoading: false });
+		}
+	}
+
+	async function runSearch(q: string, isCancelled: () => boolean) {
+		const res = await fetch(`/search/api?${new URLSearchParams({ q })}`);
+		if (isCancelled()) return;
+
+		const data = await res.json();
+		names = data.names ?? [];
+		const hits: SearchHit[] = data.results ?? [];
+
+		// Snapshot existing data before the splice so we can preserve it.
+		const prev = new Map(results.map((r) => [r.hex, r]));
+
+		results.splice(0, results.length, ...hits.map((h) => {
+			const p = prev.get(h.hex);
+			return {
+				...h,
+				name: h.name ?? p?.name,
+				repoUrl: h.repoUrl ?? p?.repoUrl,
+				description: p?.description,
+				readmeSnippet: p?.readmeSnippet,
+				metaLoading: !h.name && !p?.name,
+				readmeLoading: h.inReadme && !h.name && !p?.readmeSnippet
+			};
+		}));
+		searching = false;
+
+		for (const hit of hits) {
+			if (!hit.name && !prev.get(hit.hex)?.name) loadMeta(hit, isCancelled);
+		}
 	}
 
 	async function openResult(result: ResultState) {
@@ -88,11 +155,7 @@
 		fd.append('url', result.repoUrl);
 
 		try {
-			const res = await fetch('/?/add', {
-				method: 'POST',
-				body: fd,
-				headers: { 'x-sveltekit-action': 'true' }
-			});
+			const res = await fetch('/?/add', { method: 'POST', body: fd, headers: { 'x-sveltekit-action': 'true' } });
 			const data = await res.json();
 			if (data.type === 'redirect') {
 				onclose?.();
@@ -109,117 +172,29 @@
 		}
 	}
 
-	async function loadReadme(hit: SearchHit, repoUrl: string, isCancelled: () => boolean) {
-		const rp = new URLSearchParams({ url: repoUrl, terms: hit.matchedTerms.join(',') });
-		try {
-			const d: { readme: string } = await fetch(`/search/readme?${rp}`).then((r) => r.json());
-			if (isCancelled()) return;
-			const i = results.findIndex((r) => r.hex === hit.hex);
-			if (i !== -1) results[i] = { ...results[i], readmeSnippet: d.readme || undefined, readmeLoading: false };
-		} catch {
-			if (isCancelled()) return;
-			const i = results.findIndex((r) => r.hex === hit.hex);
-			if (i !== -1) results[i] = { ...results[i], readmeLoading: false };
-		}
-	}
-
-	async function loadMeta(hit: SearchHit, isCancelled: () => boolean, attempt = 0) {
-		if (isCancelled()) return;
-		try {
-			const meta: { name: string; description: string; repoUrl: string } = await fetch(
-				`/search/meta?hex=${hit.hex}`
-			).then((r) => r.json());
-
-			if (isCancelled()) return;
-
-			// Empty response means Pear DHT hasn't connected yet — retry with backoff.
-			if (!meta.name && attempt < 4) {
-				await new Promise((resolve) => setTimeout(resolve, 3000 * (attempt + 1)));
-				return loadMeta(hit, isCancelled, attempt + 1);
-			}
-
-			const idx = results.findIndex((r) => r.hex === hit.hex);
-			if (idx === -1) return;
-			results[idx] = {
-				...results[idx],
-				name: meta.name || undefined,
-				description: meta.description || undefined,
-				repoUrl: meta.repoUrl || undefined,
-				metaLoading: false
-			};
-
-			if (hit.inReadme && meta.repoUrl) {
-				loadReadme(hit, meta.repoUrl, isCancelled);
-			} else {
-				const i = results.findIndex((r) => r.hex === hit.hex);
-				if (i !== -1) results[i] = { ...results[i], readmeLoading: false };
-			}
-		} catch {
-			if (isCancelled()) return;
-			if (attempt < 4) {
-				await new Promise((resolve) => setTimeout(resolve, 3000 * (attempt + 1)));
-				return loadMeta(hit, isCancelled, attempt + 1);
-			}
-			const idx = results.findIndex((r) => r.hex === hit.hex);
-			if (idx !== -1) results[idx] = { ...results[idx], metaLoading: false, readmeLoading: false };
-		}
-	}
-
 	$effect(() => {
 		const q = query.trim();
-
-		if (!q) {
-			names = [];
-			results = [];
-			return;
-		}
+		if (!q) { names = []; results = []; return; }
 
 		let cancelled = false;
 		searching = true;
 
 		const timer = setTimeout(async () => {
 			try {
-				const res = await fetch(`/search/api?${new URLSearchParams({ q })}`);
-				if (cancelled) return;
-
-				const data = await res.json();
-				names = data.names ?? [];
-				const hits: SearchHit[] = data.results ?? [];
-
-				// Replace results with fresh loading stubs — mutate in-place so
-				// Svelte 5's Proxy picks up the length change cleanly.
-				results.splice(
-					0,
-					results.length,
-					...hits.map((h) => ({
-						...h,
-						metaLoading: true,
-						readmeLoading: h.inReadme
-					}))
-				);
-				searching = false;
-
-				// isCancelled is a getter so retries always check the live flag
-				// from this specific effect run, not a stale closure.
-				const isCancelled = () => cancelled;
-				for (const hit of hits) {
-					loadMeta(hit, isCancelled);
-				}
+				await runSearch(q, () => cancelled);
 			} catch {
-				if (!cancelled) {
-					names = [];
-					results = [];
-					searching = false;
-				}
+				if (!cancelled) { names = []; results = []; searching = false; }
 			}
 		}, 300);
 
-		return () => {
-			cancelled = true;
-			clearTimeout(timer);
-			searching = false;
-		};
+		return () => { cancelled = true; clearTimeout(timer); searching = false; };
 	});
+
+	const BADGES = [
+		{ key: 'inName' as const, label: 'name' },
+		{ key: 'inDescription' as const, label: 'desc' },
+		{ key: 'inReadme' as const, label: 'readme' }
+	];
 </script>
 
 <!-- Input — always pinned, never scrolls -->
@@ -235,10 +210,7 @@
 		/>
 
 		{#if ghost}
-			<div
-				aria-hidden="true"
-				class="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-xl pr-28 pl-5 font-mono text-[15px]"
-			>
+			<div aria-hidden="true" class="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-xl pr-28 pl-5 font-mono text-[15px]">
 				<span class="text-transparent">{query}</span><!--
 				--><span class="text-neutral-600">{ghost.slice(query.length)}</span>
 			</div>
@@ -261,6 +233,7 @@
 		<ul class="mt-4 space-y-3">
 			{#each results as result (result.hex)}
 				<li class="rounded-lg border border-neutral-800 bg-neutral-900 px-5 py-4">
+
 					<!-- Header: name/skeleton + match badges -->
 					<div class="flex items-start justify-between gap-4">
 						<div class="min-w-0 flex-1">
@@ -272,22 +245,14 @@
 									{result.name ?? result.hex.slice(0, 12) + '…'}
 								</span>
 								{#if result.repoUrl}
-									<p class="mt-0.5 min-w-0 truncate font-mono text-[11px] text-neutral-500">
-										{result.repoUrl}
-									</p>
+									<p class="mt-0.5 min-w-0 truncate font-mono text-[11px] text-neutral-500">{result.repoUrl}</p>
 								{/if}
 							{/if}
 						</div>
 						<div class="mt-0.5 flex shrink-0 gap-1">
-							{#if result.inName}
-								<span class="rounded border border-neutral-700 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">name</span>
-							{/if}
-							{#if result.inDescription}
-								<span class="rounded border border-neutral-700 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">desc</span>
-							{/if}
-							{#if result.inReadme}
-								<span class="rounded border border-neutral-700 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">readme</span>
-							{/if}
+							{#each BADGES.filter((b) => result[b.key]) as badge}
+								<span class="rounded border border-neutral-700 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">{badge.label}</span>
+							{/each}
 						</div>
 					</div>
 
@@ -318,38 +283,20 @@
 								<span class="rounded-full bg-accent-500/10 px-2 py-0.5 font-mono text-[11px] text-accent-300">{term}</span>
 							{/each}
 						</div>
-
 						<button
 							type="button"
 							onclick={() => openResult(result)}
-							disabled={result.metaLoading || !result.repoUrl || opening === result.hex}
+							disabled={!result.repoUrl || opening === result.hex}
 							class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-200 transition-colors hover:border-neutral-600 hover:bg-neutral-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
 						>
 							{#if opening === result.hex}
-								<svg
-									class="h-3 w-3 animate-spin text-neutral-400"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2.5"
-									aria-hidden="true"
-								>
+								<svg class="h-3 w-3 animate-spin text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
 									<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
 								</svg>
 								Adding…
 							{:else}
 								Open
-								<svg
-									width="10"
-									height="10"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2.5"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									aria-hidden="true"
-								>
+								<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 									<path d="M5 12h14M12 5l7 7-7 7" />
 								</svg>
 							{/if}

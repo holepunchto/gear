@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { getSearchPlugin } from '$lib/server/search';
+import hid from 'hypercore-id-encoding';
 import type { RequestHandler } from './$types';
 
 const STOP_WORDS = new Set([
@@ -105,7 +106,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		? fullSearch.rankTFIDFSat(Object.keys(rawFull as RawResult).length || 1, rawFull as RawResult)
 		: Object.keys(rawFull as RawResult).map((key) => ({ key, score: 0 }));
 
-	const results = ranked.map(({ key: hex }) => {
+	const fullResults = ranked.map(({ key: hex }) => {
 		const { keywords } = (rawFull as RawResult)[hex];
 		const matchedTerms = Object.keys(keywords);
 		const positions = Object.values(keywords).flatMap((k) => k.positions);
@@ -117,6 +118,38 @@ export const GET: RequestHandler = async ({ url }) => {
 			inReadme: positions.some((p) => p >= 200_000)
 		};
 	});
+
+	// searchOr on the nameIndex resolves each prefix-matched name to its hex (document key).
+	// This works for all network repos, not just locally synced ones.
+	const nameSearch = plugin.keywordSearch(nameIndexID, 160, 'utf8');
+	const fullHexSet = new Set(fullResults.map((r) => r.hex));
+	const nameResults = (
+		await Promise.all(
+			(rawNames as string[]).map(async (name: string) => {
+				try {
+					const res: Record<string, unknown> = await nameSearch.searchOr(name).catch(() => ({}));
+					return Object.keys(res)
+						.filter((hex) => !fullHexSet.has(hex))
+						.map((hex) => {
+							const z32 = hid.normalize(Buffer.from(hex, 'hex'));
+							return {
+								hex,
+								name,
+								repoUrl: `git+pear://${z32}/${name}`,
+								matchedTerms: [name],
+								inName: true,
+								inDescription: false,
+								inReadme: false
+							};
+						});
+				} catch {
+					return [];
+				}
+			})
+		)
+	).flat();
+
+	const results = [...nameResults, ...fullResults];
 
 	return json({ names: (rawNames as string[]) ?? [], results });
 };

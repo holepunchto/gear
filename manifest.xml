@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="1" android:versionName="1.0" package="io.gear.app">
-  <uses-sdk android:minSdkVersion="31" android:targetSdkVersion="36" />
+  <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="36" />
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-  <application android:label="Gear" android:usesCleartextTraffic="true" android:icon="@mipmap/ic_launcher">
+  <application android:label="Gear" android:usesCleartextTraffic="true" android:icon="@mipmap/ic_launcher" android:enableOnBackInvokedCallback="true">
     <activity android:name="to.holepunch.bare.Activity" android:exported="true" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
