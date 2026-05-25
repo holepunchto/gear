@@ -1,0 +1,122 @@
+import Id from 'hypercore-id-encoding';
+import { fail, redirect } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
+import { getAllSourceRepos, type SourceRepo, type SourceRepoData } from '$lib/server/source';
+
+const repoNameRegex = /^[a-zA-Z0-9_-]+$/;
+
+export const load: PageServerLoad = async ({ locals }) => {
+	const names = await locals.db.getRepoNames();
+
+	// getCore with server:false/client:false → pure local metadata, no swarm
+	// announce here. The hooks init already set each core's state when needed.
+	const entries = await Promise.all(
+		(names as string[]).map((name) => locals.db.getCore(name, { server: false, client: false }))
+	);
+
+	const repos = (entries as ({ name: string; core: any } | null)[])
+		.filter((e): e is { name: string; core: any } => e !== null)
+		.map((entry) => {
+			const key = Id.encode(entry.core.key);
+			return {
+				name: entry.name,
+				key,
+				length: entry.core.length,
+				peers: entry.core.peers.length,
+				writable: entry.core.writable,
+				url: `git+pear://0.${entry.core.length}.${key}/${entry.name}`
+			};
+		});
+
+	const localNameSet = new Set<string>(names);
+
+	return { repos, discover: getDiscovery(locals, localNameSet) };
+};
+
+const getDiscovery = async (locals: App.Locals, localNameSet: Set<string>) => {
+	const sourceRepos = await getAllSourceRepos(locals.db).catch(() => ({
+		blindPeers: [],
+		repos: []
+	}));
+
+	return sourceRepos.repos.map(({ name, url, description }: SourceRepo) => ({
+		name,
+		url,
+		description,
+		inLibrary: localNameSet.has(name)
+	}));
+};
+
+export const actions: Actions = {
+	create: async ({ request, locals }) => {
+		const form = await request.formData();
+		const name = String(form.get('name') ?? '').trim();
+
+		if (!name) return fail(400, { create: { error: 'Name is required' } });
+		if (!repoNameRegex.test(name)) {
+			return fail(400, {
+				create: { error: 'Only alphanumeric, underscore and hyphen allowed' }
+			});
+		}
+
+		try {
+			await locals.db.createRemote(name);
+		} catch (e) {
+			return fail(500, { create: { error: (e as Error).message } });
+		}
+
+		throw redirect(303, `/${name}`);
+	},
+
+	add: async ({ request, locals }) => {
+		const form = await request.formData();
+		const url = String(form.get('url') ?? '').trim();
+
+		if (!url || !url.startsWith('git+pear://')) {
+			return fail(400, { add: { error: 'Must be a valid git+pear:// URL' } });
+		}
+
+		try {
+			const { name } = await locals.db.addRemote(url);
+			throw redirect(303, `/${name}`);
+		} catch (e) {
+			if ((e as { status?: number }).status === 303) throw e; // re-throw redirect
+			return fail(500, { add: { error: (e as Error).message } });
+		}
+	},
+
+	addFromSource: async ({ request, locals }) => {
+		const form = await request.formData();
+		const url = String(form.get('url') ?? '').trim();
+		const name = String(form.get('name') ?? '').trim();
+
+		if (!url || !name) {
+			return fail(400, { addFromSource: { error: 'Missing fields' } });
+		}
+
+		// @todo lookup different sources
+		const { blindPeers } = await getAllSourceRepos(locals.db).catch(() => ({
+			blindPeers: []
+		}));
+
+		try {
+			await locals.db.addRemote(url, {
+				blindPeerKeys: blindPeers.map((k: string) => Id.decode(k))
+			});
+		} catch (e) {
+			return fail(500, { addFromSource: { error: (e as Error).message } });
+		}
+
+		throw redirect(303, `/${name}`);
+	},
+
+	delete: async ({ request, locals }) => {
+		const form = await request.formData();
+		const name = String(form.get('name') ?? '').trim();
+		if (!name) return fail(400, { delete: { error: 'Name is required' } });
+
+		const ok = await locals.db.deleteRemote(name);
+		if (!ok) return fail(404, { delete: { error: 'Repository not found' } });
+		return { delete: { ok: true } };
+	}
+};
