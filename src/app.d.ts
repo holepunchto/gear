@@ -12,4 +12,24 @@ declare global {
 	}
 }
 
+declare module 'b4a' {
+	const b4a: any;
+	export default b4a;
+}
+
+declare module 'hypercore-id-encoding' {
+	const hid: any;
+	export default hid;
+}
+
+declare module 'blind-peering' {
+	const BlindPeering: any;
+	export default BlindPeering;
+}
+
+declare module 'protomux-wakeup' {
+	const Wakeup: any;
+	export default Wakeup;
+}
+
 export {};

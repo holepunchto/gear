@@ -10,8 +10,8 @@
 		"build:schema": "node build.cjs",
 		"dev": "vite dev",
 		"build": "vite build",
-		"make:darwin": "bare-build --out out/darwin-arm64 --icon gear.png --host darwin-arm64 --runtime bare-native/runtime build/index.js",
-		"make:android": "bare-build --out out/android-arm64 --host android-arm64 --resources resources/android --manifest manifest.xml --identifier io.gear.app --name Gear --runtime bare-native/runtime build/index.js",
+		"make:darwin-arm64": "bare-build --out out/gear-darwin-arm64 --icon gear.png --host darwin-arm64 --runtime bare-native/runtime build/index.js",
+		"make:android-arm64": "bare-build --out out/gear-android-arm64 --host android-arm64 --resources resources/android --manifest manifest.xml --identifier io.gear.app --name Gear --runtime bare-native/runtime build/index.js",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -24,25 +24,41 @@
 		"process": {
 			"bare": "bare-process",
 			"default": "process"
+		},
+		"path": {
+			"bare": "bare-path",
+			"default": "path"
+		},
+		"fs": {
+			"bare": "bare-fs",
+			"default": "fs"
+		},
+		"crypto": {
+			"bare": "bare-crypto",
+			"default": "crypto"
 		}
 	},
 	"dependencies": {
-		"bare-crypto": "^1.13.4",
+		"bare-crypto": "^1.13.7",
 		"bare-fetch": "^2.9.0",
 		"bare-fs": "^4.7.1",
 		"bare-http1": "^4.5.6",
 		"bare-module": "^6.2.0",
 		"bare-native": "^0.1.2",
+		"bare-navigation-android": "file:../bare-navigation-android",
+		"bare-path": "^3.0.0",
 		"bare-process": "^4.4.1",
 		"bare-storage": "^1.1.0",
 		"bare-stream": "^2.13.1",
 		"bare-url": "^2.4.2",
+		"blind-peering": "^2.1.1",
 		"bundlebee": "file:../bundlebee",
 		"bundlebee-import": "file:../pear-import",
 		"gip-remote": "^1.2.8",
 		"gip-transport": "^1.8.2",
 		"hyperbee2": "^2.9.3",
-		"hyperdb": "^6.6.1"
+		"hyperdb": "^6.6.1",
+		"protomux-wakeup": "^2.9.0"
 	},
 	"devDependencies": {
 		"@humanspeak/svelte-markdown": "^1.4.1",
