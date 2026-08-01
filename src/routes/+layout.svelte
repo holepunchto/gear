@@ -51,80 +51,75 @@
 	<link rel="icon" type="image/svg+xml" href={favicon} />
 </svelte:head>
 
-<header class="sticky top-0 z-10 border-b border-neutral-800 bg-black pt-8 backdrop-blur sm:pt-0">
-	<!-- 3-column grid keeps the nav truly centered relative to the viewport,
-		not just centered within whatever space the brand and right group
-		leave over. The auto-sized middle column hugs the nav while the two
-		1fr columns pad equally on each side. -->
-	<div
-		class="mx-auto grid max-w-[1100px] grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3"
-	>
-		<a
-			href="/"
-			class="flex shrink-0 items-center gap-2.5 justify-self-start font-semibold tracking-tight text-white no-underline"
-			aria-label="Gear — home"
-		>
-			<GearLogo class="text-accent-400" />
-		</a>
-
-		<nav class="flex max-w-full min-w-0 gap-1 justify-self-center overflow-x-auto">
-			{#each [{ href: '/', label: 'Repositories' }, { href: '/settings', label: 'Settings' }] as item}
+<header class="sticky top-0 z-10 border-b border-neutral-800 bg-black pt-4 backdrop-blur sm:pt-0">
+	<div class="mx-auto max-w-[1100px] px-3 sm:px-6">
+		<!-- Single line at every width: logo+nav on the left, peers+avatar right. -->
+		<div class="flex items-center gap-x-2 py-2 sm:gap-x-3 sm:py-2.5">
+			<div class="flex min-w-0 items-center gap-0.5">
 				<a
-					href={item.href}
-					class="shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap no-underline transition-colors sm:px-3
-						{isActive(item.href)
-						? 'bg-pear-900 text-white'
-						: 'text-neutral-400 hover:bg-pear-700/60 hover:text-white'}"
+					href="/"
+					class="flex shrink-0 items-center gap-2 pr-1 font-semibold tracking-tight text-white no-underline"
+					aria-label="Gear — home"
 				>
-					{item.label}
+					<GearLogo class="text-accent-400" />
 				</a>
-			{/each}
-		</nav>
-
-		<div class="flex items-center gap-2 justify-self-end">
-			<div
-				class="inline-flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-300 tabular-nums sm:px-2.5"
-				title="Active peer connections"
-			>
-				<span
-					class="h-1.5 w-1.5 rounded-full {peers > 0
-						? 'animate-pulse-soft bg-accent-400 ring-4 ring-accent-500/20'
-						: 'bg-neutral-600'}"
-				></span>
-				<strong class="font-semibold text-white">{peers}</strong>
-				<span class="hidden sm:inline">peer{peers === 1 ? '' : 's'}</span>
+				<div class="mx-1.5 h-4 w-px bg-neutral-800"></div>
+				<nav class="flex min-w-0 items-center gap-0.5 overflow-x-auto">
+					{#each [{ href: '/', label: 'Repos' }, { href: '/settings', label: 'Settings' }] as item}
+						<a
+							href={item.href}
+							class="shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap no-underline transition-colors
+								{isActive(item.href)
+								? 'bg-pear-900 text-white'
+								: 'text-neutral-400 hover:bg-pear-700/60 hover:text-white'}"
+						>
+							{item.label}
+						</a>
+					{/each}
+				</nav>
 			</div>
-			<!-- Identity avatar — derived from the first 2 chars of the z32
-				public key. Stable per identity so the user recognises it,
-				and clicking copies the full key. We swap to a checkmark
-				briefly after a successful copy. -->
-			<button
-				type="button"
-				onclick={copyIdentity}
-				class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-accent-500/40 bg-accent-500/15 font-mono text-[11px] font-semibold tracking-wide text-accent-200 transition-colors hover:border-accent-400 hover:bg-accent-500/25 hover:text-accent-100"
-				title={copiedIdentity
-					? 'Copied'
-					: `Your public key — click to copy (${data.identityShort})`}
-				aria-label="Copy public key"
-			>
-				{#if copiedIdentity}
-					<svg
-						width="13"
-						height="13"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="3"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						aria-hidden="true"
-					>
-						<path d="M5 13l4 4L19 7" />
-					</svg>
-				{:else}
-					<span aria-hidden="true">{avatarInitials}</span>
-				{/if}
-			</button>
+
+			<div class="ml-auto flex shrink-0 items-center gap-2">
+				<div
+					class="inline-flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-300 tabular-nums sm:px-2.5"
+					title="Active peer connections"
+				>
+					<span
+						class="h-1.5 w-1.5 rounded-full {peers > 0
+							? 'animate-pulse-soft bg-accent-400 ring-4 ring-accent-500/20'
+							: 'bg-neutral-600'}"
+					></span>
+					<strong class="font-semibold text-white">{peers}</strong>
+					<span class="hidden sm:inline">peer{peers === 1 ? '' : 's'}</span>
+				</div>
+				<button
+					type="button"
+					onclick={copyIdentity}
+					class="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-accent-500/40 bg-accent-500/15 font-mono text-[11px] font-semibold tracking-wide text-accent-200 transition-colors hover:border-accent-400 hover:bg-accent-500/25 hover:text-accent-100"
+					title={copiedIdentity
+						? 'Copied'
+						: `Your public key — click to copy (${data.identityShort})`}
+					aria-label="Copy public key"
+				>
+					{#if copiedIdentity}
+						<svg
+							width="13"
+							height="13"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="3"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<path d="M5 13l4 4L19 7" />
+						</svg>
+					{:else}
+						<span aria-hidden="true">{avatarInitials}</span>
+					{/if}
+				</button>
+			</div>
 		</div>
 	</div>
 </header>
