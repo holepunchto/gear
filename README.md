@@ -53,6 +53,21 @@ npm run make:android-arm64
 
 Output bundles land in `out/`. The bare-build step resolves all native addons (sodium-native, utp-native, etc.) using `bare-module-resolve`, so the bundle is self-contained.
 
+## Releasing
+
+```sh
+npm run release                    # all platforms, signed
+npm run release -- --darwin-arm64  # one platform
+npm run release -- --unsigned      # macOS without signing/notarization
+```
+
+macOS builds are signed with the Developer ID identity, notarized (keychain
+profile `gear`, override with `NOTARIZE_PROFILE`) and stapled, then packed
+into a dmg. Android builds are signed when `ANDROID_KEYSTORE`,
+`ANDROID_KEYSTORE_KEY` and `ANDROID_KEYSTORE_PASSWORD` are set (a `.env` file
+in the project root is picked up). The marketing version comes from
+`package.json`; the Android `versionCode` is the git commit count.
+
 ## Discover
 
 The list of available repositories is a fixed manifest, not a network query.
