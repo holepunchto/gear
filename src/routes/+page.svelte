@@ -12,20 +12,12 @@
 		writable: boolean;
 		url: string;
 	};
-	type DiscoverRepo = {
-		name: string;
-		url: string;
-		description?: string;
-	};
-
 	let { data, form }: PageProps = $props();
 
 	let addPanelOpen = $state(false);
 	let addTab = $state<'url' | 'new'>('url');
 	let submittingAdd = $state(false);
 	let submittingCreate = $state(false);
-
-	let addingRepo = $state<string | null>(null);
 
 	// Two-step delete: first click arms, second confirms. Auto-disarms after 4s.
 	let pendingDelete = $state<string | null>(null);
@@ -58,11 +50,6 @@
 	});
 
 	const seeding = $derived(repos.filter((r: Repo) => r.peers > 0).length);
-
-	// Anything already in the library drops out of the list on its own — no
-	// need to patch a flag when a repo lands via SSE or after an add.
-	const notInLibrary = (all: DiscoverRepo[]) =>
-		all.filter((d) => !repos.some((r) => r.name === d.name));
 
 	onMount(() => {
 		const es = new EventSource('/api/events');
@@ -240,7 +227,8 @@
 			<p class="mb-1 font-mono text-2xl text-neutral-700">◈</p>
 			<h3 class="m-0 text-sm font-semibold text-white">No repositories yet</h3>
 			<p class="mt-1.5 text-xs text-neutral-500">
-				Create one or paste a <span class="font-mono text-neutral-400">git+pear://</span> URL above.
+				Create one, paste a <span class="font-mono text-neutral-400">git+pear://</span> URL above, or
+				search to discover repositories.
 			</p>
 		</div>
 	{:else}
@@ -418,83 +406,4 @@
 			</ul>
 		</div>
 	{/if}
-
-	<!-- ─── Discover ──────────────────────────────────────────────────────── -->
-	<section class="mt-10">
-		{#await data.discover}
-			<div class="mb-4 flex items-baseline gap-2.5">
-				<h2 class="m-0 text-sm font-semibold text-white">Discover</h2>
-			</div>
-			<div class="rounded-xl border border-neutral-800 bg-neutral-900/20 px-6 py-10 text-center">
-				<span
-					class="inline-block h-6 w-6 animate-spin rounded-full border-2 border-neutral-800 border-t-accent-400"
-				></span>
-			</div>
-		{:then all}
-			{@const available = notInLibrary(all as DiscoverRepo[])}
-			<div class="mb-4 flex items-baseline gap-2.5">
-				<h2 class="m-0 text-sm font-semibold text-white">Discover</h2>
-				{#if available.length > 0}
-					<span class="text-xs text-neutral-600">
-						{available.length}&thinsp;available
-					</span>
-				{/if}
-			</div>
-
-			{#if available.length === 0}
-				<div class="rounded-xl border border-neutral-800 bg-neutral-900/20 px-6 py-10 text-center">
-					<p class="m-0 text-xs text-neutral-500">You've added every available repository.</p>
-				</div>
-			{:else}
-				<div class="overflow-hidden rounded-xl border border-neutral-800">
-					<ul class="m-0 list-none p-0">
-						{#each available as repo (repo.name)}
-							<li
-								class="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 bg-neutral-900 px-5 py-3.5 transition-colors last:border-b-0 hover:bg-neutral-800/50 sm:flex-nowrap"
-							>
-								{#if addingRepo === repo.name}
-									<div class="absolute inset-0 flex items-center justify-center bg-neutral-900/90">
-										<span class="text-xs font-semibold text-accent-400">Syncing…</span>
-									</div>
-								{/if}
-								<div class="min-w-0 flex-1">
-									<div class="font-mono text-[14px] font-semibold text-white">{repo.name}</div>
-									{#if repo.description}
-										<div class="mt-1 text-xs text-neutral-500">{repo.description}</div>
-									{/if}
-								</div>
-
-								<form
-									method="POST"
-									action="?/addFromSource"
-									use:enhance={() => {
-										addingRepo = repo.name;
-										return async ({ update }) => {
-											await update();
-											addingRepo = null;
-										};
-									}}
-									class="shrink-0"
-								>
-									<input type="hidden" name="name" value={repo.name} />
-									<input type="hidden" name="url" value={repo.url} />
-									<button
-										type="submit"
-										disabled={!!addingRepo}
-										class="inline-flex cursor-pointer items-center rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-200 transition-colors hover:border-neutral-600 hover:bg-neutral-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-									>
-										Add
-									</button>
-								</form>
-							</li>
-						{/each}
-					</ul>
-				</div>
-			{/if}
-		{/await}
-
-		{#if form?.addFromSource?.error}
-			<p class="mt-2 text-xs text-red-400">{form.addFromSource.error}</p>
-		{/if}
-	</section>
 </main>

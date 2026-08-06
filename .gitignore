@@ -25,3 +25,6 @@ vite.config.ts.timestamp-*
 
 # OTA writer (secret key)
 ota/writer
+
+# Release scratch
+.release-tmp/
