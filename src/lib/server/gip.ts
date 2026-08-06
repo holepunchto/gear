@@ -4,6 +4,7 @@ import { persistent } from 'bare-storage';
 import BlindPeering from 'blind-peering';
 import Wakeup from 'protomux-wakeup';
 import hid from 'hypercore-id-encoding';
+import { log } from './log.js';
 
 // Re-export the runtime type so App.Locals can reference it.
 export type GipDB = InstanceType<typeof GipLocalDB>;
@@ -19,6 +20,7 @@ export function getDB(): Promise<GipDB> {
 	if (!g.__gip) {
 		const dir = isAndroid || isIOS ? persistent() : undefined;
 		const db = new GipLocalDB({ dir });
+		log(`gip db opening (dir: ${dir ?? 'cwd'})`);
 		g.__gip = db.ready().then(async () => {
 			if (!db.blind) {
 				for (const peer of BLIND_PEERS) await db.addBlindPeer(peer);
@@ -30,7 +32,9 @@ export function getDB(): Promise<GipDB> {
 				const d = db as any;
 				d._wakeup = wakeup;
 				d._blind = new BlindPeering(db.swarm.dht, d._store, { wakeup, keys });
+				log(`blind peering wired (${BLIND_PEERS.length} peers)`);
 			}
+			log('gip db ready');
 			return db;
 		});
 	}

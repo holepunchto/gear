@@ -1,4 +1,5 @@
 import type { GipDB } from './gip.js';
+import { log } from './log.js';
 
 export type SourceRepo = {
 	name: string;
@@ -42,5 +43,11 @@ async function open(gip: GipDB) {
 
 	const conf = new Hyperconf(spec, core);
 	await conf.ready();
+	log(`ota ready — ${repoCount(conf)} repos (core ${key} length ${core.length})`);
+	conf.on('update', () => log(`ota update — ${repoCount(conf)} repos (length ${core.length})`));
 	return conf;
+}
+
+function repoCount(conf: { current: SourceConfig | null }) {
+	return conf.current?.sources.reduce((n, s) => n + s.repos.length, 0) ?? 0;
 }

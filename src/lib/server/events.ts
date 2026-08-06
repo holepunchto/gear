@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import b4a from 'b4a';
 import type { GipDB } from './gip';
+import { log } from './log.js';
 
 // A single server-side event hub for live stats. Wires to swarm + per-core
 // events ONCE at boot (or first attach) and lets every SSE client subscribe
@@ -100,6 +101,7 @@ class EventHub extends EventEmitter {
 		swarm.on('connection', (conn) => {
 			const key = b4a.toString(conn.remotePublicKey, 'hex');
 			this.peerKeys.add(key);
+			log(`peer connected ${key.slice(0, 8)} (${this.peerKeys.size} swarm peers)`);
 			// Swarm connection arriving is a strong hint blind peers may
 			// have just connected too (network came up, etc.) — recount
 			// opportunistically so the UI doesn't have to wait for the
@@ -108,6 +110,7 @@ class EventHub extends EventEmitter {
 			this.emit('stats');
 			conn.on('close', () => {
 				this.peerKeys.delete(key);
+				log(`peer disconnected ${key.slice(0, 8)} (${this.peerKeys.size} swarm peers)`);
 				this.recountBlindPeers();
 				this.emit('stats');
 			});
@@ -211,6 +214,7 @@ class EventHub extends EventEmitter {
 		core.on('append', () => {
 			const from = lastLength;
 			lastLength = core.length;
+			log(`${name}: +${lastLength - from} blocks (length ${lastLength})`);
 			this.emit(`append:${name}`, { from, to: lastLength, added: lastLength - from });
 			recompute();
 		});

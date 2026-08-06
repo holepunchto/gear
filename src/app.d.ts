@@ -37,4 +37,6 @@ declare module 'hyperconf' {
 	export default Hyperconf;
 }
 
+declare module 'bare-console/global';
+
 export {};

@@ -40,6 +40,7 @@
 		}
 	},
 	"dependencies": {
+		"bare-console": "^6.2.0",
 		"bare-crypto": "^1.13.7",
 		"bare-fetch": "^2.9.0",
 		"bare-fs": "^4.7.1",
