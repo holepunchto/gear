@@ -1,10 +1,9 @@
-import { dev } from '$app/environment';
 import type { GipDB } from './gip.js';
 
 export type SourceRepo = {
 	name: string;
 	url: string;
-	description?: string;
+	description?: string | null;
 };
 
 export type SourceRepoData = {
@@ -12,23 +11,36 @@ export type SourceRepoData = {
 	repos: SourceRepo[];
 };
 
+type SourceConfig = { sources: ({ name: string } & SourceRepoData)[] };
+
 const EMPTY: SourceRepoData = { blindPeers: [], repos: [] };
 
-// The available-repo list is a fixed manifest, not a network query. In dev it
-// comes from ./ota on disk; in production it's imported over bundlebee so the
-// list can be updated OTA without shipping a new build.
-export async function getAllSourceRepos(gip: GipDB): Promise<SourceRepoData> {
-	const { sources } = dev ? await import('../../../ota/index.js') : await importOTA(gip);
+const g = globalThis as unknown as { __ota?: Promise<{ current: SourceConfig | null }> };
 
-	return sources?.holepunch ?? EMPTY;
+// The available-repo list ships baked into the app via hyperconf, so it works
+// with no network. The gear-ota core carries newer config blocks; whenever one
+// replicates in, conf.current flips to it — updates OTA without a new build.
+export async function getAllSourceRepos(gip: GipDB): Promise<SourceRepoData> {
+	if (!g.__ota) g.__ota = open(gip);
+	const conf = await g.__ota;
+	return conf.current?.sources.find((s) => s.name === 'holepunch') ?? EMPTY;
 }
 
-async function importOTA(gip: GipDB) {
-	const BundlebeeImport = (await import('bundlebee-import')).default;
+async function open(gip: GipDB) {
+	const { default: Hyperconf } = await import('hyperconf');
+	const { spec, key } = (await import('gear-ota')).default;
+	const { default: hid } = await import('hypercore-id-encoding');
 
-	return BundlebeeImport(
-		gip._store.namespace('ota'),
-		'bundle+pear://0.4.s5ay5t1sjtdfyd6i7zcaptfq899t4ek5bpy7779y6t6c4ny5euho/index.js',
-		{ swarm: gip.swarm }
-	);
+	const d = gip as any;
+	const core = d._store.namespace('ota').get({ key: hid.decode(key) });
+	await core.ready();
+
+	// Fetch updates from whoever announces the core, and ask the blind peers
+	// to mirror it so updates stay available while the writer is offline.
+	d.swarm.join(core.discoveryKey, { server: false, client: true });
+	d.blind?.addCoreBackground(core);
+
+	const conf = new Hyperconf(spec, core);
+	await conf.ready();
+	return conf;
 }

@@ -7,3 +7,6 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Generated hyperconf/hyperschema spec
+ota/spec/

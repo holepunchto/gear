@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "schema": [
+    {
+      "name": "repo",
+      "namespace": "gear",
+      "compact": false,
+      "flagsPosition": 2,
+      "fields": [
+        {
+          "name": "name",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "url",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "source",
+      "namespace": "gear",
+      "compact": false,
+      "flagsPosition": 1,
+      "fields": [
+        {
+          "name": "name",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "blindPeers",
+          "array": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "repos",
+          "array": true,
+          "type": "@gear/repo",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "config",
+      "namespace": "gear",
+      "compact": false,
+      "flagsPosition": 0,
+      "fields": [
+        {
+          "name": "sources",
+          "array": true,
+          "type": "@gear/source",
+          "version": 1
+        }
+      ]
+    }
+  ]
+}

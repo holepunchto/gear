@@ -28,9 +28,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			};
 		});
 
-	// Streamed — the manifest is a bundlebee import in production, so it must
-	// not block first paint of the local repos. The page filters out what's
-	// already in the library itself.
+	// Streamed — the manifest comes from hyperconf (baked config + OTA core),
+	// so it must not block first paint of the local repos. The page filters
+	// out what's already in the library itself.
 	return { repos, discover: getDiscovery(locals) };
 };
 

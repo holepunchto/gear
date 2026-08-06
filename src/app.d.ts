@@ -32,4 +32,9 @@ declare module 'protomux-wakeup' {
 	export default Wakeup;
 }
 
+declare module 'hyperconf' {
+	const Hyperconf: any;
+	export default Hyperconf;
+}
+
 export {};

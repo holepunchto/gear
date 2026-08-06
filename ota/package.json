@@ -1,0 +1,11 @@
+{
+	"name": "gear-ota",
+	"private": true,
+	"version": "0.0.1",
+	"description": "Baked repo manifest for Gear, updateable OTA via hyperconf",
+	"main": "index.js",
+	"type": "commonjs",
+	"dependencies": {
+		"hyperconf": "^1.0.3"
+	}
+}

@@ -8,7 +8,7 @@ A P2P Git repository manager built on [Pear](https://pears.com) / [Holepunch](ht
 
 - **Browse repositories** — file tree, commits, branches, and tags served directly from Hypercore drives
 - **P2P sync** — repositories replicate peer-to-peer via Hyperswarm; peer count shown live
-- **Discover** — a curated list of available repositories, shipped OTA over bundlebee so it can be updated without a new build
+- **Discover** — a curated list of available repositories, baked into the app and updateable OTA via hyperconf — works offline, no network needed
 - **Add by URL** — paste a `git+pear://` URL to start syncing any public repository instantly
 - **Create repositories** — publish a new repo directly to the network
 - **Blind peers** — stays reachable behind NAT without a public IP
@@ -21,7 +21,7 @@ A P2P Git repository manager built on [Pear](https://pears.com) / [Holepunch](ht
 | UI            | SvelteKit 2 + Svelte 5 + Tailwind CSS 4                       |
 | Runtime       | [Bare](https://github.com/holepunchto/bare) (macOS + Android) |
 | P2P transport | gip-transport, Hyperswarm, HyperDB                            |
-| OTA           | bundlebee-import                                              |
+| OTA           | hyperconf                                                     |
 | Bundler       | bare-build + sveltekit-adapter-bare                           |
 
 ## Development
@@ -55,15 +55,25 @@ Output bundles land in `out/`. The bare-build step resolves all native addons (s
 
 ## Discover
 
-The list of available repositories is a fixed manifest, not a network query. In
-dev it's read from `ota/index.js` on disk; in production it's imported over
-bundlebee from a `bundle+pear://` link, so publishing a new manifest updates
-every client without shipping a build.
+The list of available repositories is a fixed manifest, not a network query.
+It lives in `ota/sources.js` and is baked into the app as a
+[hyperconf](https://github.com/holepunchto/hyperconf) spec, so Discover works
+with no network at all. A hypercore (key in `ota/key.js`) carries newer config
+blocks; whenever one replicates in, every client flips to it — OTA updates
+without shipping a build.
 
 Each source carries its own blind-peer keys, which are passed to `addRemote` so
 a freshly added repo can replicate even when its author is offline. The loader
 streams the manifest, so the local repo list paints first and Discover fills in
-once the import resolves.
+once the config resolves.
 
-To change what's on offer, edit `ota/index.js` and republish it with bundlebee,
-then update the link in `src/lib/server/source.ts`.
+To change what's on offer, edit `ota/sources.js` and run:
+
+```sh
+npm run ota                  # re-bake the spec into ota/spec (commit it)
+npm run ota -- --publish     # also append the config to the OTA core and seed it
+```
+
+Publishing requires the writer core in `ota/writer` — it holds the secret key,
+is gitignored, and exists only on the machine that ran `npm run ota -- --init`.
+Back it up.
