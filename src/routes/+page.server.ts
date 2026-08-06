@@ -1,7 +1,7 @@
 import Id from 'hypercore-id-encoding';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getAllSourceRepos, type SourceRepo } from '$lib/server/source';
+import { getAllSourceRepos } from '$lib/server/source';
 
 const repoNameRegex = /^[a-zA-Z0-9_-]+$/;
 
@@ -28,15 +28,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			};
 		});
 
-	// Streamed — the manifest comes from hyperconf (baked config + OTA core),
-	// so it must not block first paint of the local repos. The page filters
-	// out what's already in the library itself.
-	return { repos, discover: getDiscovery(locals) };
-};
-
-const getDiscovery = async (locals: App.Locals): Promise<SourceRepo[]> => {
-	const { repos } = await getAllSourceRepos(locals.db).catch(() => ({ repos: [] }));
-	return repos;
+	// The discover manifest streams in from the layout load (hyperconf: baked
+	// config + OTA core) — the page filters out what's already in the library.
+	return { repos };
 };
 
 export const actions: Actions = {
