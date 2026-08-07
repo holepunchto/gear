@@ -1,4 +1,5 @@
 import type { GipDB } from './gip.js';
+import { events } from './events.js';
 import { log } from './log.js';
 
 export type SourceRepo = {
@@ -44,7 +45,12 @@ async function open(gip: GipDB) {
 	const conf = new Hyperconf(spec, core);
 	await conf.ready();
 	log(`ota ready — ${repoCount(conf)} repos (core ${key} length ${core.length})`);
-	conf.on('update', () => log(`ota update — ${repoCount(conf)} repos (length ${core.length})`));
+	conf.on('update', () => {
+		log(`ota update — ${repoCount(conf)} repos (length ${core.length})`);
+		// Fan out over SSE so open pages (the search overlay) refresh their
+		// manifest without a navigation.
+		events.emit('sources');
+	});
 	return conf;
 }
 

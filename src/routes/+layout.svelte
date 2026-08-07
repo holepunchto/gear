@@ -2,6 +2,7 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
+	import { invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import GearLogo from '$lib/GearLogo.svelte';
 	import Search from '$lib/components/Search.svelte';
@@ -42,6 +43,9 @@
 				// malformed payload — drop it
 			}
 		});
+		// An OTA config block arrived — re-run loads so the discover manifest
+		// (the search overlay's data) reflects it immediately.
+		es.addEventListener('sources', () => invalidateAll());
 		return () => {
 			es.close();
 			document.removeEventListener('keydown', handleGlobalKeydown);

@@ -21,6 +21,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	let heartbeat: ReturnType<typeof setInterval> | null = null;
 	let onStats: (() => void) | null = null;
 	let onRepo: ((payload: { name: string } & RepoStats) => void) | null = null;
+	let onSources: (() => void) | null = null;
 
 	const stream = new ReadableStream({
 		start(controller) {
@@ -46,6 +47,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 			onRepo = (payload) => send('repo', payload);
 			events.on('repo', onRepo);
 
+			// The discover manifest changed (an OTA config block arrived) —
+			// clients re-run their loads to pick it up.
+			onSources = () => send('sources', {});
+			events.on('sources', onSources);
+
 			// Heartbeat — keeps intermediaries from closing the idle connection.
 			heartbeat = setInterval(() => {
 				if (closed) return;
@@ -59,9 +65,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 		cancel() {
 			if (onStats) events.off('stats', onStats);
 			if (onRepo) events.off('repo', onRepo);
+			if (onSources) events.off('sources', onSources);
 			if (heartbeat) clearInterval(heartbeat);
 			onStats = null;
 			onRepo = null;
+			onSources = null;
 			heartbeat = null;
 		}
 	});

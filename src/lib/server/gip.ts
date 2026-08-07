@@ -1,3 +1,4 @@
+import process from 'process';
 import { GipLocalDB } from 'gip-transport';
 import { isAndroid, isIOS } from 'which-runtime';
 import { persistent } from 'bare-storage';
@@ -18,7 +19,9 @@ const g = globalThis as unknown as { __gip?: Promise<GipDB> };
 
 export function getDB(): Promise<GipDB> {
 	if (!g.__gip) {
-		const dir = isAndroid || isIOS ? persistent() : undefined;
+		// GEAR_STORAGE points the whole stack at another store — lets a dev
+		// server run beside a packaged app without fighting over ~/.gip.
+		const dir = process.env.GEAR_STORAGE ?? (isAndroid || isIOS ? persistent() : undefined);
 		const db = new GipLocalDB({ dir });
 		log(`gip db opening (dir: ${dir ?? '~/.gip'})`);
 		g.__gip = db.ready().then(async () => {
