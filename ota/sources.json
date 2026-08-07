@@ -13,6 +13,11 @@
 					"description": "Autobase lets you write concise multiwriter data structures with Hypercore"
 				},
 				{
+					"name": "autopass",
+					"url": "git+pear://0.49.p3q41ixage56eep5uczozb6kuzz5ktpitz8dnas1kswhm7ndp55y/autopass",
+					"description": "Multiwriter password and note sharing module"
+				},
+				{
 					"name": "b4a",
 					"url": "git+pear://0.51.s47kfefebc93pp9aij3hcxdw64d9q9nei7w9xgh1c3x5a6hxy1oo/b4a",
 					"description": "Bridging the gap between buffers and typed arrays"
@@ -23,14 +28,114 @@
 					"description": "Small and modular JavaScript runtime for desktop and mobile"
 				},
 				{
+					"name": "bare-android",
+					"url": "git+pear://0.17.9wxdyc6e3hbd5pomhb8kdhe71afyxshrtgaq9pzu68x9pfm41ecy/bare-android",
+					"description": "Example of embedding Bare in an Android application using https://github.com/holepunchto/bare-kit"
+				},
+				{
+					"name": "bare-events",
+					"url": "git+pear://0.55.cui6yffs95tz8jcki7dnr11o5m63sri4rihq41kcrmnsygx5f15o/bare-events",
+					"description": "Event emitters for JavaScript"
+				},
+				{
+					"name": "bare-expo",
+					"url": "git+pear://0.13.br1hcyc5qzqerzuzsmr9tsz5mjdw6ccu41g6mjd316kxgnmr8rpo/bare-expo",
+					"description": "Example of embedding Bare in an Expo application using https://github.com/holepunchto/react-native-bare-kit"
+				},
+				{
+					"name": "bare-fetch",
+					"url": "git+pear://0.66.wae7edhcuz8hz6fm6h69o3zcygpq35ppcgh5hxcbmdx3hof5gayy/bare-fetch",
+					"description": "WHATWG Fetch implementation for Bare"
+				},
+				{
+					"name": "bare-ffmpeg",
+					"url": "git+pear://0.260.kyy8gky49qi7czmzr3k5mdw5659ptx8nsgwwerhohu7m1mt7mzuo/bare-ffmpeg",
+					"description": "Low-level FFmpeg bindings for Bare"
+				},
+				{
+					"name": "bare-fs",
+					"url": "git+pear://0.292.dkkzyta6gmie8gaawwrc6sme7933ys59j5juh8pcwz16ekyic3bo/bare-fs",
+					"description": "Native file system operations for Bare"
+				},
+				{
+					"name": "bare-ios",
+					"url": "git+pear://0.9.fkx1d3iogio84cjuyt6bqxonh69e3d6qx43iu7ka4ft57opaj9ao/bare-ios",
+					"description": "Example of embedding Bare in an iOS application using https://github.com/holepunchto/bare-kit"
+				},
+				{
 					"name": "bare-kit",
 					"url": "git+pear://0.205.qmkffp3ntykitwatjonb13s8czq6ardaifhb7i5w9qofnkj7jepy/bare-kit",
 					"description": "Bare for native application development"
 				},
 				{
+					"name": "bare-media",
+					"url": "git+pear://0.142.87b4k3ofgxhooe1q4mn1c66dt3mjo1o9yiqwwp5j145dhytitkho/bare-media",
+					"description": "A set of media APIs for Bare"
+				},
+				{
+					"name": "bare-module",
+					"url": "git+pear://0.434.cmqn9mko1zye6i8xiigdz7z5sdxtui5pyr4ikfrr3dich8u7bw1y/bare-module",
+					"description": "Module support for JavaScript"
+				},
+				{
+					"name": "bare-node",
+					"url": "git+pear://0.53.y71d6bbf8cfo41sd9o7dj6z3ii15sc57d9a65hha4uhjkbkdkugy/bare-node",
+					"description": "Compatibility modules for Node.js builtins in Bare"
+				},
+				{
+					"name": "bare-os",
+					"url": "git+pear://0.85.3j1s55j44xecnm8pnxzh3knb7pysbaybd6zmdwfodoyk3pe3pweo/bare-os",
+					"description": "Operating system utilities for Bare"
+				},
+				{
+					"name": "bare-repl",
+					"url": "git+pear://0.67.u1fduhx9bnwifkh7c5pnw51kbmw9nzo5cyond615miscpf51u9wy/bare-repl",
+					"description": "Read-Evaluate-Print-Loop environment for JavaScript"
+				},
+				{
+					"name": "bare-runtime",
+					"url": "git+pear://0.147.b1qbafft9txiabei46kx5h3eamdmpzmc9ccz1upx4sz1px6qqb9o/bare-runtime",
+					"description": "Prebuilt Bare binaries for macOS, iOS, Linux, Android, and Windows"
+				},
+				{
+					"name": "bare-snippets",
+					"url": "git+pear://0.4.ft6k9ha65ptn3ej5es5jieeqhncbwz63erf4arko3c74d3ikmaoo/bare-snippets",
+					"description": "Examples of how Bare makes running Javascript everywhere easy."
+				},
+				{
+					"name": "bare-tcp",
+					"url": "git+pear://0.126.jpcigi6hxbzyk8trd6u7k5eanwgebhz3zkjipadmzdgjqaardzgo/bare-tcp",
+					"description": "Native TCP sockets for JavaScript"
+				},
+				{
+					"name": "bare-worker",
+					"url": "git+pear://0.34.8pf3fp61i6whb3fog1sdudsh7rdb5kbbyp4b6uuakhyj4qhprjpo/bare-worker",
+					"description": "Higher-level worker threads for JavaScript"
+				},
+				{
+					"name": "blind-pairing",
+					"url": "git+pear://0.41.oreike5dfyxptsuunpw3tob7u1ik3qkt9md9frwepq81gxjtisbo/blind-pairing",
+					"description": "Blind pairing using HyperDHT"
+				},
+				{
+					"name": "blind-pairing-core",
+					"url": "git+pear://0.54.uuyzanifakmonzwfdiyim54xzcaxz7ofaenja5gxp3ojfoszh9ey/blind-pairing-core",
+					"description": "Core module for managing for Keet pairing requests "
+				},
+				{
+					"name": "blind-peer",
+					"url": "git+pear://0.344.d4o1torfe8is9b1iomwxp56axjup6ihy6esi39czc5hyophqjk1y/blind-peer",
+					"description": "Peer that is blind"
+				},
+				{
 					"name": "brittle",
 					"url": "git+pear://0.907.5hscz3fihyw6o53y5e4zzsumsp5mneddwqbbuqgjph9hezsk4zhy/brittle",
 					"description": "Brittle TAP test framework"
+				},
+				{
+					"name": "compact-encoding",
+					"url": "git+pear://0.98.p9x4gcqb7fycmepmimobex9yszb43o84aeakd7z64y8b54f5om5o/compact-encoding",
+					"description": "A series of compact encoding schemes for building small and fast parsers and serializers"
 				},
 				{
 					"name": "corestore",
@@ -48,9 +153,43 @@
 					"description": "CLI to download, seed, and mirror a Hyperdrive or Localdrive"
 				},
 				{
+					"name": "emoji-index",
+					"url": "git+pear://0.13.rdnfud6ktcrcbbi6yys3y3n9cstypqa5osnoq3jjf8iu4yceifpy/emoji-index",
+					"description": "emoji-index"
+				},
+				{
+					"name": "examples",
+					"url": "git+pear://0.6.eeq5wtu43wxc1za67koqmi5jnmhz8ygs7om45hrhhw48ruaqpbyy/examples",
+					"description": "Examples of basic flows for modules in the Holepunch ecosystem"
+				},
+				{
+					"name": "filesharing-react-app-example",
+					"url": "git+pear://0.12.j7pxzx6bjbmhjkeqtayahtd8iuwecbizmgw9f6u3ttmfaotxtp6y/filesharing-react-app-example"
+				},
+				{
 					"name": "fs-native-extensions",
 					"url": "git+pear://0.37.4ozfg5r3nztdmq5m5prwepemx64sqbrki14y6ob3jaonbg85mcso/fs-native-extensions",
 					"description": "Native file system extensions for advanced file operations"
+				},
+				{
+					"name": "git-remote-punch-transport",
+					"url": "git+pear://0.10.1adjiguycwzce5oddgoca1e9nnd1763qguh6p68k1asf1536gjpo/git-remote-punch-transport",
+					"description": "Git remote helper for Hyperswarm transport "
+				},
+				{
+					"name": "hello-pear-bare",
+					"url": "git+pear://0.47.d6mzpp77j91orde4p45w1hu7rpnom9hmfc76y7pfiq75c9aa8ifo/hello-pear-bare",
+					"description": "Integrating Pear into a hello world cli tool"
+				},
+				{
+					"name": "hello-pear-electron",
+					"url": "git+pear://0.144.q38wazt36khua3eaz14g3p9sxri4q68sjfctgbgtjsc6zt97o7wy/hello-pear-electron",
+					"description": "Integrating Pear into a hello world electron desktop app"
+				},
+				{
+					"name": "hrpc",
+					"url": "git+pear://0.29.ry3pk1k7hmo6d4g1imtbwh7hzqom6nawtrjanqre3couemfjid5o/hrpc",
+					"description": "Append only API definition and code generation."
 				},
 				{
 					"name": "hyperbeam",
@@ -61,6 +200,11 @@
 					"name": "hyperbee",
 					"url": "git+pear://0.527.qe7i73j46eqnmeteyshtg33kckx6ba4hwm8b58e4gi1qps4tmcey/hyperbee",
 					"description": "An append-only B-tree running on a Hypercore"
+				},
+				{
+					"name": "hyperbee2",
+					"url": "git+pear://0.140.qcguf39g5a7g5e633iyyqrp3oss95bhkhu1mqcxj49o4ftqjx6uo/hyperbee2",
+					"description": "Scalable P2P BTree"
 				},
 				{
 					"name": "hyperblobs",
@@ -76,6 +220,11 @@
 					"name": "hypercore-crypto",
 					"url": "git+pear://0.29.dbid5hyzsefpr6yewnhww1y7io16eypb1twnrgwri3x3u93nznwy/hypercore-crypto",
 					"description": "The crypto primitives used in hypercore, extracted into a separate module"
+				},
+				{
+					"name": "hypercore-storage",
+					"url": "git+pear://0.343.9kzaqoard8dxc948hmz9b5zztrcdi9z8pbipmwhsr9cgnqeh4zjy/hypercore-storage",
+					"description": "RocksDB storage driver for Hypercore"
 				},
 				{
 					"name": "hyperdb",
@@ -98,6 +247,11 @@
 					"description": "Hyperdrive is a secure, real-time distributed file system"
 				},
 				{
+					"name": "hyperschema",
+					"url": "git+pear://0.186.e37dkpew38sftcjaygmne4kndwz7e8rcnb9n4bgkhhb8wd5epkco/hyperschema",
+					"description": "Create registries of declarative compact-encoding schemas"
+				},
+				{
 					"name": "hypershell",
 					"url": "git+pear://0.40.zcnwezajyje56cwfp5y7sonpi5xp7f1k99ocdwpx3wk95t4eoz3y/hypershell",
 					"description": "Spawn shells anywhere. Fully peer-to-peer, authenticated, and end to end encrypted"
@@ -118,9 +272,29 @@
 					"description": "Relaying the Hyperswarm DHT over other transport protocols to bring decentralized networking to everyone"
 				},
 				{
+					"name": "hyperswarm-doctor",
+					"url": "git+pear://0.9.z6rg8iwfepqzmqbeec9r6d3g3my85xtk5ydssz3i3pb9r17n9zzo/hyperswarm-doctor",
+					"description": "Debugging tool for the swarm"
+				},
+				{
 					"name": "hyperswarm-secret-stream",
 					"url": "git+pear://0.113.ckm33sf9gfc5zrd9hcy5689ujiidxbiaxaj1ixhwwfe5umer1t6y/hyperswarm-secret-stream",
 					"description": "Secret stream backed by Noise and libsodium's secretstream"
+				},
+				{
+					"name": "hyperswarm-seeders",
+					"url": "git+pear://0.23.jn1n9xibqofdnhsn5qyxhinqk9h9g6rcnd6qsqiifbtat8cwntco/hyperswarm-seeders",
+					"description": "A seeders only swarm"
+				},
+				{
+					"name": "index-encoder",
+					"url": "git+pear://0.22.sarmc8c4nqtyar7c1xrxge3i6tbabkte61ztubnnor3wjg69jd7o/index-encoder",
+					"description": "Encode multiple values into sorted keys"
+				},
+				{
+					"name": "keet-identity-key",
+					"url": "git+pear://0.25.z3eskuzn1jyhqt8wcycsttspqntzsr91jqt5q19zwehekdn6yhjo/keet-identity-key",
+					"description": "Hierarchical deterministic key pairs for use in Keet identity system "
 				},
 				{
 					"name": "keet-mobile-releases",
@@ -128,19 +302,54 @@
 					"description": "Keet mobile releases"
 				},
 				{
+					"name": "keypear",
+					"url": "git+pear://0.20.g1idq3etos6ywpe8y1drejxgze71ygh47sfz81wbwr54yisbmy5o/keypear",
+					"description": "🔑🍐 Keychain that derives deterministic Ed25519 keypairs and attestations"
+				},
+				{
+					"name": "libjerry",
+					"url": "git+pear://0.88.6qcxt5pmiwgby9boptmy7kxe9txtiq35uox3x5xgnue4fd3ehwty/libjerry",
+					"description": "ABI compatible replacement for https://github.com/holepunchto/libjs built on JerryScript"
+				},
+				{
 					"name": "libjs",
 					"url": "git+pear://0.628.5nd3mkjgx3iaaaer3u7d6stzifkus87f7c8pta4hjew9getj5gco/libjs",
 					"description": "Simple and ABI stable C bindings to V8 built on libuv"
 				},
 				{
+					"name": "libjsc",
+					"url": "git+pear://0.134.h4sasqgrnqdxuka5groojoigyyjp9e14asuk7mbu3bk7qn6ymjpo/libjsc",
+					"description": "ABI compatible replacement for https://github.com/holepunchto/libjs built on JavaScriptCore"
+				},
+				{
+					"name": "libpearsync",
+					"url": "git+pear://0.5.qpg6ytcd9khh4j53anezsob3enap1wehd7ozz4bxyfjind5x6izo/libpearsync",
+					"description": "Simple message passing between a libuv thread and something else"
+				},
+				{
+					"name": "libqjs",
+					"url": "git+pear://0.189.1sakx1ekfme91q8kjmm85dko161tcghnhkif7j81htamy9qkhp9o/libqjs",
+					"description": "ABI compatible replacement for https://github.com/holepunchto/libjs built on QuickJS"
+				},
+				{
+					"name": "libquickbit",
+					"url": "git+pear://0.18.xeb5ou9sw8tkjjg797rjasesudne5fiyqm5amdcfnngomf7a4u8o/libquickbit",
+					"description": "The fastest bit in the West; a library for working with bit fields, accelerated using SIMD on supported hardware"
+				},
+				{
 					"name": "libudx",
-					"url": "git+pear://0.516.ci5kk9mw4a1du5yj6kq3tm1dtibi91o7dn98ythwrwgxhimbobiy/libudx",
+					"url": "git+pear://0.521.ci5kk9mw4a1du5yj6kq3tm1dtibi91o7dn98ythwrwgxhimbobiy/libudx",
 					"description": "udx is reliable, multiplexed, and congestion-controlled streams over udp"
 				},
 				{
 					"name": "localdrive",
 					"url": "git+pear://0.99.dw18n83yzcb4de1mboeucdz4yp6hjpm7o3r7rkfci4554danhyao/localdrive",
 					"description": "File system API that is similar to Hyperdrive"
+				},
+				{
+					"name": "localwatch",
+					"url": "git+pear://0.20.a96jup4dccgbsmhsy6tb8skcfxh3pjycuz5ocf15b5x5gas38auo/localwatch",
+					"description": "Watch a directory and get a diff of changes"
 				},
 				{
 					"name": "mininet",
@@ -153,13 +362,56 @@
 					"description": "Mirror two drives"
 				},
 				{
+					"name": "netpaste",
+					"url": "git+pear://0.3.c5kfkxnak698ab5iy88ettqb5885ido3pnfobcxxa45mqieg3xcy/netpaste",
+					"description": "Copy and paste over the DHT"
+				},
+				{
+					"name": "noise-handshake",
+					"url": "git+pear://0.41.gx7drc6te6ggzsq5ecftmuqi84tqo6zd7hmgqrnggk8ryifp5xmo/noise-handshake",
+					"description": "Simple noise handshake, supporting generic handshake patterns"
+				},
+				{
 					"name": "pear",
-					"url": "git+pear://0.2560.1e3bo6rzujto931fgru5onpcn3dyqhn8o6c1jis6dhh69tb4e4oy/pear",
+					"url": "git+pear://0.2571.1e3bo6rzujto931fgru5onpcn3dyqhn8o6c1jis6dhh69tb4e4oy/pear",
 					"description": "Peer-to-Peer (P2P) Install & Deploy CLI"
 				},
 				{
+					"name": "pear-appling",
+					"url": "git+pear://0.13.iqda81ycr84o11hpenzh6mtfoygf4wnb8jfwzx1p8dchosewb89o/pear-appling",
+					"description": "Template repository for creating Pear applings"
+				},
+				{
 					"name": "pear-docs",
-					"url": "git+pear://0.10343.tnaodknaoumxgs1hedyn9fcg34jy15iwwoyfs91iq64kfsr6tp9y/pear-docs"
+					"url": "git+pear://0.10348.tnaodknaoumxgs1hedyn9fcg34jy15iwwoyfs91iq64kfsr6tp9y/pear-docs"
+				},
+				{
+					"name": "pear-electron",
+					"url": "git+pear://0.638.a4muiswtzzbw9mpj8e845hg1kmrjddh7p7zquit4mar6di8wkxto/pear-electron",
+					"description": "Pear User-Interface Library for Electron"
+				},
+				{
+					"name": "pear-expo-hello-world",
+					"url": "git+pear://0.16.hd4brt68iqm5brds7xft93ujxe4c3sjtmj4jebnghakufw535dzy/pear-expo-hello-world"
+				},
+				{
+					"name": "pear-radio",
+					"url": "git+pear://0.116.x77wzdokw74wb95z17psadu8o78eyct75uogrnmbwjfzxptkbr5o/pear-radio",
+					"description": "Pear Music Streamer"
+				},
+				{
+					"name": "pear-runtime",
+					"url": "git+pear://0.67.bzdizrghbcgw5n4yt3r6k8nc1sgp4em6z7hahjicy8yi5uobkx8o/pear-runtime",
+					"description": "Embeddable Runtime library for Pear with P2P OTA updates, Bare workers and storage APIs"
+				},
+				{
+					"name": "pear-workshop",
+					"url": "git+pear://0.15.1i8knn45r6mghxtbgsmmgt4oudqep5fyr35y3xmaqo5kkf4ytg3y/pear-workshop",
+					"description": "🍐"
+				},
+				{
+					"name": "pearpass-example",
+					"url": "git+pear://0.13.c5cxeng8s6szfdkjg4npgapshzdsoz9y6uyu8wuojoenohbzupmy/pearpass-example"
 				},
 				{
 					"name": "protomux",
@@ -172,6 +424,46 @@
 					"description": "https://github.com/holepunchto/bare-kit for React Native"
 				},
 				{
+					"name": "ready-resource",
+					"url": "git+pear://0.16.g9mfj17cjdjh8ni53eti1ingo1pgzqxc5geirm51ge576rzdp1hy/ready-resource",
+					"description": "Modern single resource management"
+				},
+				{
+					"name": "repl-swarm",
+					"url": "git+pear://0.12.hg8p4rauaxxqcstbj6r1zdbp9hzeqnfxo3sdcminu34oqdra4tfo/repl-swarm",
+					"description": "Attach to a node repl using Hyperswarm"
+				},
+				{
+					"name": "rocksdb-native",
+					"url": "git+pear://0.214.oz5ir9zog6awpq9jxgqx1oithbb9eyirpqbdohph64794e158c9o/rocksdb-native",
+					"description": "https://github.com/holepunchto/librocksdb bindings for JavaScript"
+				},
+				{
+					"name": "rpc",
+					"url": "git+pear://0.36.kmax5fcqyjrars6zke7pzmfe8xjtyhp1qpf4q64c6idcadu9ozoy/rpc",
+					"description": "RPC over the Hyperswarm DHT"
+				},
+				{
+					"name": "scope-lock",
+					"url": "git+pear://0.10.sfnta8wenmts7j4k6wa6cffnzjnpu85s154xpsi5fdfwkt7a5oqo/scope-lock",
+					"description": "Some concurrency semantics around entering scopes"
+				},
+				{
+					"name": "serve-drive",
+					"url": "git+pear://0.63.ottj4pdrorku6mtjsn5bjs6m4bu4efe1f9uf8znnguidsmhpmqpy/serve-drive",
+					"description": "HTTP drive server for entries delivery. Auto detects types like video, images, etc"
+				},
+				{
+					"name": "simple-seeder",
+					"url": "git+pear://0.61.55kroz1gztyj5cjcs7ss161bymhti9fgcqroo9gu1apg8yyt8imy/simple-seeder",
+					"description": "Dead simple seeder with zero bugs"
+				},
+				{
+					"name": "slab-hunter",
+					"url": "git+pear://0.9.ahb9jtcfy4p8n9tkxioin4rchr63wadei7n6js39fy8cqambfq3y/slab-hunter",
+					"description": "Hunt for Buffer slabs indicative of a memory leak"
+				},
+				{
 					"name": "sodium-native",
 					"url": "git+pear://0.708.gxtsrjmbf1nhihoeci9tcozfgmxyjs64hqjet4t5tcfkw3oonqzy/sodium-native",
 					"description": "Low level bindings for libsodium"
@@ -180,6 +472,36 @@
 					"name": "sodium-universal",
 					"url": "git+pear://0.21.ogmmfi3ju1tsf4qtcdq81egck3c7zsfb31brtr34hwhstscycsoy/sodium-universal",
 					"description": "Universal wrapper for sodium-javascript and sodium-native working in Node.js and the Browser"
+				},
+				{
+					"name": "sveltekit-adapter-bare",
+					"url": "git+pear://0.38.1sn5m9wptzf5s6aopo4iiafsdqtm46yiouf46n1786kb48q73n9o/sveltekit-adapter-bare",
+					"description": "SvelteKit everywhere on Bare Native"
+				},
+				{
+					"name": "tiny-fs-native",
+					"url": "git+pear://0.24.fnqdww5osczao4mhaicihf1q16nznpkkxeozbz9q785xqfgin8uo/tiny-fs-native",
+					"description": "Native fs for Javascript"
+				},
+				{
+					"name": "tiny-http-native",
+					"url": "git+pear://0.12.saakhkdmpxz7r3hek8koff7jnw3s9oipef5fwo9mipxqpgw7qiso/tiny-http-native",
+					"description": "Tiny HTTP library made purely on libuv and napi"
+				},
+				{
+					"name": "tiny-timers-native",
+					"url": "git+pear://0.19.irt6q5g8hq456pbeguu6xmdc6xijukgsaxce17wbzffmxsu1fkry/tiny-timers-native",
+					"description": "Native timers for Javascript"
+				},
+				{
+					"name": "udx-native",
+					"url": "git+pear://0.254.gcn5ux31iqf6p1y5easmfzme1z99pw7m174cwewn1s5ddrnkcfiy/udx-native",
+					"description": "udx is reliable, multiplexed, and congestion-controlled streams over udp"
+				},
+				{
+					"name": "watch-drive",
+					"url": "git+pear://0.7.t1x6e1bttiyejzakak68114kwusebu141gn8h7enn7ryjknw6r3o/watch-drive",
+					"description": "Watch a Hyperdrive or a Localdrive and get the diff"
 				}
 			]
 		}
