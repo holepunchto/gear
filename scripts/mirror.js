@@ -47,32 +47,36 @@ function run(file, args, opts = {}) {
 
 // ── GitHub ────────────────────────────────────────────────────────────────────
 
-function githubHeaders() {
-	const headers = { 'user-agent': 'gear-mirror' };
-	if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-	return headers;
-}
+// Everything mirrored lands on public blind peers and in the public
+// manifest, so only public repos may ever be queried: requests go out
+// unauthenticated (private repos are invisible without credentials — a
+// private name 404s) and the org listing is scoped server-side.
+const HEADERS = { 'user-agent': 'gear-mirror' };
 
 async function namedRepos(names) {
-	return Promise.all(
+	const repos = await Promise.all(
 		names.map(async (name) => {
 			const res = await fetch(`https://api.github.com/repos/${ORG}/${name}`, {
-				headers: githubHeaders()
+				headers: HEADERS
 			});
+			if (res.status === 404) {
+				console.log(`  ~ ${name}: skipped (not found or not public)`);
+				return null;
+			}
 			if (!res.ok) throw new Error(`GitHub API: ${name}: ${res.status}`);
 			return res.json();
 		})
 	);
+	return repos.filter(Boolean);
 }
 
 async function topRepos(count) {
-	const headers = githubHeaders();
-
 	const all = [];
 	for (let page = 1; ; page++) {
-		const res = await fetch(`https://api.github.com/orgs/${ORG}/repos?per_page=100&page=${page}`, {
-			headers
-		});
+		const res = await fetch(
+			`https://api.github.com/orgs/${ORG}/repos?type=public&per_page=100&page=${page}`,
+			{ headers: HEADERS }
+		);
 		if (!res.ok) throw new Error(`GitHub API: ${res.status} ${await res.text()}`);
 		const batch = await res.json();
 		all.push(...batch);
@@ -80,7 +84,7 @@ async function topRepos(count) {
 	}
 
 	return all
-		.filter((r) => !r.fork && !r.private)
+		.filter((r) => !r.fork)
 		.sort((a, b) => b.stargazers_count - a.stargazers_count)
 		.slice(0, count);
 }
@@ -261,17 +265,15 @@ async function main() {
 		REPOS ? `fetching ${REPOS.join(', ')}…` : `fetching top ${COUNT} ${ORG} repos by stars…`
 	);
 	const repos = (REPOS ? await namedRepos(REPOS) : await topRepos(COUNT)).filter((r) => {
-		// Everything mirrored lands on public blind peers and in the public
-		// manifest — never mirror a private repo, even one named explicitly
-		// (a GITHUB_TOKEN can make them visible here).
-		if (r.private) {
-			console.log(`  ~ ${r.name}: skipped (private)`);
-			return false;
-		}
 		if (repoName.test(r.name)) return true;
 		console.log(`  ~ ${r.name}: skipped (name not supported by gip)`);
 		return false;
 	});
+
+	if (repos.length === 0) {
+		console.log('nothing to mirror');
+		process.exit(1);
+	}
 
 	// Create missing remotes and collect push urls, then release the store
 	// before git takes it over.
