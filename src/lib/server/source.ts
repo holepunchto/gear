@@ -37,10 +37,9 @@ async function open(gip: GipDB) {
 	const core = d._store.namespace('ota').get({ key: hid.decode(key) });
 	await core.ready();
 
-	// Fetch updates from whoever announces the core, and ask the blind peers
-	// to mirror it so updates stay available while the writer is offline.
-	d.swarm.join(core.discoveryKey, { server: false, client: true });
-	d.blind?.addCoreBackground(core);
+	// Every user swarms the config core and serves it back — updates spread
+	// user-to-user, no blind peers involved.
+	d.swarm.join(core.discoveryKey, { server: true, client: true });
 
 	const conf = new Hyperconf(spec, core);
 	await conf.ready();

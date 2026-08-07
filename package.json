@@ -11,8 +11,6 @@
 		"mirror": "node scripts/mirror.js",
 		"dev": "vite dev",
 		"build": "vite build",
-		"make:darwin-arm64": "bare-build --out out/gear-darwin-arm64 --icon gear.png --host darwin-arm64 --runtime bare-native/runtime build/index.js",
-		"make:android-arm64": "bare-build --out out/gear-android-arm64 --host android-arm64 --resources resources/android --android-manifest manifest.xml --identifier io.gear.app --name Gear --runtime bare-native/runtime build/index.js",
 		"release": "bare scripts/release.js",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
