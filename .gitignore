@@ -28,3 +28,6 @@ ota/writer
 
 # Release scratch
 .release-tmp/
+
+# Mirror clones
+mirror/

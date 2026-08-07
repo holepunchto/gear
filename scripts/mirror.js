@@ -1,0 +1,273 @@
+#!/usr/bin/env node
+import { execFileSync } from 'child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { GipLocalDB } from 'gip-transport';
+import Id from 'hypercore-id-encoding';
+import paparam from 'paparam';
+
+const { command, flag, summary } = paparam;
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const SOURCES_PATH = join(ROOT, 'ota/sources.json');
+const ORG = 'holepunchto';
+
+const cmd = command(
+	'mirror',
+	summary('Mirror the top N holepunch repos into a dedicated gip store + the ota manifest'),
+	flag('--count <n>', 'How many repos, by GitHub stars (default 10)'),
+	flag('--repos <names>', 'Mirror these repos instead (comma-separated)'),
+	flag('--dir <path>', 'Work directory for the store and clones (default mirror/)'),
+	flag('--seed', 'Announce every mirrored repo and stay online')
+);
+
+cmd.parse(process.argv.slice(2));
+const COUNT = Number(cmd.flags.count ?? 10);
+const REPOS = cmd.flags.repos?.split(',').map((s) => s.trim()) ?? null;
+const DIR = cmd.flags.dir ?? join(ROOT, 'mirror');
+const STORE = join(DIR, 'store');
+const CLONES = join(DIR, 'clones');
+
+const repoName = /^[a-zA-Z0-9_-]+$/;
+
+function run(file, args, opts = {}) {
+	try {
+		return execFileSync(file, args, {
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'pipe'],
+			...opts
+		});
+	} catch (err) {
+		const stderr = err.stderr?.toString().trim();
+		if (stderr) err.message += '\n' + stderr;
+		throw err;
+	}
+}
+
+// ── GitHub ────────────────────────────────────────────────────────────────────
+
+function githubHeaders() {
+	const headers = { 'user-agent': 'gear-mirror' };
+	if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+	return headers;
+}
+
+async function namedRepos(names) {
+	return Promise.all(
+		names.map(async (name) => {
+			const res = await fetch(`https://api.github.com/repos/${ORG}/${name}`, {
+				headers: githubHeaders()
+			});
+			if (!res.ok) throw new Error(`GitHub API: ${name}: ${res.status}`);
+			return res.json();
+		})
+	);
+}
+
+async function topRepos(count) {
+	const headers = githubHeaders();
+
+	const all = [];
+	for (let page = 1; ; page++) {
+		const res = await fetch(`https://api.github.com/orgs/${ORG}/repos?per_page=100&page=${page}`, {
+			headers
+		});
+		if (!res.ok) throw new Error(`GitHub API: ${res.status} ${await res.text()}`);
+		const batch = await res.json();
+		all.push(...batch);
+		if (batch.length < 100) break;
+	}
+
+	return all
+		.filter((r) => !r.fork && !r.private)
+		.sort((a, b) => b.stargazers_count - a.stargazers_count)
+		.slice(0, count);
+}
+
+// ── gip store ─────────────────────────────────────────────────────────────────
+
+// The mirror gets its own corestore so it never contends with ~/.gip. The
+// store must be closed while git pushes run — the remote helper opens the
+// same directory via the url's ?storage= param.
+async function withStore(fn) {
+	const db = new GipLocalDB({ dir: STORE });
+	await db.ready();
+	try {
+		return await fn(db);
+	} finally {
+		await db.close();
+	}
+}
+
+async function repoUrls(db, names) {
+	const urls = new Map();
+	for (const name of names) {
+		const entry = await db.getCore(name, { server: false, client: false });
+		if (entry) urls.set(name, `git+pear://0.${entry.core.length}.${Id.encode(entry.key)}/${name}`);
+	}
+	return urls;
+}
+
+// ── Mirror ────────────────────────────────────────────────────────────────────
+
+function ensureClone(repo) {
+	const dir = join(CLONES, `${repo.name}.git`);
+	if (existsSync(dir)) {
+		run('git', ['-C', dir, 'remote', 'update', '--prune']);
+	} else {
+		run('git', ['clone', '--mirror', repo.clone_url, dir]);
+	}
+	return dir;
+}
+
+function push(dir, url) {
+	const target = `${url}?storage=${encodeURIComponent(STORE)}`;
+	run('git', ['-C', dir, 'push', target, '--all']);
+	run('git', ['-C', dir, 'push', target, '--tags']);
+}
+
+// ── ota manifest ──────────────────────────────────────────────────────────────
+
+function keyOf(url) {
+	return url.replace('git+pear://', '').split('/')[0].split('.').pop();
+}
+
+function updateSources(mirrored) {
+	const sources = JSON.parse(readFileSync(SOURCES_PATH, 'utf8'));
+	const holepunch = sources.sources.find((s) => s.name === 'holepunch');
+
+	let changed = false;
+	for (const { name, url, description } of mirrored) {
+		const existing = holepunch.repos.find((r) => r.name === name);
+		if (!existing) {
+			// Append-only: repos are added to the manifest, never removed.
+			const entry = { name, url };
+			if (description) entry.description = description;
+			holepunch.repos.push(entry);
+			changed = true;
+			console.log(`  + manifest: ${name}`);
+		} else if (existing.url !== url) {
+			// The mirror is the source of truth for names it manages — refresh
+			// the url (length hint bumps on every push; the key changes only if
+			// the store was recreated, in which case the old url is dead).
+			if (keyOf(existing.url) !== keyOf(url)) console.log(`  ~ manifest: ${name} rekeyed`);
+			existing.url = url;
+			changed = true;
+		}
+	}
+
+	if (!changed) return false;
+	holepunch.repos.sort((a, b) => a.name.localeCompare(b.name));
+	writeFileSync(SOURCES_PATH, JSON.stringify(sources, null, '\t') + '\n');
+	return true;
+}
+
+// ── Seed ──────────────────────────────────────────────────────────────────────
+
+async function seed() {
+	const db = new GipLocalDB({ dir: STORE });
+	await db.ready();
+
+	const names = await db.getRepoNames();
+	if (names.length === 0) {
+		console.log('nothing to seed — run the mirror first');
+		await db.close();
+		return;
+	}
+
+	console.log(`seeding ${names.length} repos — public key ${Id.encode(await db.getPublicKey())}`);
+	for (const name of names) {
+		const entry = await db.getCore(name, { server: true, client: false });
+		if (entry) console.log(`  ${name} — ${entry.core.length} blocks`);
+	}
+	console.log('online until Ctrl-C');
+
+	process.on('SIGINT', async () => {
+		await db.close();
+		process.exit(0);
+	});
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+async function main() {
+	if (cmd.flags.seed) return seed();
+
+	mkdirSync(CLONES, { recursive: true });
+
+	console.log(
+		REPOS ? `fetching ${REPOS.join(', ')}…` : `fetching top ${COUNT} ${ORG} repos by stars…`
+	);
+	const repos = (REPOS ? await namedRepos(REPOS) : await topRepos(COUNT)).filter((r) => {
+		if (repoName.test(r.name)) return true;
+		console.log(`  ~ ${r.name}: skipped (name not supported by gip)`);
+		return false;
+	});
+
+	// Create missing remotes and collect push urls, then release the store
+	// before git takes it over.
+	const urls = await withStore(async (db) => {
+		const names = await db.getRepoNames();
+		for (const repo of repos) {
+			if (names.includes(repo.name)) continue;
+			const remote = await db.createRemote(repo.name);
+			console.log(`  + gip: ${repo.name} → ${remote.url.replace('0.0.', '')}`);
+		}
+		return repoUrls(
+			db,
+			repos.map((r) => r.name)
+		);
+	});
+	console.log(`store ready — pushing ${repos.length} repos`);
+
+	const mirrored = [];
+	const failed = [];
+
+	for (const repo of repos) {
+		try {
+			const dir = ensureClone(repo);
+			console.log(`  … ${repo.name}: pushing`);
+			push(dir, urls.get(repo.name));
+			console.log(`  ✓ ${repo.name} (★${repo.stargazers_count})`);
+			mirrored.push(repo);
+		} catch (err) {
+			failed.push(repo.name);
+			const lines = err.message.split('\n').filter(Boolean);
+			console.error(`  ✗ ${repo.name}: ${lines[0]}`);
+			for (const line of lines.slice(-2)) if (line !== lines[0]) console.error(`      ${line}`);
+		}
+	}
+
+	// Re-read for fresh urls — pushes bump the length embedded in each url.
+	const fresh = await withStore((db) =>
+		repoUrls(
+			db,
+			mirrored.map((r) => r.name)
+		)
+	);
+
+	for (const r of mirrored) {
+		if (!fresh.has(r.name))
+			throw new Error(`${r.name} pushed but missing from the store — was ${STORE} touched?`);
+	}
+
+	const manifestChanged = updateSources(
+		mirrored.map((r) => ({ name: r.name, url: fresh.get(r.name), description: r.description }))
+	);
+
+	if (manifestChanged) {
+		run('node', [join(ROOT, 'scripts/ota.js')], { stdio: 'inherit' });
+		console.log('\nmanifest updated — run `npm run ota -- --publish` to ship it OTA');
+	}
+
+	console.log(`\n${mirrored.length} mirrored, ${failed.length} failed`);
+	// The swarm handles inside gip-transport keep the event loop alive for
+	// minutes after close — exit explicitly, all work is flushed by now.
+	process.exit(failed.length ? 1 : 0);
+}
+
+main().catch((err) => {
+	console.error(err.message);
+	process.exit(1);
+});

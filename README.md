@@ -92,3 +92,22 @@ npm run ota -- --publish     # also append the config to the OTA core and seed i
 Publishing requires the writer core in `ota/writer` — it holds the secret key,
 is gitignored, and exists only on the machine that ran `npm run ota -- --init`.
 Back it up.
+
+## Mirroring holepunch repos
+
+```sh
+npm run mirror                 # top 10 holepunchto repos by stars
+npm run mirror -- --count 25
+npm run mirror -- --seed       # announce every mirrored repo, stay online
+```
+
+Meant to run daily: it clones (or updates) each repo under `mirror/clones`,
+creates a gip remote for any repo that doesn't have one yet, pushes all
+branches and tags, and appends new repos to `ota/sources.json` (append-only —
+repos are never removed, and existing urls get their length hint refreshed).
+It then re-bakes the spec; publish with `npm run ota -- --publish`.
+
+The mirror has its own corestore in `mirror/store` (gitignored) — separate
+from `~/.gip`, so it never contends with your personal repos. The store is a
+writer: back it up like `ota/writer`. Don't run the mirror while `--seed` is
+up — corestore is single-process and the pushes need the store.

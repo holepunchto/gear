@@ -20,7 +20,7 @@ export function getDB(): Promise<GipDB> {
 	if (!g.__gip) {
 		const dir = isAndroid || isIOS ? persistent() : undefined;
 		const db = new GipLocalDB({ dir });
-		log(`gip db opening (dir: ${dir ?? 'cwd'})`);
+		log(`gip db opening (dir: ${dir ?? '~/.gip'})`);
 		g.__gip = db.ready().then(async () => {
 			if (!db.blind) {
 				for (const peer of BLIND_PEERS) await db.addBlindPeer(peer);

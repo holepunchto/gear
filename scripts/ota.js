@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import Hyperschema from 'hyperschema';
@@ -7,11 +7,11 @@ import HyperconfBuilder from 'hyperconf/builder.js';
 import Corestore from 'corestore';
 import hid from 'hypercore-id-encoding';
 import paparam from 'paparam';
-import sources from '../ota/sources.js';
 
 const { command, flag, summary } = paparam;
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const sources = JSON.parse(readFileSync(join(ROOT, 'ota/sources.json'), 'utf8'));
 const SCHEMA_DIR = join(ROOT, 'ota/spec/hyperschema');
 const CONF_DIR = join(ROOT, 'ota/spec/hyperconf');
 const KEY_PATH = join(ROOT, 'ota/key.js');

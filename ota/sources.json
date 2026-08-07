@@ -1,0 +1,23 @@
+{
+	"sources": [
+		{
+			"name": "holepunch",
+			"blindPeers": [
+				"qiysd9x3cwk47wb1khrbiw1ie8gj9uttnt3mwcgr9obthb96kxxo",
+				"4esc4a9go8rcad43kkgtrr4uyqssuo1w9p1ozyy3b14jzq77fijy"
+			],
+			"repos": [
+				{
+					"name": "paparam",
+					"url": "git+pear://0.212.n6ay34kwf86umijjstxzhurt7g66ux93wcb1zbsnxnkh5dwexg7y/paparam",
+					"description": "Strict and fair parameter papa"
+				},
+				{
+					"name": "which-runtime",
+					"url": "git+pear://0.29.qwaypt5f5eeyzpycyq1iqif7w7651j1bif4abbj8rg3yfcya1zgy/which-runtime",
+					"description": "Detect if you are in Bare or Node and which os etc"
+				}
+			]
+		}
+	]
+}
