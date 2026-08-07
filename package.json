@@ -56,7 +56,7 @@
 		"bare-url": "^2.4.2",
 		"blind-peering": "^2.1.1",
 		"gear-ota": "file:ota",
-		"gip-remote": "^1.2.8",
+		"gip-remote": "file:../gip-remote",
 		"gip-transport": "^1.8.2",
 		"hyperbee2": "^2.9.3",
 		"hyperconf": "^1.0.3",
@@ -90,5 +90,8 @@
 		"typescript": "^6.0.2",
 		"vite": "^8.0.7",
 		"which-runtime": "^1.3.2"
+	},
+	"overrides": {
+		"gip-remote": "$gip-remote"
 	}
 }
