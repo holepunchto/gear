@@ -31,7 +31,7 @@ export function getDB(): Promise<GipDB> {
 				const wakeup = new Wakeup();
 				const d = db as any;
 				d._wakeup = wakeup;
-				d._blind = new BlindPeering(db.swarm.dht, d._store, { wakeup, keys });
+				d._blind = new BlindPeering(db.swarm!.dht, d._store, { wakeup, keys });
 				log(`blind peering wired (${BLIND_PEERS.length} peers)`);
 			}
 			log('gip db ready');

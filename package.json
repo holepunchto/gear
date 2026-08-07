@@ -57,7 +57,7 @@
 		"blind-peering": "^2.1.1",
 		"gear-ota": "file:ota",
 		"gip-remote": "file:../gip-remote",
-		"gip-transport": "^1.8.2",
+		"gip-transport": "file:../git-remote-punch-transport",
 		"hyperbee2": "^2.9.3",
 		"hyperconf": "^1.0.3",
 		"hyperdb": "^6.6.1",
