@@ -8,14 +8,54 @@
 			],
 			"repos": [
 				{
-					"name": "paparam",
-					"url": "git+pear://0.212.n6ay34kwf86umijjstxzhurt7g66ux93wcb1zbsnxnkh5dwexg7y/paparam",
-					"description": "Strict and fair parameter papa"
+					"name": "bare",
+					"url": "git+pear://0.842.uxjjhyzyidusm84yboc5bqtc8nuw15osximq7qwjpzutzq3eu54o/bare",
+					"description": "Small and modular JavaScript runtime for desktop and mobile"
 				},
 				{
-					"name": "which-runtime",
-					"url": "git+pear://0.29.qwaypt5f5eeyzpycyq1iqif7w7651j1bif4abbj8rg3yfcya1zgy/which-runtime",
-					"description": "Detect if you are in Bare or Node and which os etc"
+					"name": "hyperbeam",
+					"url": "git+pear://0.22.a1e9p54t4otjqmp78qs1h4ufq15qb558af98bd7sc6yqrpoguhsy/hyperbeam",
+					"description": "A 1-1 end-to-end encrypted internet pipe powered by Hyperswarm"
+				},
+				{
+					"name": "hyperbee",
+					"url": "git+pear://0.526.zhhpbpe9i458a4merq9ff5tm4s7sg8bfrrsi43t64zhuko7zjbby/hyperbee",
+					"description": "An append-only B-tree running on a Hypercore"
+				},
+				{
+					"name": "hypercore",
+					"url": "git+pear://0.3307.ehijei5mgj3j5de67gezez9pzr3yubd8116zjfonfijxqyywwwro/hypercore",
+					"description": "Hypercore is a secure, distributed append-only log."
+				},
+				{
+					"name": "hyperdht",
+					"url": "git+pear://0.1048.t7tnci18h4wwnwcp57h5y9gy6et143334c1wmch9nofxet33tqdy/hyperdht",
+					"description": "The DHT powering Hyperswarm"
+				},
+				{
+					"name": "hyperdrive",
+					"url": "git+pear://0.862.xady9zweqpt9tox13mix95ztyfrbmepyfwg3jjwrdribtw4o4u6y/hyperdrive",
+					"description": "Hyperdrive is a secure, real time distributed file system"
+				},
+				{
+					"name": "hypershell",
+					"url": "git+pear://0.39.wu7jxuqqzadnsucgdd5iwhbmrf71epity4t59i61p1e5knhjfhto/hypershell",
+					"description": "Spawn shells anywhere. Fully peer-to-peer, authenticated, and end to end encrypted"
+				},
+				{
+					"name": "hyperswarm",
+					"url": "git+pear://0.340.a56bchngywsu8ogidt46j3dpm4mhbosjqjdfzo4id5txz3ufjbzy/hyperswarm",
+					"description": "A distributed networking stack for connecting peers."
+				},
+				{
+					"name": "pear",
+					"url": "git+pear://0.2513.zr85h8b5a19yyj6mcc31tq4aaft567p34hg9ztynbz9ubfui5ijo/pear",
+					"description": "Peer-to-Peer (P2P) Install & Deploy CLI"
+				},
+				{
+					"name": "sodium-native",
+					"url": "git+pear://0.707.3sydg3cxo3pm3yk1h6t7c7it84368ixweo9m4cj145qa3c79umiy/sodium-native",
+					"description": "Low level bindings for libsodium"
 				}
 			]
 		}
