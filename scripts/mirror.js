@@ -127,6 +127,48 @@ function push(dir, url) {
 	run('git', ['-C', dir, 'push', target, '--tags']);
 }
 
+// ── Blind peers ───────────────────────────────────────────────────────────────
+
+// Ask the manifest's blind peers to mirror every repo and stay online until
+// they've replicated to each core's full length — without this the data only
+// exists on this machine and clients can't sync while it's offline.
+async function pushToBlindPeers(db, names, keys, { timeout = 10 * 60_000 } = {}) {
+	if (keys.length === 0) return;
+
+	const { default: BlindPeering } = await import('blind-peering');
+	const { default: Wakeup } = await import('protomux-wakeup');
+	const Id = (await import('hypercore-id-encoding')).default;
+
+	const blind = new BlindPeering(db.swarm.dht, db._store, {
+		wakeup: new Wakeup(),
+		keys: keys.map((k) => Id.decode(k))
+	});
+
+	const cores = [];
+	for (const name of names) {
+		const entry = await db.getCore(name, { server: true, client: false });
+		if (!entry) continue;
+		await blind.addCore(entry.core, { announce: true });
+		cores.push({ name, core: entry.core });
+	}
+
+	const synced = (core) => core.peers.some((p) => p.remoteLength >= core.length);
+	const deadline = Date.now() + timeout;
+
+	let pending = cores;
+	while (pending.length > 0 && Date.now() < deadline) {
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		for (const { name, core } of pending) {
+			if (synced(core)) console.log(`  ✓ blind peers have ${name} (${core.length} blocks)`);
+		}
+		pending = pending.filter(({ core }) => !synced(core));
+	}
+	for (const { name } of pending) console.log(`  ⚠ blind peers did not finish ${name} in time`);
+
+	await blind.close();
+	return pending.length === 0;
+}
+
 // ── ota manifest ──────────────────────────────────────────────────────────────
 
 function keyOf(url) {
@@ -239,13 +281,25 @@ async function main() {
 		}
 	}
 
-	// Re-read for fresh urls — pushes bump the length embedded in each url.
-	const fresh = await withStore((db) =>
-		repoUrls(
+	// Re-read for fresh urls — pushes bump the length embedded in each url —
+	// and hand every mirrored core to the blind peers while the store is open.
+	const blindPeers = JSON.parse(readFileSync(SOURCES_PATH, 'utf8')).sources.find(
+		(s) => s.name === 'holepunch'
+	).blindPeers;
+
+	const fresh = await withStore(async (db) => {
+		const urls = await repoUrls(
 			db,
 			mirrored.map((r) => r.name)
-		)
-	);
+		);
+		console.log(`pushing ${mirrored.length} repos to ${blindPeers.length} blind peers…`);
+		await pushToBlindPeers(
+			db,
+			mirrored.map((r) => r.name),
+			blindPeers
+		);
+		return urls;
+	});
 
 	for (const r of mirrored) {
 		if (!fresh.has(r.name))
