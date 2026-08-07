@@ -8,9 +8,29 @@
 			],
 			"repos": [
 				{
+					"name": "autobase",
+					"url": "git+pear://0.3831.84ufhhasmxh3s5jq6n3en1czmts8t5oyf7ayctyiyxpcud3ur3uo/autobase",
+					"description": "Autobase lets you write concise multiwriter data structures with Hypercore"
+				},
+				{
 					"name": "bare",
 					"url": "git+pear://0.842.uxjjhyzyidusm84yboc5bqtc8nuw15osximq7qwjpzutzq3eu54o/bare",
 					"description": "Small and modular JavaScript runtime for desktop and mobile"
+				},
+				{
+					"name": "brittle",
+					"url": "git+pear://0.906.hngrqgtju3hkwueifombw7rgnejggp6ryyac8qc7kb35tehao44o/brittle",
+					"description": "Brittle TAP test framework"
+				},
+				{
+					"name": "corestore",
+					"url": "git+pear://0.470.wjices8o4g1xbs46qt4xfuxbgaxshnncm9terwq31tndkbkx9qbo/corestore",
+					"description": "A simple corestore that wraps a random-access-storage module"
+				},
+				{
+					"name": "dht-rpc",
+					"url": "git+pear://0.393.6qkagxw63x1km5zje6mn3kbbtyfth5g64mtoy7b38w9tpxeunm1y/dht-rpc",
+					"description": "Make RPC calls over a Kademlia based DHT."
 				},
 				{
 					"name": "hyperbeam",
@@ -28,6 +48,11 @@
 					"description": "Hypercore is a secure, distributed append-only log."
 				},
 				{
+					"name": "hyperdb",
+					"url": "git+pear://0.303.3jnmxjzi9nrwnrq64eb5npmngiikc6uznk6ukoo5e8z5nyzr6a3y/hyperdb",
+					"description": "P2P first database"
+				},
+				{
 					"name": "hyperdht",
 					"url": "git+pear://0.1048.t7tnci18h4wwnwcp57h5y9gy6et143334c1wmch9nofxet33tqdy/hyperdht",
 					"description": "The DHT powering Hyperswarm"
@@ -43,13 +68,38 @@
 					"description": "Spawn shells anywhere. Fully peer-to-peer, authenticated, and end to end encrypted"
 				},
 				{
+					"name": "hyperssh",
+					"url": "git+pear://0.16.ahde1t3xafq77hycbqgaioy5wqhhhtmasa4pnempkei3dyqu4dfo/hyperssh",
+					"description": "Run SSH over hyperswarm!"
+				},
+				{
 					"name": "hyperswarm",
 					"url": "git+pear://0.340.a56bchngywsu8ogidt46j3dpm4mhbosjqjdfzo4id5txz3ufjbzy/hyperswarm",
 					"description": "A distributed networking stack for connecting peers."
 				},
 				{
+					"name": "keet-mobile-releases",
+					"url": "git+pear://0.182.zkuk7itewgs7kghs6w6wdg6neqk6oh4hdggga53zujanojtdh96y/keet-mobile-releases",
+					"description": "Keet mobile releases"
+				},
+				{
+					"name": "libjs",
+					"url": "git+pear://0.627.fadddgxezakj7up94bpksn6fi3s5rbxqe9nthbstd8w6rtf8uq5y/libjs",
+					"description": "Simple and ABI stable C bindings to V8 built on libuv"
+				},
+				{
+					"name": "libudx",
+					"url": "git+pear://0.515.newconxuytpiqyher11cm547qwohqmsn8y9aaupx43t663z9eh3y/libudx",
+					"description": "udx is reliable, multiplexed, and congestion-controlled streams over udp"
+				},
+				{
+					"name": "mininet",
+					"url": "git+pear://0.44.g8jti684girj1e8gs95ftdudx14g3zjix8ekod48mcw16kcs3ury/mininet",
+					"description": "Spin up and interact with virtual networks using Mininet and Node.js"
+				},
+				{
 					"name": "pear",
-					"url": "git+pear://0.2513.zr85h8b5a19yyj6mcc31tq4aaft567p34hg9ztynbz9ubfui5ijo/pear",
+					"url": "git+pear://0.2515.zr85h8b5a19yyj6mcc31tq4aaft567p34hg9ztynbz9ubfui5ijo/pear",
 					"description": "Peer-to-Peer (P2P) Install & Deploy CLI"
 				},
 				{
