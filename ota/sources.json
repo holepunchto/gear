@@ -9,176 +9,176 @@
 			"repos": [
 				{
 					"name": "autobase",
-					"url": "git+pear://0.3831.84ufhhasmxh3s5jq6n3en1czmts8t5oyf7ayctyiyxpcud3ur3uo/autobase",
+					"url": "git+pear://0.3832.np5yhqk45coqbjir3uzjunn9gob8q8jjp437whjdpwxwha4nxzry/autobase",
 					"description": "Autobase lets you write concise multiwriter data structures with Hypercore"
 				},
 				{
 					"name": "b4a",
-					"url": "git+pear://0.51.7guruqe1se3zrnboc63tpesxubf58m3koetouc4s4pp8zbipsrso/b4a",
+					"url": "git+pear://0.51.s47kfefebc93pp9aij3hcxdw64d9q9nei7w9xgh1c3x5a6hxy1oo/b4a",
 					"description": "Bridging the gap between buffers and typed arrays"
 				},
 				{
 					"name": "bare",
-					"url": "git+pear://0.842.uxjjhyzyidusm84yboc5bqtc8nuw15osximq7qwjpzutzq3eu54o/bare",
+					"url": "git+pear://0.843.i57r3pnr43k4op6hi7kdtqrphs8hp1wqjrtnhcon8c19ar58yujo/bare",
 					"description": "Small and modular JavaScript runtime for desktop and mobile"
 				},
 				{
 					"name": "bare-kit",
-					"url": "git+pear://0.204.fuboziygkc841tbzxcc9qdcb4spm3pk6a4akjcqwf65837ym1eso/bare-kit",
+					"url": "git+pear://0.205.qmkffp3ntykitwatjonb13s8czq6ardaifhb7i5w9qofnkj7jepy/bare-kit",
 					"description": "Bare for native application development"
 				},
 				{
 					"name": "brittle",
-					"url": "git+pear://0.906.hngrqgtju3hkwueifombw7rgnejggp6ryyac8qc7kb35tehao44o/brittle",
+					"url": "git+pear://0.907.5hscz3fihyw6o53y5e4zzsumsp5mneddwqbbuqgjph9hezsk4zhy/brittle",
 					"description": "Brittle TAP test framework"
 				},
 				{
 					"name": "corestore",
-					"url": "git+pear://0.470.wjices8o4g1xbs46qt4xfuxbgaxshnncm9terwq31tndkbkx9qbo/corestore",
+					"url": "git+pear://0.471.djrtpf7ib7kfy3wd4ca5i41awkbs4phjnpka6wbjam5k96gqrrwy/corestore",
 					"description": "A simple corestore that wraps a random-access-storage module"
 				},
 				{
 					"name": "dht-rpc",
-					"url": "git+pear://0.393.6qkagxw63x1km5zje6mn3kbbtyfth5g64mtoy7b38w9tpxeunm1y/dht-rpc",
+					"url": "git+pear://0.394.xmnpqyp9o8nbytg3j11egd3caew1pmyyog6sn641uhd8yw1mu7xo/dht-rpc",
 					"description": "Make RPC calls over a Kademlia based DHT."
 				},
 				{
 					"name": "drives",
-					"url": "git+pear://0.81.oc7o61cdkz6je83t1n7ot5csgget4xfin14zgshj9ge4cuhrcipy/drives",
+					"url": "git+pear://0.82.bcmwhjja6gmwqm89nxq944zy87py66foz54pyigxgaydofb9otpy/drives",
 					"description": "CLI to download, seed, and mirror a Hyperdrive or Localdrive"
 				},
 				{
 					"name": "fs-native-extensions",
-					"url": "git+pear://0.36.5j6f1xk8sy7ramidhrty5wucugiprwy48wpk1hc3gd39ccf8w3ko/fs-native-extensions",
+					"url": "git+pear://0.37.4ozfg5r3nztdmq5m5prwepemx64sqbrki14y6ob3jaonbg85mcso/fs-native-extensions",
 					"description": "Native file system extensions for advanced file operations"
 				},
 				{
 					"name": "hyperbeam",
-					"url": "git+pear://0.22.a1e9p54t4otjqmp78qs1h4ufq15qb558af98bd7sc6yqrpoguhsy/hyperbeam",
+					"url": "git+pear://0.23.b77q3e8gk4tf3kjt4k55eusr85tt8bz8x9k33znxsttfkzz5f85o/hyperbeam",
 					"description": "A 1-1 end-to-end encrypted internet pipe powered by Hyperswarm"
 				},
 				{
 					"name": "hyperbee",
-					"url": "git+pear://0.526.zhhpbpe9i458a4merq9ff5tm4s7sg8bfrrsi43t64zhuko7zjbby/hyperbee",
+					"url": "git+pear://0.527.qe7i73j46eqnmeteyshtg33kckx6ba4hwm8b58e4gi1qps4tmcey/hyperbee",
 					"description": "An append-only B-tree running on a Hypercore"
 				},
 				{
 					"name": "hyperblobs",
-					"url": "git+pear://0.68.kw43pukzg3tdd5eg8ayme3ms6gi3xnp5ot99tjuwa44534ijkyuo/hyperblobs",
+					"url": "git+pear://0.69.pwfmyw8aunzpuzmt34ywnw9fb4nzzkt3e5m6d1g4bmk15k4gx1ty/hyperblobs",
 					"description": "A blob store for Hypercore"
 				},
 				{
 					"name": "hypercore",
-					"url": "git+pear://0.3307.ehijei5mgj3j5de67gezez9pzr3yubd8116zjfonfijxqyywwwro/hypercore",
+					"url": "git+pear://0.3308.xwx9p4qcy8kti78h89qrudwhfp8h6f4ukxgqhb3hyntx7t1jtxjo/hypercore",
 					"description": "Hypercore is a secure, distributed append-only log."
 				},
 				{
 					"name": "hypercore-crypto",
-					"url": "git+pear://0.29.ifmuezww1teq4tb1bajk7o5fjht3y36aeptrk9atzbjz4i46mpjy/hypercore-crypto",
+					"url": "git+pear://0.29.dbid5hyzsefpr6yewnhww1y7io16eypb1twnrgwri3x3u93nznwy/hypercore-crypto",
 					"description": "The crypto primitives used in hypercore, extracted into a separate module"
 				},
 				{
 					"name": "hyperdb",
-					"url": "git+pear://0.303.3jnmxjzi9nrwnrq64eb5npmngiikc6uznk6ukoo5e8z5nyzr6a3y/hyperdb",
+					"url": "git+pear://0.304.gwdkk8ytxayxkxuezp1jb7kkffpbxbkwy6kswdjotkemn711yn9o/hyperdb",
 					"description": "P2P first database"
 				},
 				{
 					"name": "hyperdht",
-					"url": "git+pear://0.1048.t7tnci18h4wwnwcp57h5y9gy6et143334c1wmch9nofxet33tqdy/hyperdht",
+					"url": "git+pear://0.1049.8atths8tzxp8x9naowkqw7o9wwfbnn4rgt733bnm3z8pq4nbxn6y/hyperdht",
 					"description": "The DHT powering Hyperswarm"
 				},
 				{
 					"name": "hyperdrive",
-					"url": "git+pear://0.862.xady9zweqpt9tox13mix95ztyfrbmepyfwg3jjwrdribtw4o4u6y/hyperdrive",
+					"url": "git+pear://0.863.9iw9r4znoi341rhexwjfts8mz3faza9hrwmkfpa5igdgugrgqxso/hyperdrive",
 					"description": "Hyperdrive is a secure, real time distributed file system"
 				},
 				{
 					"name": "hyperdrive-next",
-					"url": "git+pear://0.698.ooq8oc5r4pd3mj8tjuu36brsjndpnkcd1xopmw4wfyjfbfcjgw6o/hyperdrive-next",
+					"url": "git+pear://0.699.1fehr8p5x6kgi6jmnush9chpjoppd8r9zao7kimhdi5jcm6xjtfo/hyperdrive-next",
 					"description": "Hyperdrive is a secure, real-time distributed file system"
 				},
 				{
 					"name": "hypershell",
-					"url": "git+pear://0.39.wu7jxuqqzadnsucgdd5iwhbmrf71epity4t59i61p1e5knhjfhto/hypershell",
+					"url": "git+pear://0.40.zcnwezajyje56cwfp5y7sonpi5xp7f1k99ocdwpx3wk95t4eoz3y/hypershell",
 					"description": "Spawn shells anywhere. Fully peer-to-peer, authenticated, and end to end encrypted"
 				},
 				{
 					"name": "hyperssh",
-					"url": "git+pear://0.16.ahde1t3xafq77hycbqgaioy5wqhhhtmasa4pnempkei3dyqu4dfo/hyperssh",
+					"url": "git+pear://0.16.iwgepxeyceio96u34g5m6h7i3rrdbgautbsuy35oxbgjobi54roo/hyperssh",
 					"description": "Run SSH over hyperswarm!"
 				},
 				{
 					"name": "hyperswarm",
-					"url": "git+pear://0.340.a56bchngywsu8ogidt46j3dpm4mhbosjqjdfzo4id5txz3ufjbzy/hyperswarm",
+					"url": "git+pear://0.341.bmqohy7xomenxkk73swwiqa8or9sp9orf5i34cs8aoryjoqrmbbo/hyperswarm",
 					"description": "A distributed networking stack for connecting peers."
 				},
 				{
 					"name": "hyperswarm-dht-relay",
-					"url": "git+pear://0.42.f4i3qhxkbk8wm4koggdyqs9gz3g75g91xsyq9hy7jym4tnz9359y/hyperswarm-dht-relay",
+					"url": "git+pear://0.42.x7iwjgd3fd9ecdnpzsxihkqda54sshp4y8yam8kcxfmfz1biby4y/hyperswarm-dht-relay",
 					"description": "Relaying the Hyperswarm DHT over other transport protocols to bring decentralized networking to everyone"
 				},
 				{
 					"name": "hyperswarm-secret-stream",
-					"url": "git+pear://0.112.ftqecqiif5a4bq3o4z4hr58x7yj3hu17jmk5ewueg7ns8ajbc51y/hyperswarm-secret-stream",
+					"url": "git+pear://0.113.ckm33sf9gfc5zrd9hcy5689ujiidxbiaxaj1ixhwwfe5umer1t6y/hyperswarm-secret-stream",
 					"description": "Secret stream backed by Noise and libsodium's secretstream"
 				},
 				{
 					"name": "keet-mobile-releases",
-					"url": "git+pear://0.182.zkuk7itewgs7kghs6w6wdg6neqk6oh4hdggga53zujanojtdh96y/keet-mobile-releases",
+					"url": "git+pear://0.182.omuzc5q39715f7yh6gbnu9ssccfyo5893i8t4wbhm1g9wq4fq1ky/keet-mobile-releases",
 					"description": "Keet mobile releases"
 				},
 				{
 					"name": "libjs",
-					"url": "git+pear://0.627.fadddgxezakj7up94bpksn6fi3s5rbxqe9nthbstd8w6rtf8uq5y/libjs",
+					"url": "git+pear://0.628.5nd3mkjgx3iaaaer3u7d6stzifkus87f7c8pta4hjew9getj5gco/libjs",
 					"description": "Simple and ABI stable C bindings to V8 built on libuv"
 				},
 				{
 					"name": "libudx",
-					"url": "git+pear://0.515.newconxuytpiqyher11cm547qwohqmsn8y9aaupx43t663z9eh3y/libudx",
+					"url": "git+pear://0.516.ci5kk9mw4a1du5yj6kq3tm1dtibi91o7dn98ythwrwgxhimbobiy/libudx",
 					"description": "udx is reliable, multiplexed, and congestion-controlled streams over udp"
 				},
 				{
 					"name": "localdrive",
-					"url": "git+pear://0.98.o6om49pgecd3radc91q35t78mkqmcizhebpnnhawi4bjfm89rjiy/localdrive",
+					"url": "git+pear://0.99.dw18n83yzcb4de1mboeucdz4yp6hjpm7o3r7rkfci4554danhyao/localdrive",
 					"description": "File system API that is similar to Hyperdrive"
 				},
 				{
 					"name": "mininet",
-					"url": "git+pear://0.44.g8jti684girj1e8gs95ftdudx14g3zjix8ekod48mcw16kcs3ury/mininet",
+					"url": "git+pear://0.44.fjrhr3efixbadm4ted9f5uhs8xk579zkpiktcocg6oxhicporj7y/mininet",
 					"description": "Spin up and interact with virtual networks using Mininet and Node.js"
 				},
 				{
 					"name": "mirror-drive",
-					"url": "git+pear://0.49.stcnb8k5w8fe8xxis86unpsfgw1qc96zn4rb5qjgjc5iidh8rcbo/mirror-drive",
+					"url": "git+pear://0.50.3511r114pedfdqrm1iajb6gewo8pjttwgx9exec4sm9hrommuc1o/mirror-drive",
 					"description": "Mirror two drives"
 				},
 				{
 					"name": "pear",
-					"url": "git+pear://0.2534.zr85h8b5a19yyj6mcc31tq4aaft567p34hg9ztynbz9ubfui5ijo/pear",
+					"url": "git+pear://0.2560.1e3bo6rzujto931fgru5onpcn3dyqhn8o6c1jis6dhh69tb4e4oy/pear",
 					"description": "Peer-to-Peer (P2P) Install & Deploy CLI"
 				},
 				{
 					"name": "pear-docs",
-					"url": "git+pear://0.9621.w8myafm3m8n5711ocbieyc3e9gufroxjhojdg7mes8f77h55p46o/pear-docs"
+					"url": "git+pear://0.10343.tnaodknaoumxgs1hedyn9fcg34jy15iwwoyfs91iq64kfsr6tp9y/pear-docs"
 				},
 				{
 					"name": "protomux",
-					"url": "git+pear://0.71.yqmje3yutp87hc9ueebkoupzy7q5hau4qkdtks1ntx1f4isotk1o/protomux",
+					"url": "git+pear://0.72.zy41frnx7y3sn9pgypsafbjd85eugstfrsr9661515jpjty3jijo/protomux",
 					"description": "Multiplex multiple message oriented protocols over a stream"
 				},
 				{
 					"name": "react-native-bare-kit",
-					"url": "git+pear://0.155.ehhksdhz745mh5pxyk4tj9o5374i9cx6gqrp9rifn6fm1iuxxq3o/react-native-bare-kit",
+					"url": "git+pear://0.155.b4jeziagzae8ph5udomzuafcdaah68ijojwo55gzybnruueww7iy/react-native-bare-kit",
 					"description": "https://github.com/holepunchto/bare-kit for React Native"
 				},
 				{
 					"name": "sodium-native",
-					"url": "git+pear://0.707.3sydg3cxo3pm3yk1h6t7c7it84368ixweo9m4cj145qa3c79umiy/sodium-native",
+					"url": "git+pear://0.708.gxtsrjmbf1nhihoeci9tcozfgmxyjs64hqjet4t5tcfkw3oonqzy/sodium-native",
 					"description": "Low level bindings for libsodium"
 				},
 				{
 					"name": "sodium-universal",
-					"url": "git+pear://0.21.me78armose6h6g9atd3uupxen9jkqbmru6ubarn8sw44qrt5ti9o/sodium-universal",
+					"url": "git+pear://0.21.ogmmfi3ju1tsf4qtcdq81egck3c7zsfb31brtr34hwhstscycsoy/sodium-universal",
 					"description": "Universal wrapper for sodium-javascript and sodium-native working in Node.js and the Browser"
 				}
 			]
