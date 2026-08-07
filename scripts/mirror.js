@@ -13,6 +13,17 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SOURCES_PATH = join(ROOT, 'ota/sources.json');
 const ORG = 'holepunchto';
 
+// Last-seen GitHub pushed_at per repo — an unchanged repo skips its fetch
+// and both pushes entirely (the negotiated no-op push is cheap, but still
+// spawns the helper and connects to the swarm twice per repo).
+function readState(path) {
+	try {
+		return JSON.parse(readFileSync(path, 'utf8'));
+	} catch {
+		return {};
+	}
+}
+
 const cmd = command(
 	'mirror',
 	summary('Mirror the top N holepunch repos into a dedicated gip store + the ota manifest'),
@@ -25,9 +36,13 @@ const cmd = command(
 cmd.parse(process.argv.slice(2));
 const COUNT = Number(cmd.flags.count ?? 10);
 const REPOS = cmd.flags.repos?.split(',').map((s) => s.trim()) ?? null;
+// A custom work dir is an experiment — its keys must never reach the real
+// manifest, so only the default dir updates ota/sources.json.
+const IS_DEFAULT_DIR = !cmd.flags.dir;
 const DIR = cmd.flags.dir ?? join(ROOT, 'mirror');
 const STORE = join(DIR, 'store');
 const CLONES = join(DIR, 'clones');
+const STATE = join(DIR, 'state.json');
 
 const repoName = /^[a-zA-Z0-9_-]+$/;
 
@@ -277,8 +292,11 @@ async function main() {
 
 	// Create missing remotes and collect push urls, then release the store
 	// before git takes it over.
+	const state = readState(STATE);
+	const inStore = new Set();
 	const urls = await withStore(async (db) => {
 		const names = await db.getRepoNames();
+		for (const name of names) inStore.add(name);
 		for (const repo of repos) {
 			if (names.includes(repo.name)) continue;
 			const remote = await db.createRemote(repo.name);
@@ -295,12 +313,25 @@ async function main() {
 	const failed = [];
 
 	for (const repo of repos) {
+		// Nothing landed on GitHub since the last successful run and the repo
+		// is already in the store — no fetch, no pushes.
+		if (
+			state[repo.name] === repo.pushed_at &&
+			inStore.has(repo.name) &&
+			existsSync(join(CLONES, `${repo.name}.git`))
+		) {
+			console.log(`  – ${repo.name} (unchanged)`);
+			mirrored.push(repo);
+			continue;
+		}
+
 		try {
 			const dir = ensureClone(repo);
 			console.log(`  … ${repo.name}: pushing`);
 			push(dir, urls.get(repo.name));
 			console.log(`  ✓ ${repo.name} (★${repo.stargazers_count})`);
 			mirrored.push(repo);
+			state[repo.name] = repo.pushed_at;
 		} catch (err) {
 			failed.push(repo.name);
 			const lines = err.message.split('\n').filter(Boolean);
@@ -308,6 +339,8 @@ async function main() {
 			for (const line of lines.slice(-2)) if (line !== lines[0]) console.error(`      ${line}`);
 		}
 	}
+
+	writeFileSync(STATE, JSON.stringify(state, null, '\t') + '\n');
 
 	// Re-read for fresh urls — pushes bump the length embedded in each url —
 	// and hand every mirrored core to the blind peers while the store is open.
@@ -334,9 +367,12 @@ async function main() {
 			throw new Error(`${r.name} pushed but missing from the store — was ${STORE} touched?`);
 	}
 
-	const manifestChanged = updateSources(
-		mirrored.map((r) => ({ name: r.name, url: fresh.get(r.name), description: r.description }))
-	);
+	const manifestChanged =
+		IS_DEFAULT_DIR &&
+		updateSources(
+			mirrored.map((r) => ({ name: r.name, url: fresh.get(r.name), description: r.description }))
+		);
+	if (!IS_DEFAULT_DIR) console.log('custom --dir — manifest untouched');
 
 	if (manifestChanged) {
 		run('node', [join(ROOT, 'scripts/ota.js')], { stdio: 'inherit' });
