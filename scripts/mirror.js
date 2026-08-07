@@ -261,6 +261,13 @@ async function main() {
 		REPOS ? `fetching ${REPOS.join(', ')}…` : `fetching top ${COUNT} ${ORG} repos by stars…`
 	);
 	const repos = (REPOS ? await namedRepos(REPOS) : await topRepos(COUNT)).filter((r) => {
+		// Everything mirrored lands on public blind peers and in the public
+		// manifest — never mirror a private repo, even one named explicitly
+		// (a GITHUB_TOKEN can make them visible here).
+		if (r.private) {
+			console.log(`  ~ ${r.name}: skipped (private)`);
+			return false;
+		}
 		if (repoName.test(r.name)) return true;
 		console.log(`  ~ ${r.name}: skipped (name not supported by gip)`);
 		return false;
