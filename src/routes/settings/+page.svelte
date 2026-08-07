@@ -7,6 +7,16 @@
 
 	let submittingAdd = $state(false);
 	let copied = $state(false);
+	let installing = $state(false);
+	let copiedCommand = $state(false);
+
+	async function copyCommand() {
+		try {
+			await navigator.clipboard.writeText(data.installCommand);
+			copiedCommand = true;
+			setTimeout(() => (copiedCommand = false), 1200);
+		} catch {}
+	}
 
 	// Optimistic mirror of the toggle. We flip it on click, let Svelte update
 	// the hidden input, and only then submit the form — that way the form
@@ -40,9 +50,7 @@
 		return () => es.close();
 	});
 
-	const addPeerError = $derived(
-		form?.addPeer && 'error' in form.addPeer ? form.addPeer : null
-	);
+	const addPeerError = $derived(form?.addPeer && 'error' in form.addPeer ? form.addPeer : null);
 
 	async function copyIdentity() {
 		try {
@@ -84,7 +92,7 @@
 				</label>
 				<code
 					id="identity"
-					class="min-w-0 break-all rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-[12.5px] text-neutral-100"
+					class="min-w-0 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-[12.5px] break-all text-neutral-100"
 				>
 					{data.identity}
 				</code>
@@ -99,6 +107,114 @@
 		</div>
 	</section>
 
+	<!-- COMMAND LINE -->
+	{#if data.cli}
+		<section class="mb-5 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+			<div class="border-b border-neutral-800 px-5 py-3.5">
+				<h2 class="m-0 text-[15px] font-semibold text-white">Command line</h2>
+				<p class="m-0 mt-0.5 text-xs text-neutral-400">
+					The <code class="font-mono text-neutral-300">gip</code> CLI and git remote helper —
+					required to <code class="font-mono text-neutral-300">git clone</code> the
+					<code class="font-mono text-neutral-300">git+pear://</code> urls Gear hands out.
+				</p>
+			</div>
+			<div class="px-5 py-5">
+				{#if data.cli.installed}
+					<div class="flex items-center gap-2.5">
+						<span
+							class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-500/15 text-accent-400"
+						>
+							<svg
+								width="11"
+								height="11"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="3"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								aria-hidden="true"
+							>
+								<path d="M5 13l4 4L19 7" />
+							</svg>
+						</span>
+						<div class="min-w-0">
+							<div class="text-sm font-medium text-white">Installed</div>
+							{#if data.cli.path}
+								<div class="mt-0.5 truncate font-mono text-[11.5px] text-neutral-500">
+									{data.cli.path}
+								</div>
+							{/if}
+						</div>
+					</div>
+				{:else}
+					<div class="flex flex-wrap items-start justify-between gap-4">
+						<div class="min-w-0">
+							<div class="text-sm font-medium text-white">Not installed</div>
+							<p class="mt-1 text-xs text-neutral-400">
+								Installs <code class="font-mono">gip-transport</code> globally via npm.
+							</p>
+						</div>
+						{#if data.cli.npm}
+							<form
+								method="POST"
+								action="?/installCli"
+								use:enhance={() => {
+									installing = true;
+									return async ({ update }) => {
+										await update();
+										installing = false;
+									};
+								}}
+							>
+								<button
+									type="submit"
+									disabled={installing}
+									class="inline-flex items-center justify-center rounded-md bg-accent-500 px-3.5 py-2 text-sm font-semibold text-accent-900 hover:bg-accent-400 disabled:opacity-60"
+								>
+									{installing ? 'Installing…' : 'Install CLI'}
+								</button>
+							</form>
+						{/if}
+					</div>
+
+					<div
+						class="mt-4 grid grid-cols-[1fr_auto] items-center gap-2 border-t border-neutral-800 pt-4"
+					>
+						<code
+							class="min-w-0 truncate rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-[12.5px] text-neutral-100"
+						>
+							{data.installCommand}
+						</code>
+						<button
+							type="button"
+							onclick={copyCommand}
+							class="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs font-medium text-white hover:bg-neutral-700"
+						>
+							{copiedCommand ? 'Copied' : 'Copy'}
+						</button>
+						{#if !data.cli.npm}
+							<p class="col-span-2 m-0 text-xs text-neutral-500">
+								npm wasn't found in your shell — install <a
+									href="https://nodejs.org"
+									target="_blank"
+									rel="noreferrer"
+									class="text-accent-400">Node.js</a
+								> first, then run the command above.
+							</p>
+						{/if}
+					</div>
+
+					{#if form?.installCli && 'error' in form.installCli}
+						<p class="mt-3 mb-0 font-mono text-xs whitespace-pre-wrap text-red-400">
+							{form.installCli.error}
+						</p>
+					{/if}
+				{/if}
+			</div>
+		</section>
+	{/if}
+
 	<!-- NETWORK STATS -->
 	<section class="mb-5 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
 		<div class="border-b border-neutral-800 px-5 py-3.5">
@@ -109,7 +225,7 @@
 		</div>
 		<div class="grid grid-cols-2 gap-5 px-5 py-5">
 			<div>
-				<div class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+				<div class="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
 					Active connections
 				</div>
 				<div class="mt-1 text-2xl font-semibold text-white tabular-nums">
@@ -117,7 +233,7 @@
 				</div>
 			</div>
 			<div>
-				<div class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+				<div class="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
 					DHT nodes
 				</div>
 				<div class="mt-1 text-2xl font-semibold text-white tabular-nums">
@@ -193,7 +309,8 @@
 		<div class="px-5 py-5">
 			{#if data.blindPeers.length === 0}
 				<p class="m-0 text-sm text-neutral-500">
-					No blind peers configured. Add one below to keep your repos online even when Gear isn't running.
+					No blind peers configured. Add one below to keep your repos online even when Gear isn't
+					running.
 				</p>
 			{:else}
 				<ul class="m-0 list-none p-0">
@@ -205,7 +322,9 @@
 								<div class="font-mono text-[12.5px] text-white" title={peer}>
 									{shortPeer(peer)}
 								</div>
-								<div class="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+								<div
+									class="mt-0.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase"
+								>
 									Seeder
 								</div>
 							</div>
@@ -242,7 +361,7 @@
 					autocomplete="off"
 					required
 					value={addPeerError?.value ?? ''}
-					class="min-w-0 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-[12.5px] text-white placeholder:text-neutral-600 focus:border-accent-500 focus:outline-none focus:ring-4 focus:ring-accent-500/20"
+					class="min-w-0 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-[12.5px] text-white placeholder:text-neutral-600 focus:border-accent-500 focus:ring-4 focus:ring-accent-500/20 focus:outline-none"
 				/>
 				<button
 					type="submit"

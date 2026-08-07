@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import Id from 'hypercore-id-encoding';
 import { events } from '$lib/server/events';
+import { cliStatus, installCli, INSTALL_COMMAND } from '$lib/server/cli';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -18,6 +19,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		identity: Id.encode(publicKey),
 		blindPeers,
 		seedReadOnly,
+		cli: cliStatus(),
+		installCommand: INSTALL_COMMAND,
 		stats: {
 			connections: s.peers,
 			swarmPeers: s.swarmPeers,
@@ -62,6 +65,12 @@ export const actions: Actions = {
 		if (!removed) return fail(404, { removePeer: { error: 'Peer not found' } });
 
 		return { removePeer: { ok: true } };
+	},
+
+	installCli: async () => {
+		const result = installCli();
+		if (!result.ok) return fail(500, { installCli: { error: result.error } });
+		return { installCli: { ok: true } };
 	},
 
 	// Toggle whether we act as a swarm server for repos we've cloned but
