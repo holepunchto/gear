@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import type { PageProps } from './$types';
@@ -339,6 +340,9 @@
 													clearTimeout(pendingDeleteTimer);
 													pendingDeleteTimer = null;
 												}
+												// Re-run loads so layout data (the search overlay's
+												// library list) drops the deleted repo too.
+												await invalidateAll();
 											} else if (result.type === 'failure') {
 												const f = result.data?.delete as { error?: string } | undefined;
 												deleteError = f?.error ?? 'Delete failed';

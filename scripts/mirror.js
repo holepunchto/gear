@@ -139,9 +139,10 @@ async function pushToBlindPeers(db, names, keys, { timeout = 10 * 60_000 } = {})
 	const { default: Wakeup } = await import('protomux-wakeup');
 	const Id = (await import('hypercore-id-encoding')).default;
 
+	const peerKeys = keys.map((k) => Id.decode(k));
 	const blind = new BlindPeering(db.swarm.dht, db._store, {
 		wakeup: new Wakeup(),
-		keys: keys.map((k) => Id.decode(k))
+		keys: peerKeys
 	});
 
 	const cores = [];
@@ -152,7 +153,13 @@ async function pushToBlindPeers(db, names, keys, { timeout = 10 * 60_000 } = {})
 		cores.push({ name, core: entry.core });
 	}
 
-	const synced = (core) => core.peers.some((p) => p.remoteLength >= core.length);
+	// A peer knows the core length the moment it connects (hypercore is
+	// sparse) — remoteContiguousLength is what it has actually downloaded.
+	// Only the blind peers count; any other swarm peer proves nothing about
+	// mirror durability.
+	const isBlind = (p) => peerKeys.some((k) => k.equals(p.remotePublicKey));
+	const synced = (core) =>
+		core.peers.some((p) => isBlind(p) && p.remoteContiguousLength >= core.length);
 	const deadline = Date.now() + timeout;
 
 	let pending = cores;
@@ -222,6 +229,18 @@ async function seed() {
 	for (const name of names) {
 		const entry = await db.getCore(name, { server: true, client: false });
 		if (entry) console.log(`  ${name} — ${entry.core.length} blocks`);
+	}
+
+	// Blind peers only pull over connections we hold open — announcing on the
+	// swarm alone never reaches them. Keep feeding them while seeding.
+	const { blindPeers } = JSON.parse(readFileSync(SOURCES_PATH, 'utf8')).sources.find(
+		(s) => s.name === 'holepunch'
+	);
+	if (blindPeers.length > 0) {
+		console.log(`feeding ${blindPeers.length} blind peers`);
+		pushToBlindPeers(db, names, blindPeers, { timeout: 24 * 60 * 60_000 }).catch((err) =>
+			console.error(`  ⚠ blind peers: ${err.message}`)
+		);
 	}
 	console.log('online until Ctrl-C');
 
