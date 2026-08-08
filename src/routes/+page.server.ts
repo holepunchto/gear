@@ -9,7 +9,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const names = await locals.db.getRepoNames();
 
 	// getCore with server:false/client:false → pure local metadata, no swarm
-	// announce here. The hooks init already set each core's state when needed.
+	// join and nothing to wait on. seedLibrary() in hooks.server.ts owns the
+	// announce; this listing must never be what decides a repo's swarm state.
 	const entries = await Promise.all(
 		(names as string[]).map((name) => locals.db.getCore(name, { server: false, client: false }))
 	);
