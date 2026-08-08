@@ -5,6 +5,7 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
+	import { relativeTime, isoDate, isRecent } from '$lib/time';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
 
@@ -135,33 +136,6 @@
 			match: (p: string) => p.endsWith('/tags')
 		}
 	]);
-
-	// "Recent" — within the last 24h. Used to flag freshly-pushed commits
-	// with the apricot tertiary, our reserved "attention, not error" hue.
-	const RECENT_MS = 24 * 60 * 60 * 1000;
-	function isRecent(timestampSeconds: number) {
-		return Date.now() - timestampSeconds * 1000 < RECENT_MS;
-	}
-
-	// Relative time in the same shape git/GitHub use — short, no "ago"
-	// for compactness in the summary line. Tooltips carry the ISO date.
-	function relativeTime(timestampSeconds: number) {
-		const ms = Date.now() - timestampSeconds * 1000;
-		if (ms < 60_000) return 'just now';
-		const m = Math.floor(ms / 60_000);
-		if (m < 60) return `${m}m ago`;
-		const h = Math.floor(m / 60);
-		if (h < 24) return `${h}h ago`;
-		const d = Math.floor(h / 24);
-		if (d < 30) return `${d}d ago`;
-		const mo = Math.floor(d / 30);
-		if (mo < 12) return `${mo}mo ago`;
-		return `${Math.floor(mo / 12)}y ago`;
-	}
-
-	function isoDate(timestampSeconds: number) {
-		return new Date(timestampSeconds * 1000).toISOString();
-	}
 
 	const shortUrl = $derived.by(() => {
 		const m = repo.url.match(/^(git\+pear:\/\/[^.]+\.[^.]+\.)([^/]+)(\/.+)$/);

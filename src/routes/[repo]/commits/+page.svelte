@@ -3,35 +3,11 @@
 	import { page } from '$app/state';
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
 	import CommitDetails from '$lib/components/CommitDetails.svelte';
+	import { relativeTime, isoDate, isRecent } from '$lib/time';
 
 	let { data }: PageProps = $props();
 
 	const repoName = $derived(page.params.repo);
-
-	// Recency window for the apricot accent — commits newer than 24h get the
-	// "fresh" treatment so the eye picks up activity at a glance.
-	const RECENT_MS = 24 * 60 * 60 * 1000;
-	function isRecent(timestampSeconds: number) {
-		return Date.now() - timestampSeconds * 1000 < RECENT_MS;
-	}
-
-	function relativeTime(timestampSeconds: number) {
-		const ms = Date.now() - timestampSeconds * 1000;
-		if (ms < 60_000) return 'just now';
-		const m = Math.floor(ms / 60_000);
-		if (m < 60) return `${m}m ago`;
-		const h = Math.floor(m / 60);
-		if (h < 24) return `${h}h ago`;
-		const d = Math.floor(h / 24);
-		if (d < 30) return `${d}d ago`;
-		const mo = Math.floor(d / 30);
-		if (mo < 12) return `${mo}mo ago`;
-		return `${Math.floor(mo / 12)}y ago`;
-	}
-
-	function isoDate(timestampSeconds: number) {
-		return new Date(timestampSeconds * 1000).toISOString();
-	}
 
 	// Group commits by calendar day (in viewer's local time) so we can render
 	// the "Commits on <date>" headers GitHub uses. Done client-side because

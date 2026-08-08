@@ -1,7 +1,13 @@
 import Id from 'hypercore-id-encoding';
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { openRepo, getBranchHead, getCommitCount } from '$lib/server/repo';
+import {
+	openRepo,
+	getBranchHead,
+	getCommitCount,
+	getBranchRefs,
+	getTagRefs
+} from '$lib/server/repo';
 import { parseCommitMessage, type ParsedCommit } from '$lib/server/commit-parse';
 
 export const load: LayoutServerLoad = async ({ params, locals, depends }) => {
@@ -19,21 +25,15 @@ export const load: LayoutServerLoad = async ({ params, locals, depends }) => {
 		// non-fatal; a stale view is fine
 	}
 
-	const allRefs = await remote.getAllRefs();
-	const head = await remote.getHead();
-
-	const branches = allRefs
-		.filter((r: { ref: string }) => r.ref.startsWith('refs/heads/'))
-		.map((r: { ref: string; oid: string }) => ({
-			name: r.ref.replace('refs/heads/', ''),
-			oid: r.oid
-		}));
-	const tags = allRefs
-		.filter((r: { ref: string }) => r.ref.startsWith('refs/tags/'))
-		.map((r: { ref: string; oid: string }) => ({
-			name: r.ref.replace('refs/tags/', ''),
-			oid: r.oid
-		}));
+	// Branch and tag rows carry their tip commit so the lists can show what
+	// was last done on each ref. Branch metadata is denormalized on the record
+	// already; tags cost one object read each. Both collections are scanned
+	// here anyway — getAllRefs() walked them and dropped everything but names.
+	const [branches, tags, head] = await Promise.all([
+		getBranchRefs(remote),
+		getTagRefs(remote),
+		remote.getHead()
+	]);
 
 	// Head commit summary + count for the repo header. Reads the
 	// denormalized branch record (one round-trip) for the message/time, then

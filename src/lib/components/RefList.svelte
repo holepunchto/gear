@@ -1,5 +1,8 @@
 <script lang="ts">
-	type Ref = { name: string; oid: string };
+	import CommitMessage from '$lib/components/CommitMessage.svelte';
+	import { compareBranches, compareTags } from '$lib/ref-order';
+	import { relativeTime, isoDate } from '$lib/time';
+	import type { RefEntry } from '$lib/server/repo';
 
 	let {
 		refs,
@@ -9,7 +12,7 @@
 		emptyTitle,
 		emptyHint
 	}: {
-		refs: Ref[];
+		refs: RefEntry[];
 		repoName: string;
 		headName?: string | null;
 		kind: 'branch' | 'tag';
@@ -17,13 +20,12 @@
 		emptyHint: string;
 	} = $props();
 
+	// Tags are versions — newest release first. Branches are navigation —
+	// default first, then alphabetical.
 	const sorted = $derived(
-		[...refs].sort((a, b) => {
-			// Pin HEAD branch first when present, then alphabetical.
-			if (a.name === headName) return -1;
-			if (b.name === headName) return 1;
-			return a.name.localeCompare(b.name);
-		})
+		kind === 'tag'
+			? [...refs].sort((a, b) => compareTags(a.name, b.name))
+			: [...refs].sort((a, b) => compareBranches(a.name, b.name, headName))
 	);
 </script>
 
@@ -79,8 +81,28 @@
 								</span>
 							{/if}
 						</div>
-						<div class="mt-1 font-mono text-[11.5px] text-neutral-500" title={ref.oid}>
-							{ref.oid.slice(0, 10)}
+						{#if ref.commit}
+							<div class="mt-1.5 min-w-0 text-[12.5px] text-neutral-300">
+								<a
+									href="/{repoName}/{ref.name}/"
+									class="min-w-0 text-neutral-300 no-underline hover:text-accent-400"
+								>
+									<CommitMessage parsed={ref.commit.message} variant="compact" />
+								</a>
+							</div>
+						{/if}
+						<div class="mt-1 flex flex-wrap items-center gap-x-2 font-mono text-[11.5px] text-neutral-500">
+							<span title={ref.oid}>{ref.oid.slice(0, 10)}</span>
+							{#if ref.commit}
+								{#if ref.commit.author}
+									<span aria-hidden="true">·</span>
+									<span class="truncate">{ref.commit.author}</span>
+								{/if}
+								<span aria-hidden="true">·</span>
+								<span title={isoDate(ref.commit.timestamp)}>
+									{relativeTime(ref.commit.timestamp)}
+								</span>
+							{/if}
 						</div>
 					</div>
 					<div class="flex items-center gap-2">
