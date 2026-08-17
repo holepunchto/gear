@@ -6,6 +6,7 @@ import {
 	findReadme,
 	getFileMeta,
 	getFileMetaAt,
+	getFileHistory,
 	attachCommitsToTree
 } from '$lib/server/repo';
 import { parseCommitMessage } from '$lib/server/commit-parse';
@@ -25,7 +26,7 @@ function isProbablyBinary(buf: Uint8Array) {
 	return false;
 }
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, locals, parent }) => {
 	const remote = await openRepo(locals.db, params.repo);
 	if (!remote) throw error(404, 'Repository not found');
 
@@ -46,15 +47,35 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		const name = folder.slice(folder.lastIndexOf('/') + 1);
 
 		// Last commit that touched this file — for the strip above the content.
+		let commit = null;
 		const meta = await getFileMetaAt(remote, params.ref, fullPath);
-		const commit = meta
-			? {
-					oid: meta.commitOid,
-					author: meta.author,
-					message: parseCommitMessage(meta.message),
-					timestamp: meta.timestamp
+		if (meta) {
+			commit = {
+				oid: meta.commitOid,
+				author: meta.author,
+				message: parseCommitMessage(meta.message),
+				timestamp: meta.timestamp
+			};
+		}
+		// No row (tag refs are never file-indexed) or a row from before
+		// attribution existed — resolve it with a bounded walk from the ref
+		// tip, the same one the History view does.
+		if (!commit?.oid) {
+			const { repo } = await parent();
+			const tip = repo.refCommit?.oid;
+			if (tip) {
+				const { commits } = await getFileHistory(remote, tip, cleanPath, 1);
+				const c = commits[0];
+				if (c) {
+					commit = {
+						oid: c.oid,
+						author: c.author,
+						message: parseCommitMessage(c.message),
+						timestamp: c.timestamp
+					};
 				}
-			: null;
+			}
+		}
 
 		if (size > FILE_PREVIEW_MAX) {
 			return {
