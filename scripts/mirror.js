@@ -140,10 +140,13 @@ function ensureClone(repo) {
 	return dir;
 }
 
+// Force — upstream is the source of truth, and rebased branches (pear's
+// test-* ones) otherwise fail git's non-fast-forward check against the tips
+// the store already holds.
 function push(dir, url) {
 	const target = `${url}?storage=${encodeURIComponent(STORE)}`;
-	run('git', ['-C', dir, 'push', target, '--all']);
-	run('git', ['-C', dir, 'push', target, '--tags']);
+	run('git', ['-C', dir, 'push', target, '--all', '--force']);
+	run('git', ['-C', dir, 'push', target, '--tags', '--force']);
 }
 
 // ── Blind peers ───────────────────────────────────────────────────────────────
