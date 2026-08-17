@@ -9,6 +9,7 @@
 	"scripts": {
 		"ota": "node scripts/ota.js",
 		"mirror": "node scripts/mirror.js",
+		"backfill": "node scripts/backfill.js",
 		"dev": "vite dev",
 		"build": "vite build",
 		"release": "bare scripts/release.js",
