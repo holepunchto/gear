@@ -66,6 +66,7 @@
 		"hyperbee2": "^2.11.0",
 		"hyperconf": "^1.0.3",
 		"hyperdb": "^6.8.0",
+		"node-emoji": "^2.2.0",
 		"protomux-wakeup": "^2.9.0"
 	},
 	"devDependencies": {

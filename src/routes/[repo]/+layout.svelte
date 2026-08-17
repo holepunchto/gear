@@ -158,7 +158,13 @@
 	<nav class="mb-3.5 flex items-center gap-1 text-sm text-neutral-500">
 		<a href="/" class="text-neutral-500 no-underline hover:text-accent-400"> Repositories </a>
 		<span class="text-neutral-700">/</span>
-		{#if repo.ref && !repo.ref.isHead}
+		{#if page.params.oid}
+			<a href="/{repo.name}" class="text-neutral-500 no-underline hover:text-accent-400">
+				{repo.name}
+			</a>
+			<span class="text-neutral-700">/</span>
+			<span class="font-mono font-medium text-white">{page.params.oid.slice(0, 10)}</span>
+		{:else if repo.ref && !repo.ref.isHead}
 			<a href="/{repo.name}" class="text-neutral-500 no-underline hover:text-accent-400">
 				{repo.name}
 			</a>

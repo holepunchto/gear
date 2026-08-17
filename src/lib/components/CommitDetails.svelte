@@ -4,20 +4,9 @@
 
 	let { parsed }: { parsed: ParsedCommit } = $props();
 
-	// Anything worth surfacing past the subject — body paragraphs, footer
-	// trailers (Co-Authored-By, Signed-off-by), structured notes, issue
-	// refs, @-mentions. Hide the whole thing when there's nothing to show
-	// so the parent doesn't render an empty disclosure widget.
-	const hasAnything = $derived(
-		!!parsed.body ||
-			!!parsed.footer ||
-			parsed.notes.length > 0 ||
-			parsed.references.length > 0 ||
-			parsed.mentions.length > 0
-	);
 </script>
 
-{#if hasAnything}
+{#if parsed.body}
 	<details class="mt-2 text-[12.5px] text-neutral-400">
 		<summary
 			class="inline-flex cursor-pointer list-none items-center gap-1 text-neutral-500 hover:text-neutral-300"

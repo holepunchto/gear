@@ -1,12 +1,18 @@
 import { CommitParser } from 'conventional-commits-parser';
+import { emojify } from 'node-emoji';
 
 /**
  * Normalised parsed-commit shape we pass through SSR loaders to the UI.
- * Matches what `<CommitMessage>` expects — keep them in sync.
+ * Matches what `<CommitMessage>` and `<CommitBody>` expect — keep in sync.
  *
  * `type === null` means the message wasn't a conventional commit; the UI
  * falls back to rendering the raw header verbatim. We always carry the
  * original `header` so a malformed/unparseable message still surfaces.
+ *
+ * The parser also extracts body/footer/notes/references/mentions, but we
+ * deliberately don't ship them — pills mined from footers duplicated the
+ * text right next to them (three `@anthropic` badges from Co-Authored-By
+ * emails). `body` is simply everything after the header, verbatim.
  */
 export type ParsedCommit = {
 	type: string | null;
@@ -14,10 +20,6 @@ export type ParsedCommit = {
 	subject: string;
 	header: string;
 	body: string | null;
-	footer: string | null;
-	notes: { title: string; text: string }[];
-	mentions: string[];
-	references: { action: string | null; owner: string | null; repository: string | null; issue: string | null; raw: string; prefix: string | null }[];
 	hasBreaking: boolean;
 	raw: string;
 };
@@ -30,7 +32,9 @@ const parser = new CommitParser();
 const BANG_RE = /^([a-zA-Z][\w-]*)(\([^)]+\))?!:/;
 
 export function parseCommitMessage(raw: string): ParsedCommit {
-	const safe = raw ?? '';
+	// Render :rocket:-style shortcodes up front so every surface (subject,
+	// body, tooltips) gets real emoji.
+	const safe = emojify(raw ?? '');
 
 	// Strip the bang before passing to the parser — otherwise it can confuse
 	// the type extraction in some versions. We track the bang separately.
@@ -39,11 +43,7 @@ export function parseCommitMessage(raw: string): ParsedCommit {
 
 	const p = parser.parse(stripped) as {
 		header?: string | null;
-		body?: string | null;
-		footer?: string | null;
 		notes?: { title: string; text: string }[];
-		mentions?: string[];
-		references?: ParsedCommit['references'];
 		type?: string | null;
 		scope?: string | null;
 		subject?: string | null;
@@ -53,8 +53,9 @@ export function parseCommitMessage(raw: string): ParsedCommit {
 
 	// Header may be empty for some empty messages; first line of raw is the
 	// reliable fallback.
-	const firstLine = safe.split('\n', 1)[0] ?? '';
-	const header = (p.header && p.header.trim()) || firstLine.trim();
+	const [firstLine, ...restLines] = safe.split('\n');
+	const header = (p.header && p.header.trim()) || (firstLine ?? '').trim();
+	const body = restLines.join('\n').trim();
 
 	return {
 		type: p.type ?? null,
@@ -64,11 +65,7 @@ export function parseCommitMessage(raw: string): ParsedCommit {
 		// so consumers can always render *something*.
 		subject: (p.subject && p.subject.trim()) || header,
 		header,
-		body: p.body && p.body.trim() ? p.body.trim() : null,
-		footer: p.footer && p.footer.trim() ? p.footer.trim() : null,
-		notes: p.notes ?? [],
-		mentions: p.mentions ?? [],
-		references: p.references ?? [],
+		body: body || null,
 		hasBreaking: bangBreaking || noteBreaking,
 		raw: safe
 	};
