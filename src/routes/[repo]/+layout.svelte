@@ -169,21 +169,21 @@
 	</nav>
 
 	{#if repo.ref && !repo.ref.isHead}
-		<!-- Ref banner — everything on the page (files, commits, tip card) is
-			scoped to this ref, so say it loudly and offer the way back. -->
+		<!-- Ref strip — a quiet reminder that the page is scoped to this ref,
+			with the way back. -->
 		<div
-			class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-apricot-500/30 bg-apricot-500/[0.06] px-3.5 py-2.5 text-[13px] text-apricot-200"
+			class="mb-4 inline-flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-300"
 		>
 			<svg
-				width="13"
-				height="13"
+				width="12"
+				height="12"
 				viewBox="0 0 24 24"
 				fill="none"
 				stroke="currentColor"
 				stroke-width="2"
 				stroke-linecap="round"
 				stroke-linejoin="round"
-				class="shrink-0"
+				class="shrink-0 text-neutral-500"
 				aria-hidden="true"
 			>
 				{#if repo.ref.kind === 'tag'}
@@ -198,14 +198,11 @@
 					<path d="M18 9a9 9 0 0 1-9 9" />
 				{/if}
 			</svg>
-			<span>
-				Viewing {repo.ref.kind}
-				<strong class="font-mono font-semibold text-apricot-100">{repo.ref.name}</strong>
-				— files and commits are scoped to it.
-			</span>
+			<span class="font-mono font-medium text-white">{repo.ref.name}</span>
+			<span class="text-neutral-700">·</span>
 			<a
 				href="/{repo.name}"
-				class="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border border-apricot-500/40 px-2.5 py-1 text-xs font-medium text-apricot-100 no-underline transition-colors hover:bg-apricot-500/15"
+				class="text-neutral-400 no-underline transition-colors hover:text-accent-300"
 			>
 				Back to {repo.head ?? 'default branch'}
 			</a>
