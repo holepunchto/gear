@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { openRepo, getBranchHead, getCommitHistory } from '$lib/server/repo';
+import { openRepo, getCommitHistory } from '$lib/server/repo';
 import { parseCommitMessage } from '$lib/server/commit-parse';
 
 /**
@@ -31,11 +31,12 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 	}
 
 	// Cursor takes precedence — paging from "after this commit" — otherwise
-	// we start at the branch HEAD denormalized record.
+	// we start at the ref's tip, resolved from the layout's ref rows so tags
+	// work the same as branches.
 	let startOid: string | null = cursor;
 	if (!startOid) {
-		const head = await getBranchHead(remote, branch);
-		startOid = head?.commitOid ?? null;
+		const entry = [...repo.branches, ...repo.tags].find((r: { name: string }) => r.name === branch);
+		startOid = entry?.commitOid ?? null;
 	}
 
 	if (!startOid) {

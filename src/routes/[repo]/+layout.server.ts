@@ -1,16 +1,10 @@
 import Id from 'hypercore-id-encoding';
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import {
-	openRepo,
-	getBranchHead,
-	getCommitCount,
-	getBranchRefs,
-	getTagRefs
-} from '$lib/server/repo';
-import { parseCommitMessage, type ParsedCommit } from '$lib/server/commit-parse';
+import { openRepo, getCommitCount, getBranchRefs, getTagRefs } from '$lib/server/repo';
+import type { ParsedCommit } from '$lib/server/commit-parse';
 
-export const load: LayoutServerLoad = async ({ params, locals, depends }) => {
+export const load: LayoutServerLoad = async ({ params, locals, url, depends }) => {
 	const name = params.repo;
 	// Tag this load so the client can ask for a re-run when an 'append'
 	// event tells us someone pushed new blocks.
@@ -35,31 +29,41 @@ export const load: LayoutServerLoad = async ({ params, locals, depends }) => {
 		remote.getHead()
 	]);
 
-	// Head commit summary + count for the repo header. Reads the
-	// denormalized branch record (one round-trip) for the message/time, then
-	// walks parents for the count. Capped at 1000 — beyond that we render
-	// "1000+" rather than blow the load budget on huge histories.
-	let headCommit: {
+	// The active ref scopes everything the layout shows — commit card, count,
+	// and the children below. Path param on /[repo]/[ref]/..., ?ref= on
+	// /[repo]/commits, HEAD otherwise.
+	const refName = params.ref ?? url.searchParams.get('ref') ?? head;
+	const branchEntry = branches.find((b) => b.name === refName);
+	const tagEntry = branchEntry ? undefined : tags.find((t) => t.name === refName);
+	const entry = branchEntry ?? tagEntry;
+
+	const ref = refName
+		? {
+				name: refName,
+				kind: tagEntry ? ('tag' as const) : ('branch' as const),
+				isHead: refName === head
+			}
+		: null;
+
+	// Tip commit summary + count for the repo header, both scoped to the
+	// active ref. The tip rides on the ref rows already loaded above; the
+	// count walks parents, capped at 1000 — beyond that we render "1000+"
+	// rather than blow the load budget on huge histories.
+	let refCommit: {
 		oid: string;
 		author: string | null;
 		message: ParsedCommit;
 		timestamp: number;
 	} | null = null;
 	let commitCount = { count: 0, capped: false };
-	if (head) {
-		const branchHead = await getBranchHead(remote, head);
-		if (branchHead) {
-			headCommit = {
-				oid: branchHead.commitOid,
-				author: branchHead.author,
-				// Parse on the server so the conventional-commits-parser bundle
-				// never reaches the client. The banner/components consume the
-				// normalised ParsedCommit shape.
-				message: parseCommitMessage(branchHead.message),
-				timestamp: branchHead.timestamp
-			};
-			commitCount = await getCommitCount(remote, branchHead.commitOid, 1000);
-		}
+	if (entry?.commit) {
+		refCommit = {
+			oid: entry.commitOid,
+			author: entry.commit.author,
+			message: entry.commit.message,
+			timestamp: entry.commit.timestamp
+		};
+		commitCount = await getCommitCount(remote, entry.commitOid, 1000);
 	}
 
 	const key = Id.encode(remote.core.key);
@@ -74,7 +78,8 @@ export const load: LayoutServerLoad = async ({ params, locals, depends }) => {
 			writable: remote.core.writable,
 			url: `git+pear://0.${length}.${key}/${name}`,
 			head,
-			headCommit,
+			ref,
+			refCommit,
 			commitCount,
 			branches,
 			tags

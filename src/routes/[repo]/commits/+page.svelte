@@ -43,11 +43,14 @@
 		} catch {}
 	}
 
-	// Cursor link for "older". We only need to thread the oid through —
-	// SvelteKit's nav handles the rest.
-	const olderHref = $derived(
-		data.nextCursor ? `/${repoName}/commits?cursor=${data.nextCursor}` : null
-	);
+	// Cursor link for "older" — keeps ?ref= so paging stays scoped to the
+	// active ref.
+	const olderHref = $derived.by(() => {
+		if (!data.nextCursor) return null;
+		const q = new URLSearchParams({ cursor: data.nextCursor });
+		if (data.ref) q.set('ref', data.ref);
+		return `/${repoName}/commits?${q}`;
+	});
 </script>
 
 {#if data.commits.length === 0}

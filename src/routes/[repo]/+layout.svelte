@@ -96,8 +96,12 @@
 		return () => es.close();
 	});
 
-	// current ref (from URL if present, else HEAD)
-	const currentRef = $derived((page.params.ref as string | undefined) ?? repo.head ?? 'main');
+	// Active ref, resolved by the layout load (path param, ?ref=, or HEAD).
+	const currentRef = $derived(repo.ref?.name ?? repo.head ?? 'main');
+	// Query string that keeps commit links scoped when off the head branch.
+	const refQuery = $derived(
+		repo.ref && !repo.ref.isHead ? `?ref=${encodeURIComponent(repo.ref.name)}` : ''
+	);
 
 	async function copyUrl() {
 		try {
@@ -117,7 +121,7 @@
 		},
 		{
 			label: 'Commits',
-			href: `/${repo.name}/commits`,
+			href: `/${repo.name}/commits${refQuery}`,
 			count: repo.commitCount?.capped
 				? `${repo.commitCount.count}+`
 				: (repo.commitCount?.count ?? undefined),
@@ -153,8 +157,60 @@
 	<nav class="mb-3.5 flex items-center gap-1 text-sm text-neutral-500">
 		<a href="/" class="text-neutral-500 no-underline hover:text-accent-400"> Repositories </a>
 		<span class="text-neutral-700">/</span>
-		<span class="font-medium text-white">{repo.name}</span>
+		{#if repo.ref && !repo.ref.isHead}
+			<a href="/{repo.name}" class="text-neutral-500 no-underline hover:text-accent-400">
+				{repo.name}
+			</a>
+			<span class="text-neutral-700">/</span>
+			<span class="font-mono font-medium text-white">{repo.ref.name}</span>
+		{:else}
+			<span class="font-medium text-white">{repo.name}</span>
+		{/if}
 	</nav>
+
+	{#if repo.ref && !repo.ref.isHead}
+		<!-- Ref banner — everything on the page (files, commits, tip card) is
+			scoped to this ref, so say it loudly and offer the way back. -->
+		<div
+			class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-apricot-500/30 bg-apricot-500/[0.06] px-3.5 py-2.5 text-[13px] text-apricot-200"
+		>
+			<svg
+				width="13"
+				height="13"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="shrink-0"
+				aria-hidden="true"
+			>
+				{#if repo.ref.kind === 'tag'}
+					<path
+						d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
+					/>
+					<line x1="7" x2="7.01" y1="7" y2="7" />
+				{:else}
+					<line x1="6" x2="6" y1="3" y2="15" />
+					<circle cx="18" cy="6" r="3" />
+					<circle cx="6" cy="18" r="3" />
+					<path d="M18 9a9 9 0 0 1-9 9" />
+				{/if}
+			</svg>
+			<span>
+				Viewing {repo.ref.kind}
+				<strong class="font-mono font-semibold text-apricot-100">{repo.ref.name}</strong>
+				— files and commits are scoped to it.
+			</span>
+			<a
+				href="/{repo.name}"
+				class="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border border-apricot-500/40 px-2.5 py-1 text-xs font-medium text-apricot-100 no-underline transition-colors hover:bg-apricot-500/15"
+			>
+				Back to {repo.head ?? 'default branch'}
+			</a>
+		</div>
+	{/if}
 
 	<header class="mb-6 grid grid-cols-1 items-start gap-5 md:grid-cols-[1fr_auto] md:gap-6">
 		<div class="min-w-0">
@@ -231,7 +287,7 @@
 				{#if repo.commitCount && repo.commitCount.count > 0}
 					<span class="text-neutral-700">·</span>
 					<a
-						href="/{repo.name}/commits"
+						href="/{repo.name}/commits{refQuery}"
 						class="text-neutral-400 no-underline hover:text-accent-300"
 					>
 						<strong class="font-semibold text-neutral-200 tabular-nums">
@@ -356,13 +412,13 @@
 		</form>
 	{/if}
 
-	{#if repo.headCommit}
-		{@const c = repo.headCommit}
-		<!-- Head commit summary — what GitHub shows under the clone bar.
-			Apricot accent for "fresh" (within 24h) so the eye lands on
+	{#if repo.refCommit}
+		{@const c = repo.refCommit}
+		<!-- Tip commit of the active ref — what GitHub shows under the clone
+			bar. Apricot accent for "fresh" (within 24h) so the eye lands on
 			activity without misreading it as an error. -->
 		<a
-			href="/{repo.name}/commits"
+			href="/{repo.name}/commits{refQuery}"
 			class="mb-3 flex items-start gap-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 no-underline transition-colors hover:border-neutral-700 hover:bg-neutral-800/60 sm:px-4"
 			title="View commit history"
 		>

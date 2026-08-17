@@ -45,21 +45,13 @@ export type FileMeta = {
 	timestamp: number;
 };
 
-export type BranchHead = {
-	commitOid: string;
-	treeOid: string;
-	author: string | null;
-	message: string;
-	timestamp: number;
-};
-
 export type RefCommit = {
 	author: string | null;
 	message: ParsedCommit;
 	timestamp: number;
 };
 
-export type RefEntry = { name: string; oid: string; commit: RefCommit | null };
+export type RefEntry = { name: string; oid: string; commitOid: string; commit: RefCommit | null };
 
 /**
  * Branches with the tip commit push() already denormalized onto each record —
@@ -80,6 +72,7 @@ export async function getBranchRefs(remote: unknown): Promise<RefEntry[]> {
 		out.push({
 			name: b.name,
 			oid: b.commitOid,
+			commitOid: b.commitOid,
 			commit: {
 				author: b.author,
 				message: parseCommitMessage(b.message),
@@ -111,6 +104,7 @@ export async function getTagRefs(remote: unknown): Promise<RefEntry[]> {
 		rows.map(async (t) => ({
 			name: t.name,
 			oid: t.oid,
+			commitOid: t.commitOid,
 			commit: await readCommit(r, t.commitOid)
 		}))
 	);
@@ -129,32 +123,6 @@ async function readCommit(r: RemoteWithDB, oid: string): Promise<RefCommit | nul
 		author: parsed.author,
 		message: parseCommitMessage(parsed.message),
 		timestamp: parsed.timestamp
-	};
-}
-
-/**
- * Read the @gip/branches record for `branch` and return the commit metadata
- * stored at HEAD. This is what `push()` denormalizes onto the branch record:
- * one round-trip, no parent walk.
- */
-export async function getBranchHead(remote: unknown, branch: string): Promise<BranchHead | null> {
-	const r = remote as RemoteWithDB;
-	const b = (await r._db.get('@gip/branches', { name: branch })) as
-		| {
-				commitOid: string;
-				treeOid: string;
-				author: string | null;
-				message: string;
-				timestamp: number;
-		  }
-		| null;
-	if (!b) return null;
-	return {
-		commitOid: b.commitOid,
-		treeOid: b.treeOid,
-		author: b.author,
-		message: b.message,
-		timestamp: b.timestamp
 	};
 }
 
