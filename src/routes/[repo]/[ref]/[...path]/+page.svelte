@@ -3,6 +3,8 @@
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { page } from '$app/state';
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
+	import Code from '$lib/components/Code.svelte';
+	import { highlightLines, languageFor } from '$lib/highlight';
 
 	let { data }: PageProps = $props();
 
@@ -21,8 +23,11 @@
 
 	// Is the current file a markdown doc? If so we offer a Rendered/Source toggle
 	// and default to Rendered.
-	const isMarkdown = $derived(
-		data.kind === 'file' && /\.(md|markdown)$/i.test(data.name)
+	const isMarkdown = $derived(data.kind === 'file' && /\.(md|markdown)$/i.test(data.name));
+
+	// Source view: one HTML string per line, highlighted when we know the language.
+	const sourceLines = $derived(
+		data.kind === 'file' ? highlightLines(data.content, languageFor(data.name)) : []
 	);
 
 	let renderedMode = $state(true);
@@ -208,7 +213,9 @@
 									{item.name}
 								</a>
 							</td>
-							<td class="hidden max-w-0 py-2.5 pr-4 align-middle text-xs text-neutral-500 sm:table-cell">
+							<td
+								class="hidden max-w-0 py-2.5 pr-4 align-middle text-xs text-neutral-500 sm:table-cell"
+							>
 								{#if item.commit}
 									<div class="block truncate">
 										<CommitMessage parsed={item.commit.message} variant="compact" />
@@ -218,7 +225,7 @@
 								{/if}
 							</td>
 							<td
-								class="w-24 py-2.5 pr-5 pl-0 text-right align-middle font-mono text-xs tabular-nums whitespace-nowrap"
+								class="w-24 py-2.5 pr-5 pl-0 text-right align-middle font-mono text-xs whitespace-nowrap tabular-nums"
 							>
 								{#if item.commit}
 									<span
@@ -265,13 +272,14 @@
 				{data.readme.name}
 			</div>
 			<div
-				class="prose prose-sm prose-invert prose-neutral max-w-none px-4 py-5 sm:prose-base sm:px-7 sm:py-6
+				class="prose prose-sm max-w-none px-4 py-5 prose-neutral prose-invert sm:prose-base sm:px-7 sm:py-6
 					prose-headings:scroll-mt-20
 					prose-a:text-accent-400 prose-a:no-underline hover:prose-a:underline
 					prose-code:rounded prose-code:bg-neutral-950 prose-code:px-1 prose-code:py-0.5 prose-code:font-mono prose-code:text-[0.9em] prose-code:text-neutral-200 prose-code:before:content-none prose-code:after:content-none
-					prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3 sm:prose-pre:p-4"
+					prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3
+					sm:prose-pre:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[1em]"
 			>
-				<SvelteMarkdown source={data.readme.content} />
+				<SvelteMarkdown source={data.readme.content} renderers={{ code: Code }} />
 			</div>
 		</div>
 	{/if}
@@ -279,41 +287,41 @@
 	<!-- FILE VIEW (text, small enough to render) -->
 	{#if isMarkdown && renderedMode}
 		<div
-			class="prose prose-sm prose-invert prose-neutral max-w-none overflow-hidden rounded-b-lg border border-neutral-800 bg-neutral-900 px-4 py-5 sm:prose-base sm:px-7 sm:py-6
+			class="prose prose-sm max-w-none overflow-hidden rounded-b-lg border border-neutral-800 bg-neutral-900 px-4 py-5 prose-neutral prose-invert sm:prose-base sm:px-7 sm:py-6
 				prose-headings:scroll-mt-20
 				prose-a:text-accent-400 prose-a:no-underline hover:prose-a:underline
 				prose-code:rounded prose-code:bg-neutral-950 prose-code:px-1 prose-code:py-0.5 prose-code:font-mono prose-code:text-[0.9em] prose-code:text-neutral-200 prose-code:before:content-none prose-code:after:content-none
-				prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3 sm:prose-pre:p-4"
+					prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3
+				sm:prose-pre:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[1em]"
 		>
-			<SvelteMarkdown source={data.content} />
+			<SvelteMarkdown source={data.content} renderers={{ code: Code }} />
 		</div>
 	{:else}
-	<div class="overflow-hidden rounded-b-lg border border-neutral-800 bg-neutral-900">
-		<div class="overflow-x-auto">
-			<table class="w-full border-collapse font-mono text-[12.5px] leading-[1.55]">
-				<tbody>
-					{#each data.content.split('\n') as line, i}
-						<tr>
-							<td
-								class="sticky left-0 w-0 border-r border-neutral-800 bg-neutral-900 px-3 text-right align-top whitespace-nowrap text-neutral-600 tabular-nums select-none {i ===
-								0
-									? 'pt-3.5'
-									: ''} {i === data.content.split('\n').length - 1 ? 'pb-3.5' : ''}"
-							>
-								{i + 1}
-							</td>
-							<td
-								class="px-3.5 align-top whitespace-pre text-neutral-100 {i === 0
-									? 'pt-3.5'
-									: ''} {i === data.content.split('\n').length - 1 ? 'pb-3.5' : ''}"
-								>{line || ' '}</td
-							>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+		<div class="overflow-hidden rounded-b-lg border border-neutral-800 bg-neutral-900">
+			<div class="overflow-x-auto">
+				<table class="w-full border-collapse font-mono text-[12.5px] leading-[1.55]">
+					<tbody>
+						{#each sourceLines as line, i}
+							<tr>
+								<td
+									class="sticky left-0 w-0 border-r border-neutral-800 bg-neutral-900 px-3 text-right align-top whitespace-nowrap text-neutral-600 tabular-nums select-none {i ===
+									0
+										? 'pt-3.5'
+										: ''} {i === sourceLines.length - 1 ? 'pb-3.5' : ''}"
+								>
+									{i + 1}
+								</td>
+								<td
+									class="px-3.5 align-top whitespace-pre text-neutral-100 {i === 0
+										? 'pt-3.5'
+										: ''} {i === sourceLines.length - 1 ? 'pb-3.5' : ''}">{@html line || ' '}</td
+								>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 		</div>
-	</div>
 	{/if}
 {:else if data.kind === 'file-binary' || data.kind === 'file-large'}
 	<!-- PLACEHOLDER: binary or oversized -->

@@ -64,6 +64,66 @@
 	}
 }
 
+/* Syntax highlighting (highlight.js token classes), on the app palette:
+   mint for structure, apricot for values, neutral for the rest. */
+@layer components {
+	.hljs-comment,
+	.hljs-quote {
+		color: var(--color-neutral-500);
+		font-style: italic;
+	}
+	.hljs-keyword,
+	.hljs-selector-tag,
+	.hljs-tag,
+	.hljs-name {
+		color: var(--color-accent-300);
+	}
+	.hljs-title,
+	.hljs-section {
+		color: var(--color-accent-200);
+	}
+	.hljs-type,
+	.hljs-built_in,
+	.hljs-class .hljs-title {
+		color: var(--color-pear-300);
+	}
+	.hljs-string,
+	.hljs-regexp {
+		color: var(--color-apricot-300);
+	}
+	.hljs-number,
+	.hljs-literal,
+	.hljs-symbol,
+	.hljs-bullet {
+		color: var(--color-apricot-400);
+	}
+	.hljs-attr,
+	.hljs-attribute,
+	.hljs-variable,
+	.hljs-template-variable,
+	.hljs-selector-attr,
+	.hljs-selector-class,
+	.hljs-selector-id {
+		color: var(--color-accent-100);
+	}
+	.hljs-meta,
+	.hljs-doctag {
+		color: var(--color-neutral-400);
+	}
+	.hljs-addition {
+		color: var(--color-accent-300);
+	}
+	.hljs-deletion {
+		color: var(--color-apricot-500);
+	}
+	.hljs-emphasis {
+		font-style: italic;
+	}
+	.hljs-strong {
+		font-weight: 600;
+	}
+}
+
 @layer base {
 	html,
 	body {
