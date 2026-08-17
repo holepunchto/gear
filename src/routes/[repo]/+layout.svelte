@@ -416,7 +416,7 @@
 			{@const active = tab.match(page.url.pathname)}
 			<a
 				href={tab.href}
-				class="-mb-px shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap no-underline transition-colors
+				class="shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap no-underline transition-colors
 					{active ? 'border-accent-500 text-white' : 'border-transparent text-neutral-400 hover:text-white'}"
 			>
 				{tab.label}
