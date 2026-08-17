@@ -168,47 +168,6 @@
 		{/if}
 	</nav>
 
-	{#if repo.ref && !repo.ref.isHead}
-		<!-- Ref strip — a quiet reminder that the page is scoped to this ref,
-			with the way back. -->
-		<div
-			class="mb-4 inline-flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-300"
-		>
-			<svg
-				width="12"
-				height="12"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				class="shrink-0 text-neutral-500"
-				aria-hidden="true"
-			>
-				{#if repo.ref.kind === 'tag'}
-					<path
-						d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
-					/>
-					<line x1="7" x2="7.01" y1="7" y2="7" />
-				{:else}
-					<line x1="6" x2="6" y1="3" y2="15" />
-					<circle cx="18" cy="6" r="3" />
-					<circle cx="6" cy="18" r="3" />
-					<path d="M18 9a9 9 0 0 1-9 9" />
-				{/if}
-			</svg>
-			<span class="font-mono font-medium text-white">{repo.ref.name}</span>
-			<span class="text-neutral-700">·</span>
-			<a
-				href="/{repo.name}"
-				class="text-neutral-400 no-underline transition-colors hover:text-accent-300"
-			>
-				Back to {repo.head ?? 'default branch'}
-			</a>
-		</div>
-	{/if}
-
 	<header class="mb-6 grid grid-cols-1 items-start gap-5 md:grid-cols-[1fr_auto] md:gap-6">
 		<div class="min-w-0">
 			<!-- Title row — Owner pill is pinned to the left of the name so it
