@@ -31,3 +31,4 @@ ota/writer
 
 # Mirror clones
 mirror/
+*.jks

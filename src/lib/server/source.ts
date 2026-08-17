@@ -1,6 +1,9 @@
 import type { GipDB } from './gip.js';
 import { events } from './events.js';
 import { log } from './log.js';
+import Hyperconf from 'hyperconf';
+import ota from 'gear-ota';
+import hid from 'hypercore-id-encoding';
 
 export type SourceRepo = {
 	name: string;
@@ -29,9 +32,7 @@ export async function getAllSourceRepos(gip: GipDB): Promise<SourceRepoData> {
 }
 
 async function open(gip: GipDB) {
-	const { default: Hyperconf } = await import('hyperconf');
-	const { spec, key } = (await import('gear-ota')).default;
-	const { default: hid } = await import('hypercore-id-encoding');
+	const { spec, key } = ota;
 
 	const d = gip as any;
 	const core = d._store.namespace('ota').get({ key: hid.decode(key) });
