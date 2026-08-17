@@ -121,7 +121,9 @@
 										</svg>
 									</div>
 									<div class="min-w-0 flex-1">
-										<CommitMessage parsed={commit.message} variant="expanded" />
+										<a href="/{repoName}/commit/{commit.oid}" class="block no-underline">
+											<CommitMessage parsed={commit.message} variant="expanded" />
+										</a>
 										<CommitDetails parsed={commit.message} />
 										<div
 											class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-neutral-500"
@@ -154,12 +156,13 @@
 								>
 									⧉
 								</button>
-								<code
-									class="rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 font-mono text-[11.5px] text-neutral-300"
+								<a
+									href="/{repoName}/commit/{commit.oid}"
+									class="rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 font-mono text-[11.5px] text-neutral-300 no-underline transition-colors hover:border-neutral-700 hover:text-accent-300"
 									title={commit.oid}
 								>
 									{commit.oid.slice(0, 7)}
-								</code>
+								</a>
 							</div>
 						</li>
 					{/each}

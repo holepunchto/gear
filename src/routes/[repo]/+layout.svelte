@@ -117,7 +117,8 @@
 				!p.endsWith('/branches') &&
 				!p.endsWith('/tags') &&
 				!p.endsWith('/commits') &&
-				!p.endsWith('/settings')
+				!p.endsWith('/settings') &&
+				!p.includes('/commit/')
 		},
 		{
 			label: 'Commits',
@@ -374,9 +375,9 @@
 			bar. Apricot accent for "fresh" (within 24h) so the eye lands on
 			activity without misreading it as an error. -->
 		<a
-			href="/{repo.name}/commits{refQuery}"
+			href="/{repo.name}/commit/{c.oid}"
 			class="mb-3 flex items-start gap-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 no-underline transition-colors hover:border-neutral-700 hover:bg-neutral-800/60 sm:px-4"
-			title="View commit history"
+			title="View commit"
 		>
 			<div
 				class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full {isRecent(c.timestamp)
