@@ -237,7 +237,7 @@
 			<ul class="m-0 list-none p-0">
 				{#each repos as repo (repo.name)}
 					<li
-						class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 bg-neutral-900 px-5 py-3.5 transition-colors last:border-b-0 hover:bg-neutral-800/50 sm:flex-nowrap"
+						class="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-800 bg-neutral-900 px-5 py-3.5 transition-colors last:border-b-0 hover:bg-neutral-800/50 sm:flex-nowrap"
 					>
 						<div class="min-w-0 flex-1">
 							{#if repo.writable}
@@ -251,7 +251,7 @@
 							<div class="flex items-center gap-2">
 								<a
 									href="/{repo.name}"
-									class="font-mono text-[14px] font-semibold text-white no-underline transition-colors hover:text-accent-400"
+									class="relative z-10 font-mono text-[14px] font-semibold text-white no-underline transition-colors hover:text-accent-400"
 								>
 									{repo.name}
 								</a>
@@ -289,7 +289,7 @@
 								onclick={() => copy(repo.url)}
 								title="Copy URL"
 								aria-label="Copy URL"
-								class="rounded p-1.5 text-neutral-600 transition-colors hover:bg-neutral-700/60 hover:text-neutral-300"
+								class="relative z-10 rounded p-1.5 text-neutral-600 transition-colors hover:bg-neutral-700/60 hover:text-neutral-300"
 							>
 								<svg
 									width="13"
@@ -306,9 +306,11 @@
 									<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
 								</svg>
 							</button>
+							<!-- Stretched link — before: overlay makes the whole row navigate;
+								the other controls sit above it via relative z-10. -->
 							<a
 								href="/{repo.name}"
-								class="inline-flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-200 no-underline transition-colors hover:border-neutral-600 hover:bg-neutral-700 hover:text-white"
+								class="inline-flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-200 no-underline transition-colors before:absolute before:inset-0 hover:border-neutral-600 hover:bg-neutral-700 hover:text-white"
 							>
 								Open
 								<svg
@@ -360,7 +362,7 @@
 									<button
 										type="submit"
 										disabled={deleting === repo.name}
-										class="inline-flex items-center gap-1 rounded border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-60"
+										class="relative z-10 inline-flex items-center gap-1 rounded border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-60"
 										title="Click again to permanently delete"
 									>
 										{deleting === repo.name ? 'Deleting…' : 'Confirm'}
@@ -368,7 +370,7 @@
 									<button
 										type="button"
 										onclick={cancelDelete}
-										class="rounded p-1.5 text-neutral-600 transition-colors hover:text-neutral-400"
+										class="relative z-10 rounded p-1.5 text-neutral-600 transition-colors hover:text-neutral-400"
 									>
 										✕
 									</button>
@@ -379,7 +381,7 @@
 									onclick={() => armDelete(repo.name)}
 									title="Delete repository"
 									aria-label="Delete {repo.name}"
-									class="rounded p-1.5 text-neutral-700 transition-colors hover:bg-red-500/10 hover:text-red-400"
+									class="relative z-10 rounded p-1.5 text-neutral-700 transition-colors hover:bg-red-500/10 hover:text-red-400"
 								>
 									<svg
 										width="13"

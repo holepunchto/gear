@@ -39,7 +39,7 @@
 		<ul class="m-0 list-none p-0">
 			{#each sorted as ref (ref.name)}
 				<li
-					class="grid grid-cols-[1fr_auto] items-center gap-4 border-b border-neutral-800 px-5 py-3.5 transition-colors last:border-b-0 hover:bg-neutral-800/40"
+					class="relative grid grid-cols-[1fr_auto] items-center gap-4 border-b border-neutral-800 px-5 py-3.5 transition-colors last:border-b-0 hover:bg-neutral-800/40"
 				>
 					<div class="min-w-0">
 						<div class="flex items-center gap-2">
@@ -106,9 +106,10 @@
 						</div>
 					</div>
 					<div class="flex items-center gap-2">
+						<!-- Stretched link — the before: overlay makes the whole row navigate. -->
 						<a
 							href="/{repoName}/{ref.name}/"
-							class="inline-flex items-center rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white no-underline hover:bg-neutral-700"
+							class="inline-flex items-center rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white no-underline before:absolute before:inset-0 hover:bg-neutral-700"
 						>
 							Browse
 						</a>

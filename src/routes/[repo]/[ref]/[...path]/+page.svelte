@@ -172,7 +172,7 @@
 			<table class="w-full border-collapse text-[13px]">
 				<tbody>
 					{#each data.items as item (item.name)}
-						<tr class="border-b border-neutral-800 last:border-b-0 hover:bg-neutral-800/40">
+						<tr class="relative border-b border-neutral-800 last:border-b-0 hover:bg-neutral-800/40">
 							<td class="w-6 py-2.5 pr-0 pl-4 align-middle">
 								{#if item.kind === 'dir'}
 									<svg
@@ -206,9 +206,10 @@
 								{/if}
 							</td>
 							<td class="w-1/3 max-w-0 py-2.5 pr-4 pl-2 align-middle">
+								<!-- Stretched link — the before: overlay makes the whole row navigate. -->
 								<a
 									href="/{repoName}/{ref}{item.path}"
-									class="block truncate font-medium text-white no-underline hover:text-accent-400"
+									class="block truncate font-medium text-white no-underline before:absolute before:inset-0 hover:text-accent-400"
 								>
 									{item.name}
 								</a>

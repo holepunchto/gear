@@ -10,6 +10,12 @@
 	let { children, data } = $props();
 
 	let overlayOpen = $state(false);
+	let menuOpen = $state(false);
+
+	const navItems = [
+		{ href: '/', label: 'Repos' },
+		{ href: '/settings', label: 'Settings' }
+	];
 
 	// Live peer count — SSR gives us the initial value, then an EventSource
 	// subscription to /api/events keeps it fresh. Auto-reconnects on drop.
@@ -107,7 +113,7 @@
 					</a>
 					<div class="mx-1.5 hidden h-4 w-px bg-neutral-800 sm:block"></div>
 					<nav class="hidden items-center gap-0.5 sm:flex">
-						{#each [{ href: '/', label: 'Repos' }, { href: '/settings', label: 'Settings' }] as item}
+						{#each navItems as item}
 							<a
 								href={item.href}
 								class="shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap no-underline transition-colors
@@ -191,8 +197,49 @@
 							<span aria-hidden="true">{avatarInitials}</span>
 						{/if}
 					</button>
+					<button
+						type="button"
+						onclick={() => (menuOpen = !menuOpen)}
+						aria-label="Menu"
+						aria-expanded={menuOpen}
+						class="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-neutral-800 text-neutral-400 transition-colors hover:border-neutral-700 hover:text-white sm:hidden"
+					>
+						<svg
+							width="15"
+							height="15"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							aria-hidden="true"
+						>
+							{#if menuOpen}
+								<path d="M6 6l12 12M18 6L6 18" />
+							{:else}
+								<path d="M4 7h16M4 12h16M4 17h16" />
+							{/if}
+						</svg>
+					</button>
 				</div>
 			</div>
+
+			{#if menuOpen}
+				<nav class="flex flex-col gap-0.5 pb-3 sm:hidden">
+					{#each navItems as item}
+						<a
+							href={item.href}
+							onclick={() => (menuOpen = false)}
+							class="rounded-md px-2.5 py-2 text-sm font-medium no-underline transition-colors
+							{isActive(item.href)
+								? 'bg-pear-900 text-white'
+								: 'text-neutral-400 hover:bg-pear-700/60 hover:text-white'}"
+						>
+							{item.label}
+						</a>
+					{/each}
+				</nav>
+			{/if}
 		</div>
 	</header>
 
