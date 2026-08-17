@@ -88,6 +88,32 @@
 	</nav>
 {/if}
 
+{#if data.kind !== 'tree' && data.commit}
+	{@const c = data.commit}
+	<!-- Last commit that touched this file — same shape as the repo header's
+		tip-commit card, linking through when the attribution row exists. -->
+	<svelte:element
+		this={c.oid ? 'a' : 'div'}
+		href={c.oid ? `/${repoName}/commit/${c.oid}` : undefined}
+		class="mb-3 flex items-center gap-2.5 rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2 text-[12.5px] no-underline {c.oid
+			? 'transition-colors hover:border-neutral-700 hover:bg-neutral-800/60'
+			: ''}"
+	>
+		<div class="min-w-0 flex-1 truncate">
+			<CommitMessage parsed={c.message} variant="compact" />
+		</div>
+		<span class="shrink-0 text-neutral-500">
+			<span class="text-neutral-300">{c.author ?? 'unknown'}</span>
+			<span title={isoDate(c.timestamp)}>{relativeTime(c.timestamp)}</span>
+		</span>
+		{#if c.oid}
+			<code class="hidden shrink-0 font-mono text-[11px] text-neutral-600 sm:inline">
+				{c.oid.slice(0, 7)}
+			</code>
+		{/if}
+	</svelte:element>
+{/if}
+
 <!-- Toolbar: ref chip + item count -->
 <div
 	class="flex flex-wrap items-center gap-2 rounded-t-lg border border-b-0 border-neutral-800 bg-neutral-900 px-3 py-2.5 sm:gap-3 sm:px-3.5"
@@ -155,6 +181,13 @@
 			</div>
 		{/if}
 		<a
+			href={`/${repoName}/commits?ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(data.path)}`}
+			class="rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white no-underline hover:bg-neutral-700"
+			title="Commits that touched this file"
+		>
+			History
+		</a>
+		<a
 			href={`/api/raw/${repoName}/${ref}/${data.path}`}
 			class="rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white no-underline hover:bg-neutral-700"
 		>
@@ -218,9 +251,18 @@
 								class="hidden max-w-0 py-2.5 pr-4 align-middle text-xs text-neutral-500 sm:table-cell"
 							>
 								{#if item.commit}
-									<div class="block truncate">
-										<CommitMessage parsed={item.commit.message} variant="compact" />
-									</div>
+									{#if item.commit.oid}
+										<a
+											href="/{repoName}/commit/{item.commit.oid}"
+											class="relative z-10 block truncate no-underline hover:text-accent-300"
+										>
+											<CommitMessage parsed={item.commit.message} variant="compact" />
+										</a>
+									{:else}
+										<div class="block truncate">
+											<CommitMessage parsed={item.commit.message} variant="compact" />
+										</div>
+									{/if}
 								{:else}
 									<span class="text-neutral-700">—</span>
 								{/if}

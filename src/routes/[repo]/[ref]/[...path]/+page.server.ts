@@ -5,8 +5,10 @@ import {
 	listTree,
 	findReadme,
 	getFileMeta,
+	getFileMetaAt,
 	attachCommitsToTree
 } from '$lib/server/repo';
+import { parseCommitMessage } from '$lib/server/commit-parse';
 
 /** Max bytes we'll render inline. Above this, show a "too large" placeholder. */
 const FILE_PREVIEW_MAX = 1_000_000; // 1 MB
@@ -43,6 +45,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		const parentFolder = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) || '/' : '/';
 		const name = folder.slice(folder.lastIndexOf('/') + 1);
 
+		// Last commit that touched this file — for the strip above the content.
+		const meta = await getFileMetaAt(remote, params.ref, fullPath);
+		const commit = meta
+			? {
+					oid: meta.commitOid,
+					author: meta.author,
+					message: parseCommitMessage(meta.message),
+					timestamp: meta.timestamp
+				}
+			: null;
+
 		if (size > FILE_PREVIEW_MAX) {
 			return {
 				kind: 'file-large' as const,
@@ -50,7 +63,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				path: cleanPath,
 				parentFolder,
 				name,
-				size
+				size,
+				commit
 			};
 		}
 
@@ -64,7 +78,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				path: cleanPath,
 				parentFolder,
 				name,
-				size
+				size,
+				commit
 			};
 		}
 
@@ -75,6 +90,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			parentFolder,
 			name,
 			size,
+			commit,
 			content: buf.toString('utf8')
 		};
 	}

@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { openRepo, getCommitHistory } from '$lib/server/repo';
+import { openRepo, getCommitHistory, getFileHistory, type CommitMeta } from '$lib/server/repo';
 import { parseCommitMessage } from '$lib/server/commit-parse';
 
 /**
@@ -15,19 +15,16 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 	if (!remote) throw error(404, 'Repository not found');
 
 	// We rely on the layout's HEAD lookup to pick a starting branch. If the
-	// caller wants a different ref's history, they can pass ?ref=<name>.
+	// caller wants a different ref's history, they can pass ?ref=<name>, and
+	// ?path=<file> narrows the walk to commits that touched that file.
 	const refOverride = url.searchParams.get('ref');
 	const cursor = url.searchParams.get('cursor');
+	const path = url.searchParams.get('path');
 
 	const { repo } = await parent();
 	const branch = refOverride ?? repo.head;
 	if (!branch) {
-		return {
-			ref: null,
-			commits: [],
-			nextCursor: null,
-			pageSize: PAGE_SIZE
-		};
+		return { ref: null, path, commits: [], nextCursor: null, pageSize: PAGE_SIZE };
 	}
 
 	// Cursor takes precedence — paging from "after this commit" — otherwise
@@ -40,18 +37,27 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 	}
 
 	if (!startOid) {
-		return { ref: branch, commits: [], nextCursor: null, pageSize: PAGE_SIZE };
+		return { ref: branch, path, commits: [], nextCursor: null, pageSize: PAGE_SIZE };
 	}
 
-	// Pull one extra so we can detect "is there a next page" without doing a
-	// second query — the extra row becomes the cursor for the next request.
-	const commits = await getCommitHistory(remote, startOid, PAGE_SIZE + 1);
-	const hasMore = commits.length > PAGE_SIZE;
-	const page = hasMore ? commits.slice(0, PAGE_SIZE) : commits;
-	const nextCursor = hasMore ? commits[PAGE_SIZE].oid : null;
+	let page: CommitMeta[];
+	let nextCursor: string | null;
+
+	if (path) {
+		({ commits: page, nextCursor } = await getFileHistory(remote, startOid, path, PAGE_SIZE));
+	} else {
+		// Pull one extra so we can detect "is there a next page" without doing
+		// a second query — the extra row becomes the cursor for the next
+		// request.
+		const commits = await getCommitHistory(remote, startOid, PAGE_SIZE + 1);
+		const hasMore = commits.length > PAGE_SIZE;
+		page = hasMore ? commits.slice(0, PAGE_SIZE) : commits;
+		nextCursor = hasMore ? commits[PAGE_SIZE].oid : null;
+	}
 
 	return {
 		ref: branch,
+		path,
 		commits: page.map((c) => ({
 			oid: c.oid,
 			author: c.author,

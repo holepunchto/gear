@@ -43,15 +43,39 @@
 		} catch {}
 	}
 
-	// Cursor link for "older" — keeps ?ref= so paging stays scoped to the
-	// active ref.
+	// Cursor link for "older" — keeps ?ref= and ?path= so paging stays scoped
+	// to the active ref (and file, when this is a file history).
 	const olderHref = $derived.by(() => {
 		if (!data.nextCursor) return null;
 		const q = new URLSearchParams({ cursor: data.nextCursor });
 		if (data.ref) q.set('ref', data.ref);
+		if (data.path) q.set('path', data.path);
 		return `/${repoName}/commits?${q}`;
 	});
 </script>
+
+{#if data.path}
+	<!-- File-history header — the list below is filtered to commits that
+		touched this path. -->
+	<div
+		class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-[13px] text-neutral-400"
+	>
+		<span>History for</span>
+		<a
+			href="/{repoName}/{data.ref}/{data.path}"
+			class="font-mono font-medium text-white no-underline hover:text-accent-300"
+		>
+			{data.path}
+		</a>
+		<span class="text-neutral-700">·</span>
+		<a
+			href="/{repoName}/commits{data.ref ? `?ref=${encodeURIComponent(data.ref)}` : ''}"
+			class="text-neutral-500 no-underline hover:text-accent-300"
+		>
+			All commits
+		</a>
+	</div>
+{/if}
 
 {#if data.commits.length === 0}
 	<div class="rounded-lg border border-neutral-800 bg-neutral-900 px-6 py-12 text-center">

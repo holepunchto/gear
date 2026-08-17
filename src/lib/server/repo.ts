@@ -1,4 +1,5 @@
 import { parseCommit } from 'gip-remote';
+import { treeEntries } from 'gip-remote/git';
 import type { GipDB } from './gip';
 import { parseCommitMessage, type ParsedCommit } from './commit-parse';
 
@@ -43,6 +44,7 @@ export type FileMeta = {
 	author: string | null;
 	message: string;
 	timestamp: number;
+	commitOid: string | null;
 };
 
 export type RefCommit = {
@@ -164,6 +166,83 @@ export async function getCommitHistory(
 }
 
 /**
+ * Commits that changed `path`, walking first-parent from `startOid` — the
+ * same walk the Commits tab does, filtered to commits whose tree differs at
+ * the path from their parent's. Renames aren't followed. `nextCursor` is the
+ * next unscanned commit when the walk hit `limit` results or the scan cap,
+ * so huge histories page instead of stalling the load.
+ */
+const HISTORY_SCAN_MAX = 500;
+
+export async function getFileHistory(
+	remote: unknown,
+	startOid: string,
+	path: string,
+	limit = 50
+): Promise<{ commits: CommitMeta[]; nextCursor: string | null }> {
+	const r = remote as RemoteWithDB;
+	const segments = path.split('/').filter(Boolean);
+
+	type Loaded = {
+		oid: string;
+		tree: string;
+		parents: string[];
+		author: string | null;
+		message: string;
+		timestamp: number;
+	};
+
+	const load = async (oid: string): Promise<Loaded | null> => {
+		const obj = await r.getObject(oid);
+		if (!obj || obj.type !== 'commit') return null;
+		return { oid, ...(parseCommit(obj.data) as Omit<Loaded, 'oid'>) };
+	};
+
+	// Resolve the blob oid at `segments` under a root tree, one tree object
+	// per level.
+	const blobAt = async (treeOid: string): Promise<string | null> => {
+		let oid = treeOid;
+		for (const seg of segments) {
+			const obj = await r.getObject(oid);
+			if (!obj || obj.type !== 'tree') return null;
+			const entry = (treeEntries(obj.data) as { path: string; oid: string }[]).find(
+				(e) => e.path === seg
+			);
+			if (!entry) return null;
+			oid = entry.oid;
+		}
+		return oid;
+	};
+
+	const out: CommitMeta[] = [];
+	let scanned = 0;
+	let cur = await load(startOid);
+	let curBlob = cur ? await blobAt(cur.tree) : null;
+
+	while (cur && out.length < limit && scanned < HISTORY_SCAN_MAX) {
+		scanned++;
+		const parentOid = cur.parents[0] ?? null;
+		const parent = parentOid ? await load(parentOid) : null;
+		const parentBlob = parent ? await blobAt(parent.tree) : null;
+
+		if (curBlob !== null && curBlob !== parentBlob) {
+			out.push({
+				oid: cur.oid,
+				author: cur.author,
+				message: cur.message,
+				timestamp: cur.timestamp,
+				parents: cur.parents
+			});
+		}
+
+		cur = parent;
+		curBlob = parentBlob;
+	}
+
+	return { commits: out, nextCursor: cur ? cur.oid : null };
+}
+
+/**
  * Count commits reachable from `headOid` by walking *all* parents (so merge
  * branches contribute their own commits). Bounded by `limit` so we don't
  * choke on huge histories — caller can show "N+" when limit hits.
@@ -199,9 +278,31 @@ export async function getFileMeta(remote: unknown, branch: string): Promise<Map<
 	const out = new Map<string, FileMeta>();
 	for await (const row of r._db.find('@gip/files', { branch })) {
 		const f = row as FileMeta;
-		out.set(f.path, f);
+		out.set(f.path, { ...f, commitOid: null });
+	}
+	// Attribution rows live in their own collection (the files struct is
+	// compact and couldn't grow a field) — join them in by path.
+	for await (const row of r._db.find('@gip/file-commits', { branch })) {
+		const c = row as { path: string; commitOid: string };
+		const f = out.get(c.path);
+		if (f) f.commitOid = c.commitOid;
 	}
 	return out;
+}
+
+/** The files row for a single path, with its attribution joined in. */
+export async function getFileMetaAt(
+	remote: unknown,
+	branch: string,
+	path: string
+): Promise<FileMeta | null> {
+	const r = remote as RemoteWithDB;
+	const f = (await r._db.get('@gip/files', { branch, path })) as FileMeta | null;
+	if (!f) return null;
+	const c = (await r._db.get('@gip/file-commits', { branch, path })) as {
+		commitOid: string;
+	} | null;
+	return { ...f, commitOid: c?.commitOid ?? null };
 }
 
 /**
@@ -215,7 +316,12 @@ export type TreeEntryWithCommit = {
 	path: string;
 	kind: 'file' | 'dir';
 	size: number;
-	commit: { author: string | null; message: ParsedCommit; timestamp: number } | null;
+	commit: {
+		oid: string | null;
+		author: string | null;
+		message: ParsedCommit;
+		timestamp: number;
+	} | null;
 };
 
 export function attachCommitsToTree(
@@ -246,6 +352,7 @@ export function attachCommitsToTree(
 			// Parse the message once on the server so the
 			// conventional-commits-parser bundle never reaches the client.
 			commit = {
+				oid: m.commitOid,
 				author: m.author,
 				message: parseCommitMessage(m.message),
 				timestamp: m.timestamp
