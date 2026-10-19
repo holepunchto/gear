@@ -1,10 +1,6 @@
 {
 	"name": "gear",
 	"version": "0.0.1",
-	"update": "pear://fn1m1sjteq3uudhxkxrx9gni6p4wtoyyhpbpg6pig1mo8owy9nyy",
-	"blindPeers": [
-		"pp63g6rxiy9dcxsz4y4ss3jefupubaphechhctxzmdj1epcdyz7o"
-	],
 	"type": "module",
 	"scripts": {
 		"ota": "node scripts/ota.js",
@@ -13,6 +9,8 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"release": "bare scripts/release.js",
+		"make:darwin-arm64": "bare scripts/release.js --darwin-arm64 --unsigned",
+		"make:android-arm64": "bare scripts/release.js --android-arm64",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

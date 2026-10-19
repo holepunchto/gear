@@ -35,21 +35,19 @@ The dev server runs in Node.js mode. The Pear stack (gip-transport, Hyperswarm) 
 
 ## Building
 
-**1. Compile the SvelteKit app:**
-
 ```sh
-npm run build
-```
+npm install
 
-**2. Package for your target platform:**
-
-```sh
 # macOS (Apple Silicon)
 npm run make:darwin-arm64
 
 # Android (arm64)
 npm run make:android-arm64
 ```
+
+Each `make:<host>` runs the vite build and packages that one platform. macOS
+builds from source are unsigned (other Macs need right-click → Open); Android
+builds are signed only if the keystore env vars below are set.
 
 Output bundles land in `out/`. The bare-build step resolves all native addons (sodium-native, utp-native, etc.) using `bare-module-resolve`, so the bundle is self-contained.
 
