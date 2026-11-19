@@ -59,12 +59,14 @@
 				fresh: filled.has(i)
 			}));
 		}
-		const start = Math.max(0, length - CELLS);
+		// Right-aligned, so the strip always ends at the newest block and a repo
+		// shorter than the strip leaves empty slots at the start, not fake ones.
+		const start = length - CELLS;
 		return Array.from({ length: CELLS }, (_, i) => {
 			const b = start + i;
 			return {
 				b,
-				state: b >= length ? 'none' : b >= contiguous ? 'remote' : 'held',
+				state: b < 0 ? 'none' : b >= contiguous ? 'remote' : 'held',
 				pct: 0,
 				fresh: fresh.some((r) => b >= r.from && b < r.to)
 			};
@@ -132,7 +134,9 @@
 							? 'bg-neutral-800'
 							: c.state === 'partial'
 								? ''
-								: 'bg-white/[0.025]'}
+								: waiting
+									? 'bg-white/[0.025]'
+									: ''}
 					{c.fresh ? 'animate-arrive bg-accent-400' : ''}
 					{waiting ? 'scan' : ''}"
 					style:background-color={c.state === 'partial' && !c.fresh
