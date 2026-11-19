@@ -9,8 +9,12 @@
 
 	let { data, form }: PageProps = $props();
 	let receiving = $state(false);
+	let unarchiving = $state<string | null>(null);
 
 	onMount(liveReleases);
+
+	const active = $derived(data.keys.filter((k) => !k.archived));
+	const archived = $derived(data.keys.filter((k) => k.archived));
 
 	// Proposals from co-signers this device hasn't signed yet.
 	const waiting = $derived(
@@ -170,12 +174,12 @@
 		<div class="flex items-baseline gap-3.5">
 			<h2 class="m-0 text-xl font-semibold text-fg">Keys you own, sign for or follow</h2>
 			<span class="text-[13px] text-fg-3">
-				{data.keys.length}
-				{data.keys.length === 1 ? 'key' : 'keys'}
+				{active.length}
+				{active.length === 1 ? 'key' : 'keys'}
 			</span>
 		</div>
 
-		{#if data.keys.length === 0}
+		{#if active.length === 0}
 			<div class="rounded-2xl bg-surface px-6 py-12 text-center ring-1 ring-line ring-inset">
 				<h3 class="m-0 text-base font-semibold text-fg">No release keys yet</h3>
 				<p class="mx-auto mt-1.5 max-w-md text-sm text-fg-2">
@@ -187,7 +191,7 @@
 			<ul
 				class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,380px),1fr))] gap-4 p-0"
 			>
-				{#each data.keys as k (k.key)}
+				{#each active as k (k.key)}
 					<li class="flex flex-col gap-2">
 						<a
 							href="/releases/{k.key}"
@@ -257,4 +261,53 @@
 			</ul>
 		{/if}
 	</section>
+
+	{#if archived.length}
+		<section id="archived" aria-label="Archived release keys" class="flex flex-col gap-3.5">
+			<div class="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+				<h2 class="m-0 text-xl font-semibold text-fg">Archived</h2>
+				<span class="text-[13px] text-fg-3">
+					Hidden from repos on this device. Gear still seeds them.
+				</span>
+			</div>
+			<ul class="m-0 flex list-none flex-col gap-2 p-0">
+				{#each archived as k (k.key)}
+					<li
+						class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-surface px-4 py-3 ring-1 ring-line ring-inset"
+					>
+						<a
+							href="/releases/{k.key}"
+							class="flex min-w-0 flex-[1_1_240px] flex-col gap-0.5 text-fg no-underline hover:text-accent-300"
+						>
+							<span class="truncate font-mono text-sm font-medium">{k.name}</span>
+							<span class="text-xs text-fg-3">
+								{k.role === 'owner' ? 'Owner' : k.role === 'follower' ? 'Following' : 'Signer'}
+								· {k.latest ? `${k.latest.name} · #${k.latest.index}` : 'no releases'}
+								{#if k.repo}· {k.repo.name}{/if}
+							</span>
+						</a>
+						<form
+							method="POST"
+							action="/releases/{k.key}?/unarchive"
+							use:enhance={() => {
+								unarchiving = k.key;
+								return async ({ update }) => {
+									await update();
+									unarchiving = null;
+								};
+							}}
+						>
+							<button
+								type="submit"
+								disabled={unarchiving !== null}
+								class="inline-flex h-11 cursor-pointer items-center justify-center rounded-[10px] bg-surface-4 px-4 text-sm font-semibold text-fg ring-1 ring-line-strong ring-inset hover:bg-surface-3 disabled:opacity-60 sm:h-9"
+							>
+								{unarchiving === k.key ? 'Unarchiving…' : 'Unarchive'}
+							</button>
+						</form>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
 </main>

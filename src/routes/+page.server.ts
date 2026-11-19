@@ -57,7 +57,7 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 	// The discover manifest streams in from the layout load (hyperconf: baked
 	// config + OTA core) — the page filters out what's already in the library.
 	// Network stats seed the hero panel; /api/events keeps them live.
-	const releases = await (await getReleases(locals.db)).listKeys();
+	const releases = await (await getReleases(locals.db)).activeKeys();
 	return {
 		repos,
 		stats: events.getStats(),

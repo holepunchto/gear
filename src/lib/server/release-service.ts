@@ -69,6 +69,8 @@ export type KeySummary = {
 	name: string;
 	owner: boolean;
 	role: Role;
+	// Hidden from the repo, the badges and Your releases; still seeded.
+	archived: boolean;
 	share: string;
 	quorum: number;
 	signers: Signer[];
@@ -135,6 +137,7 @@ type KeyRecord = {
 	follower?: boolean;
 	labels: Record<string, string>;
 	added: number;
+	archived?: boolean;
 };
 
 type Core = {
@@ -270,18 +273,26 @@ class Releases {
 		return Promise.all((await this.records()).map((r) => this.summary(r)));
 	}
 
-	// Release state by repo key, for every repo with a key this device knows.
-	// A repo's first key wins.
+	// The keys that aren't archived.
+	async activeKeys(): Promise<KeySummary[]> {
+		const records = (await this.store.activeKeys()) as KeyRecord[];
+		records.sort((a, b) => a.added - b.added);
+		return Promise.all(records.map((r) => this.summary(r)));
+	}
+
+	// Release state by repo key, for every repo with an active key this device
+	// knows. A repo's first key wins.
 	async byRepo() {
-		return repoReleases(await this.listKeys());
+		return repoReleases(await this.activeKeys());
 	}
 
 	async getKey(key: string): Promise<KeySummary> {
 		return this.summary(await this.record(key));
 	}
 
-	// Keys for a repo, by the repo they name or, when they name none (a key
-	// followed before its repo was added), by their latest release.
+	// Keys for a repo, archived ones too, by the repo they name or, when they
+	// name none (a key followed before its repo was added), by their latest
+	// release.
 	async forRepo(repoKey: string): Promise<KeySummary[]> {
 		const keys = await this.listKeys();
 		return keys.filter((k) => (k.repo?.key ?? k.latest?.repo.key) === repoKey);
@@ -453,6 +464,7 @@ class Releases {
 			name: record.name,
 			owner: record.owner,
 			role: record.follower ? 'follower' : record.owner ? 'owner' : 'signer',
+			archived: record.archived ?? false,
 			share: SHARE + record.key + (NAME.test(record.name) ? '/' + record.name : ''),
 			quorum: record.quorum,
 			signers: record.signers.map((key) => ({
@@ -512,7 +524,10 @@ class Releases {
 			(r) =>
 				r.namespace === namespace && r.quorum === opts.quorum && r.signers.join() === signers.join()
 		);
-		if (known) return known.key;
+		if (known) {
+			await this.store.unarchive(known.key);
+			return known.key;
+		}
 
 		const opening = this.start({
 			signers: signers.map((s) => z32.decode(s)),
@@ -608,6 +623,7 @@ class Releases {
 	private async canPropose(key: string, tag: string) {
 		const record = await this.record(key);
 		if (record.follower) throw new ReleaseError('You follow this key; only its signers release');
+		if (record.archived) throw new ReleaseError('This key is archived; unarchive it to release');
 		const rk = await this.key(record);
 		const open = (await this.store.listProposals(key)).find(
 			(p) => p.mine && p.previous >= rk.length
@@ -875,6 +891,20 @@ class Releases {
 		await this.store.deleteProposal(key, id);
 		events.emit('release', { key });
 		return { length: rk.length, mirrored: done !== null };
+	}
+
+	// Local only: the key stays open and seeded, so co-signers and followers
+	// lose nothing. It just stops being where this device releases from.
+	async archive(key: string) {
+		await this.record(key);
+		await this.store.archive(key);
+		events.emit('release', { key });
+	}
+
+	async unarchive(key: string) {
+		await this.record(key);
+		await this.store.unarchive(key);
+		events.emit('release', { key });
 	}
 
 	async withdraw(key: string, id: string) {

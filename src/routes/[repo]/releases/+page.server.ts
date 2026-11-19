@@ -7,9 +7,11 @@ export const load: PageServerLoad = async ({ locals, parent, depends }) => {
 	const { repo } = await parent();
 	const releases = await getReleases(locals.db);
 	const keys = await releases.forRepo(repo.key);
+	const active = keys.filter((k) => !k.archived);
 	return {
 		seat: releases.seatKey,
-		keys: await Promise.all(keys.map((k) => releases.details(k.key)))
+		keys: await Promise.all(active.map((k) => releases.details(k.key))),
+		archived: keys.length - active.length
 	};
 };
 

@@ -58,6 +58,57 @@ test('proposals list per key and drop their responses with them', async function
 	t.is((await releases.listResponses('a', 'p2')).length, 1);
 });
 
+test('archiving survives a restart and is undone by unarchive', async function (t) {
+	const dir = await t.tmp();
+
+	const first = await open(t, dir);
+	await first.releases.putKey(key('a', 'gear/stable'));
+	await first.releases.archive('a');
+	t.is((await first.releases.getKey('a'))?.archived, true);
+	await first.close();
+
+	const { releases } = await open(t, dir);
+	t.is((await releases.getKey('a'))?.archived, true);
+	t.alike(
+		(await releases.listKeys()).map((k) => [k.key, k.archived]),
+		[['a', true]]
+	);
+
+	await releases.unarchive('a');
+	t.is((await releases.getKey('a'))?.archived, false);
+});
+
+test('archived keys are left out of the active keys', async function (t) {
+	const { releases } = await open(t, await t.tmp());
+
+	await releases.putKey(key('a', 'gear/stable'));
+	await releases.putKey(key('b', 'gear/beta'));
+	await releases.archive('a');
+
+	t.alike(
+		(await releases.activeKeys()).map((k) => k.key),
+		['b']
+	);
+	t.is((await releases.listKeys()).length, 2);
+});
+
+test('putting a key read before archiving keeps it archived', async function (t) {
+	const { releases } = await open(t, await t.tmp());
+
+	await releases.putKey(key('a', 'gear/stable'));
+	const read = await releases.getKey('a');
+	await releases.archive('a');
+	if (read) await releases.putKey({ ...read, repo: { name: 'gear', key: 'r' } });
+
+	const after = await releases.getKey('a');
+	t.is(after?.archived, true);
+	t.is(after?.repo?.name, 'gear');
+
+	await releases.unarchive('a');
+	if (after) await releases.putKey(after);
+	t.is((await releases.getKey('a'))?.archived, false);
+});
+
 /** @param {any} t @param {string} dir */
 async function open(t, dir) {
 	const store = new Corestore(dir);
