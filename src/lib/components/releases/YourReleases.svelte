@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SeatDots from './SeatDots.svelte';
-	import { multisig, proposalName, shortKey, type KeySummary } from '$lib/releases';
+	import { multisig, proposalName, shortKey, type KeySummary, releaseOrdinal } from '$lib/releases';
 
 	let { keys }: { keys: KeySummary[] } = $props();
 
@@ -36,7 +36,7 @@
 			status: k.rotatedTo
 				? `Rotated to ${k.rotatedTo.name ?? shortKey(k.rotatedTo.to)}`
 				: k.latest
-					? `Released · entry #${k.latest.index}`
+					? `Released · ${releaseOrdinal(k.latest.index)}`
 					: 'No releases yet'
 		};
 	}

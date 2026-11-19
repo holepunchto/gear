@@ -49,6 +49,15 @@ export function proposalName(p: Pending, fallback = 'A release') {
 	return p.release?.name ?? fallback;
 }
 
+// The log index is internal: say "first release", "3rd release".
+export function releaseOrdinal(index: number) {
+	if (index === 0) return 'first release';
+	const n = index + 1;
+	const teen = n % 100 >= 11 && n % 100 <= 13;
+	const suffix = teen ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
+	return `${n}${suffix} release`;
+}
+
 // A key with more than one signer: its releases get the full seal.
 export function multisig(signers: number) {
 	return signers >= 2;

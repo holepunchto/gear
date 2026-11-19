@@ -47,7 +47,7 @@
 				<span class="w-0.5 flex-1 bg-neutral-800"></span>
 			</div>
 			<div class="flex min-w-0 flex-1 items-baseline gap-2.5 pb-3.5">
-				<span class="w-7 font-mono text-xs text-fg-3">#{key.length - 1}</span>
+				<span class="w-7 font-mono text-xs text-fg-3">{key.length}</span>
 				<span class="truncate font-display text-[15px] font-semibold text-accent-300">
 					Rotated to {to.name ?? shortKey(to.to)}{to.known ? ' →' : ''}
 				</span>
@@ -67,7 +67,7 @@
 				<span class="w-0.5 flex-1 bg-neutral-800"></span>
 			</div>
 			<div class="flex flex-1 items-baseline gap-2.5 pb-3.5">
-				<span class="w-7 font-mono text-xs text-fg-3">#{current.previous}</span>
+				<span class="w-7 font-mono text-xs text-fg-3">{current.previous + 1}</span>
 				<span class="font-display text-[15px] font-semibold text-apricot-300">
 					{proposalName(current, '…')}
 				</span>
@@ -80,7 +80,7 @@
 	{#each history as r (r.index)}
 		<a
 			href="/releases/{key.key}/{r.index}"
-			aria-label="Release #{r.index}, {r.name}"
+			aria-label="{r.name}, release {r.index + 1}"
 			class="-mx-2 flex gap-3.5 rounded-lg px-2 pt-1 text-fg no-underline transition-colors hover:bg-surface-2"
 		>
 			<div class="flex w-3 flex-none flex-col items-center" aria-hidden="true">
@@ -92,7 +92,7 @@
 				<span class="w-0.5 flex-1 bg-neutral-800"></span>
 			</div>
 			<div class="flex flex-1 items-baseline gap-2.5 pb-3.5">
-				<span class="w-7 font-mono text-xs text-fg-3">#{r.index}</span>
+				<span class="w-7 font-mono text-xs text-fg-3">{r.index + 1}</span>
 				<span class="font-display text-[15px] font-semibold text-fg">{r.name}</span>
 				<span class="ml-auto font-mono text-xs text-fg-3" title={r.commit}>
 					{r.commit.slice(0, 7)}
