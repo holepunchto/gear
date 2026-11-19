@@ -138,7 +138,7 @@
 							<ProposeForm {key} candidates={d.candidates} />
 						{/if}
 					</div>
-					<ReleaseLog {key} {current} history={d.history} />
+					<ReleaseLog {key} {current} history={d.history} changes={d.changes} />
 				</div>
 			</article>
 		{/each}

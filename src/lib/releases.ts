@@ -1,10 +1,11 @@
 import { invalidate } from '$app/navigation';
 import { initials } from '$lib/initials';
 import { relativeTime } from '$lib/time';
-import type { RepoRelease, Signer } from '$lib/server/release-service';
+import type { Changes, RepoRelease, Signer } from '$lib/server/release-service';
 
 export type {
 	Candidates,
+	Changes,
 	Check,
 	Inspection,
 	KeySummary,
@@ -79,4 +80,27 @@ export function liveReleases() {
 	const es = new EventSource('/api/events');
 	es.addEventListener('release', () => invalidate('releases'));
 	return () => es.close();
+}
+
+// What a release's changes amount to, in a line. `count` is the number
+// walked, which can be more than the commits sent.
+export function changesSummary(c: Changes, count = c.commits.length) {
+	const commits = (n: number | string) => `${n} commit${n === 1 ? '' : 's'}`;
+	const prev = c.since?.name;
+	switch (c.status) {
+		case 'missing':
+			return `The release commits aren't in your copy of ${c.repo} yet`;
+		case 'reached':
+			return count === 0 ? `No new commits since ${prev}` : `${commits(count)} since ${prev}`;
+		case 'forked':
+			return `${commits(count)} since ${prev}, which was tagged off this history at ${c.base?.slice(0, 7)}`;
+		case 'first':
+			return `First release · ${commits(count)} up to it`;
+		case 'unrelated':
+			return `${prev}'s commit isn't in this release's history · ${commits(count)} up to it`;
+		case 'capped':
+			return prev
+				? `Stopped after ${commits(count)} without reaching ${prev}`
+				: `First release · showing the latest ${commits(count)}`;
+	}
 }

@@ -2,7 +2,16 @@
 	import { onMount } from 'svelte';
 	import type { PageProps } from './$types';
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
-	import { liveReleases, shortKey } from '$lib/releases';
+	import ChangeList from '$lib/components/releases/ChangeList.svelte';
+	import {
+		avatar,
+		changesSummary,
+		liveReleases,
+		shortKey,
+		signerInitials,
+		signerName
+	} from '$lib/releases';
+	import { relativeTime, isoDate } from '$lib/time';
 
 	let { data }: PageProps = $props();
 
@@ -10,14 +19,29 @@
 
 	const key = $derived(data.key);
 	const r = $derived(data.release);
-	// Links into the repo only when it is the one this key releases from and
-	// it is in the library.
-	const repo = $derived(key.repo?.key === r.repo.key ? key.repo.name : null);
+	const changes = $derived(data.changes);
+	// The repo in the library this release came from, or null.
+	const repo = $derived(changes?.repo ?? null);
+	// The release commit's own time, when the walk read it.
+	const committed = $derived(
+		changes?.commits[0]?.oid === r.commit ? changes.commits[0].timestamp : null
+	);
+
+	const checkout = $derived(`git clone ${data.url}\ncd ${data.name}\ngit checkout ${r.tag}`);
+	let copied = $state(false);
+
+	async function copyCheckout() {
+		try {
+			await navigator.clipboard.writeText(checkout);
+			copied = true;
+			setTimeout(() => (copied = false), 1500);
+		} catch {}
+	}
 
 	const rows = $derived([
-		{ k: 'Tag', v: r.tag, href: repo && `/${repo}/${r.tag}/` },
+		{ k: 'Tag', v: r.tag, href: repo && `/${repo}/${r.commit}/` },
 		{ k: 'Commit', v: r.commit, href: repo && `/${repo}/commit/${r.commit}` },
-		{ k: 'Tree hash', v: r.tree, href: null },
+		{ k: 'Tree hash', v: r.tree, href: repo && `/${repo}/${r.commit}/` },
 		{
 			k: 'Repo at length',
 			v: `${repo ?? shortKey(r.repo.key)} @ ${r.repo.length}`,
@@ -65,14 +89,108 @@
 				class="inline-flex items-center gap-1.5 rounded-full bg-accent-400/12 px-3 py-[5px] text-xs font-semibold text-accent-300"
 			>
 				<SeatDots n={key.signers.length} filled={key.quorum} />
-				Signed release
+				{key.quorum} of {key.signers.length} signed
 			</span>
 		</div>
 		<span class="text-fg-2">
-			<span class="font-mono text-fg">{key.name}</span> · entry #{r.index} of {key.length} ·
-			{key.quorum} of {key.signers.length} signed
+			<span class="font-mono text-fg">{key.name}</span> · entry #{r.index} of {key.length}
+			{#if committed}
+				· tagged commit from
+				<span title={isoDate(committed)}>{relativeTime(committed)}</span>
+			{/if}
 		</span>
 	</section>
+
+	{#if repo}
+		<div class="flex flex-wrap gap-2.5">
+			<a
+				href="/{repo}/{r.commit}/"
+				class="inline-flex h-11 flex-[1_1_auto] items-center justify-center gap-2 rounded-[10px] bg-accent-400 px-4 text-sm font-semibold text-accent-900 no-underline transition-colors hover:bg-accent-300 sm:h-10 sm:flex-none"
+			>
+				Browse files at <span class="font-mono">{r.tag}</span>
+			</a>
+			<a
+				href="/{repo}/releases"
+				class="inline-flex h-11 flex-[1_1_auto] items-center justify-center rounded-[10px] bg-surface-3 px-3.5 text-sm font-medium text-fg no-underline ring-1 ring-line-strong ring-inset hover:bg-surface-4 sm:h-10 sm:flex-none"
+			>
+				{repo} releases
+			</a>
+		</div>
+	{:else}
+		<section
+			aria-label="Repo"
+			class="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
+		>
+			<p class="m-0 min-w-0 flex-[1_1_280px] text-sm text-fg-2">
+				<span class="font-mono text-fg">{data.name}</span> isn't in your library. Add it to browse this
+				release's files and see what changed.
+			</p>
+			<form method="POST" action="/?/add" class="flex-[1_1_auto] sm:flex-none">
+				<input type="hidden" name="url" value={data.url} />
+				<button
+					type="submit"
+					class="h-11 w-full cursor-pointer rounded-[10px] bg-accent-400 px-4 text-sm font-semibold text-accent-900 transition-colors hover:bg-accent-300 sm:h-10 sm:w-auto"
+				>
+					Add repo
+				</button>
+			</form>
+		</section>
+	{/if}
+
+	<section
+		aria-label="Check out this release"
+		class="flex flex-col gap-2 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
+	>
+		<h2 class="m-0 font-sans text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">
+			Check out this release
+		</h2>
+		<div class="flex flex-col gap-2 rounded-xl bg-bg p-3 ring-1 ring-line-strong ring-inset">
+			<code
+				class="font-mono text-[11.5px] leading-relaxed break-all whitespace-pre-wrap text-accent-200"
+				>{checkout}</code
+			>
+			<button
+				type="button"
+				onclick={copyCheckout}
+				class="inline-flex h-11 cursor-pointer items-center justify-center self-stretch rounded-[10px] bg-accent-400/14 px-3 text-sm font-semibold text-accent-300 transition-colors hover:bg-accent-400/22 sm:h-9 sm:self-end"
+			>
+				{copied ? 'Copied' : 'Copy'}
+			</button>
+		</div>
+		<span class="text-xs text-fg-3">
+			Needs the gip command line tool, which you can install from
+			<a href="/settings" class="text-accent-300 no-underline hover:text-accent-200">Settings</a>.
+		</span>
+	</section>
+
+	{#if changes}
+		<section
+			aria-label="Changes"
+			class="overflow-hidden rounded-[18px] bg-surface ring-1 ring-line ring-inset"
+		>
+			<div
+				class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 bg-surface-2 px-5 py-3.5"
+			>
+				<h2 class="m-0 font-sans text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">
+					{changes.since ? `Changes since ${changes.since.name}` : 'First release'}
+				</h2>
+				<span class="text-xs text-fg-2">{changesSummary(changes)}</span>
+			</div>
+			{#if changes.commits.length}
+				<div class="px-5 py-1">
+					<ChangeList {changes} />
+				</div>
+			{/if}
+			{#if changes.more}
+				<a
+					href="/{changes.repo}/commits?ref={r.commit}&cursor={changes.more}"
+					class="block border-t border-line px-5 py-3 text-[13px] font-medium text-accent-300 no-underline hover:underline"
+				>
+					Older commits →
+				</a>
+			{/if}
+		</section>
+	{/if}
 
 	<section
 		aria-label="What was signed"
@@ -100,5 +218,49 @@
 				</dd>
 			{/each}
 		</dl>
+		<div class="flex flex-col gap-2.5 border-t border-line px-5 py-4">
+			<span class="text-xs text-fg-3">
+				Signers on this key · {key.quorum} of {key.signers.length} must sign
+			</span>
+			<ul class="m-0 flex list-none flex-wrap gap-2.5 p-0">
+				{#each key.signers as s, i (s.key)}
+					<li class="flex min-w-0 items-center gap-2 rounded-full bg-surface-2 py-1 pr-3 pl-1">
+						<span
+							class="flex h-7 w-7 flex-none items-center justify-center rounded-full text-[11px] font-semibold {avatar(
+								i
+							)}"
+							aria-hidden="true">{signerInitials(s)}</span
+						>
+						<span class="truncate text-[13px] text-fg">{signerName(s)}</span>
+						<span class="font-mono text-xs text-fg-3">{shortKey(s.key)}</span>
+					</li>
+				{/each}
+			</ul>
+		</div>
 	</section>
+
+	<nav aria-label="Releases" class="flex flex-wrap items-center gap-2.5">
+		{#if data.previous}
+			<a
+				href="/releases/{key.key}/{r.index - 1}"
+				class="inline-flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[10px] bg-surface px-3.5 text-[13px] text-fg-2 no-underline ring-1 ring-line ring-inset hover:text-fg sm:flex-none"
+			>
+				← <span class="truncate font-display font-semibold text-fg">{data.previous.name}</span>
+			</a>
+		{/if}
+		{#if data.next}
+			<a
+				href="/releases/{key.key}/{r.index + 1}"
+				class="inline-flex h-11 min-w-0 flex-1 items-center justify-end gap-2 rounded-[10px] bg-surface px-3.5 text-[13px] text-fg-2 no-underline ring-1 ring-line ring-inset hover:text-fg sm:flex-none"
+			>
+				<span class="truncate font-display font-semibold text-fg">{data.next.name}</span> →
+			</a>
+		{/if}
+		<a
+			href="/releases/{key.key}"
+			class="tap-44 basis-full text-[13px] text-accent-300 no-underline hover:underline sm:ml-auto sm:basis-auto"
+		>
+			All releases on <span class="font-mono">{key.name}</span>
+		</a>
+	</nav>
 </main>

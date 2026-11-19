@@ -199,18 +199,20 @@ async function readCommit(r: RemoteWithDB, oid: string): Promise<RefCommit | nul
  * Walk the parent chain from `headOid` and return up to `limit` commits in
  * topological order (HEAD first). First-parent walk only — merges aren't
  * traversed into their second parent. That matches what GitHub's "Commits"
- * tab shows by default and keeps the cost predictable.
+ * tab shows by default and keeps the cost predictable. The walk stops before
+ * the first commit it meets that is in `stop`.
  */
 export async function getCommitHistory(
 	remote: unknown,
 	headOid: string,
-	limit = 200
+	limit = 200,
+	stop: Set<string> | null = null
 ): Promise<CommitMeta[]> {
 	const r = remote as RemoteWithDB;
 	const out: CommitMeta[] = [];
 	let current: string | null = headOid;
 	const seen = new Set<string>();
-	while (current && out.length < limit && !seen.has(current)) {
+	while (current && !stop?.has(current) && out.length < limit && !seen.has(current)) {
 		seen.add(current);
 		const obj = await r.getObject(current);
 		if (!obj || obj.type !== 'commit') break;
