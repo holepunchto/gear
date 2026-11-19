@@ -4,6 +4,7 @@
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
 	import ChangeList from '$lib/components/releases/ChangeList.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
+	import CopyInstall from '$lib/components/releases/CopyInstall.svelte';
 	import {
 		avatar,
 		changesSummary,
@@ -27,17 +28,6 @@
 	const committed = $derived(
 		changes?.commits[0]?.oid === r.commit ? changes.commits[0].timestamp : null
 	);
-
-	const checkout = $derived(`git clone ${data.url}\ncd ${data.name}\ngit checkout ${r.tag}`);
-	let copied = $state(false);
-
-	async function copyCheckout() {
-		try {
-			await navigator.clipboard.writeText(checkout);
-			copied = true;
-			setTimeout(() => (copied = false), 1500);
-		} catch {}
-	}
 
 	const rows = $derived([
 		{ k: 'Tag', v: r.tag, href: repo && `/${repo}/${r.commit}/` },
@@ -100,7 +90,10 @@
 				<span title={isoDate(committed)}>{relativeTime(committed)}</span>
 			{/if}
 		</span>
-		<KeyShare keyText={key.key} share={key.share} />
+		<div class="flex flex-wrap items-center gap-1.5">
+			<CopyInstall name={data.name} source={r.repo} tag={r.tag} />
+			<KeyShare keyText={key.key} share={key.share} />
+		</div>
 	</section>
 
 	{#if repo}
@@ -138,32 +131,6 @@
 			</form>
 		</section>
 	{/if}
-
-	<section
-		aria-label="Check out this release"
-		class="flex flex-col gap-2 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
-	>
-		<h2 class="m-0 font-sans text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">
-			Check out this release
-		</h2>
-		<div class="flex flex-col gap-2 rounded-xl bg-bg p-3 ring-1 ring-line-strong ring-inset">
-			<code
-				class="font-mono text-[11.5px] leading-relaxed break-all whitespace-pre-wrap text-accent-200"
-				>{checkout}</code
-			>
-			<button
-				type="button"
-				onclick={copyCheckout}
-				class="inline-flex h-11 cursor-pointer items-center justify-center self-stretch rounded-[10px] bg-accent-400/14 px-3 text-sm font-semibold text-accent-300 transition-colors hover:bg-accent-400/22 sm:h-9 sm:self-end"
-			>
-				{copied ? 'Copied' : 'Copy'}
-			</button>
-		</div>
-		<span class="text-xs text-fg-3">
-			Needs the gip command line tool, which you can install from
-			<a href="/settings" class="text-accent-300 no-underline hover:text-accent-200">Settings</a>.
-		</span>
-	</section>
 
 	{#if changes}
 		<section

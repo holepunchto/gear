@@ -173,15 +173,18 @@ be signed and committed. Nothing is ever deleted.
 ## Sharing and following
 
 A release key is public: anyone holding it can read and verify its releases.
-Gear shares one as a link:
+Gear shares one as the repo's clone link with the key added:
 
 ```
-release+pear://<z32 key>/<name>
+git+pear://0.<length>.<repo key>/<repo>?release=<z32 release key>
 ```
 
-The name (`autobee/stable`) is a label for the follower; a bare z32 key works
-too. The repo isn't in the link because every release record names it by core
-key and length.
+The link is pinned to the repo length the latest release was cut from, so it
+still clones: gip's helper reads only `?storage=` from the query and leaves
+`?release=` alone. A key with no release yet links the repo unpinned, and one
+with no repo is shared as the bare z32 key. "Follow a release key" takes the
+link, a bare key, or an older `release+pear://<key>/<name>` link. A follower
+found by link goes by the repo's name.
 
 Following opens the core by key alone, `new ReleaseKey(store, swarm, { key })`,
 and `follow()` reads the first and the latest release. The manifest arrives
@@ -190,6 +193,22 @@ being told; a test checks this against a testnet. A core whose first block
 isn't a release record, or that no peer serves within the timeout, is refused.
 Gear then keeps the key with the follower role and mirrors it to its blind
 peers like any other key. A follower never proposes or signs.
+
+## Installing a release
+
+The repo's Clone button opens with the latest release's commands on top, and
+a release page copies them in one click. Both are pinned to the repo length
+the release was cut from:
+
+```
+npm install git+file://pear/0.<length>.<repo key>/<repo>#<tag>
+git clone git+pear://0.<length>.<repo key>/<repo> && cd <repo> && git checkout <tag>
+```
+
+npm can't parse `git+pear://` (`EUNSUPPORTEDPROTOCOL`). With `git=git+pear`
+and `allow-git=all` in the project's `.npmrc`, npm runs gip's `git+pear`
+executable instead of `git`, which maps `file://pear/` back to `git+pear://`.
+The length-pinned form installs the same contents every time.
 
 ## Rotation
 
