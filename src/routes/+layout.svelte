@@ -222,7 +222,7 @@
 				<button
 					type="button"
 					onclick={copyIdentity}
-					class="h-8 w-8 shrink-0 cursor-pointer rounded-full bg-[conic-gradient(from_200deg,#23cc94,#407e62,#fb923c,#23cc94)] p-0.5 sm:h-[38px] sm:w-[38px]"
+					class="tap-44 h-8 w-8 shrink-0 cursor-pointer rounded-full bg-[conic-gradient(from_200deg,#23cc94,#407e62,#fb923c,#23cc94)] p-0.5 sm:h-[38px] sm:w-[38px]"
 					title={copiedIdentity
 						? 'Copied'
 						: `Your public key — click to copy (${data.identityShort})`}

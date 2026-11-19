@@ -145,13 +145,13 @@
 											onclick={() => copyOid(commit.oid)}
 											title="Copy commit hash"
 											aria-label="Copy commit hash"
-											class="cursor-pointer rounded-md px-1.5 py-0.5 text-fg-3 hover:bg-surface-3 hover:text-fg"
+											class="tap-44 cursor-pointer rounded-md px-1.5 py-0.5 text-fg-3 hover:bg-surface-3 hover:text-fg"
 										>
 											⧉
 										</button>
 										<a
 											href="/{repoName}/commit/{commit.oid}"
-											class="font-mono text-fg-3 no-underline hover:text-accent-300"
+											class="tap-44 font-mono text-fg-3 no-underline hover:text-accent-300"
 											title={commit.oid}
 										>
 											{commit.oid.slice(0, 7)}
