@@ -64,8 +64,10 @@
 	});
 
 	// Repo pages live under the library, so Library stays lit everywhere but
-	// Settings.
+	// Settings and the Discover section of the library page.
 	const onSettings = $derived(page.url.pathname.startsWith('/settings'));
+	const onDiscover = $derived(page.url.pathname === '/' && page.url.hash === '#discover');
+	const onLibrary = $derived(!onSettings && !onDiscover);
 
 	async function copyIdentity() {
 		try {
@@ -143,20 +145,22 @@
 			<nav aria-label="Main" class="hidden items-center gap-1 sm:flex">
 				<a
 					href="/"
-					class="rounded-lg px-3 py-[7px] text-sm font-medium no-underline transition-colors {onSettings
-						? 'text-fg-2 hover:text-fg'
-						: 'bg-white/6 text-fg'}"
-					aria-current={onSettings ? undefined : 'page'}
+					class="rounded-lg px-3 py-[7px] text-sm font-medium no-underline transition-colors {onLibrary
+						? 'bg-white/6 text-fg'
+						: 'text-fg-2 hover:text-fg'}"
+					aria-current={onLibrary ? 'page' : undefined}
 				>
 					Library
 				</a>
-				<button
-					type="button"
-					onclick={() => (overlayOpen = true)}
-					class="cursor-pointer rounded-lg px-3 py-[7px] text-sm font-medium text-fg-2 transition-colors hover:text-fg"
+				<a
+					href="/#discover"
+					class="rounded-lg px-3 py-[7px] text-sm font-medium no-underline transition-colors {onDiscover
+						? 'bg-white/6 text-fg'
+						: 'text-fg-2 hover:text-fg'}"
+					aria-current={onDiscover ? 'page' : undefined}
 				>
 					Discover
-				</button>
+				</a>
 				<a
 					href="/settings"
 					class="rounded-lg px-3 py-[7px] text-sm font-medium no-underline transition-colors {onSettings
@@ -256,20 +260,22 @@
 	>
 		<a
 			href="/"
-			class="flex flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] no-underline {onSettings
-				? 'font-medium text-fg-2'
-				: 'bg-accent-400/12 font-semibold text-accent-300'}"
-			aria-current={onSettings ? undefined : 'page'}
+			class="flex flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] no-underline {onLibrary
+				? 'bg-accent-400/12 font-semibold text-accent-300'
+				: 'font-medium text-fg-2'}"
+			aria-current={onLibrary ? 'page' : undefined}
 		>
 			{@render navIcon('library')}Library
 		</a>
-		<button
-			type="button"
-			onclick={() => (overlayOpen = true)}
-			class="flex cursor-pointer flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] font-medium text-fg-2"
+		<a
+			href="/#discover"
+			class="flex flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] no-underline {onDiscover
+				? 'bg-accent-400/12 font-semibold text-accent-300'
+				: 'font-medium text-fg-2'}"
+			aria-current={onDiscover ? 'page' : undefined}
 		>
 			{@render navIcon('discover')}Discover
-		</button>
+		</a>
 		<button
 			type="button"
 			onclick={() => (overlayOpen = true)}

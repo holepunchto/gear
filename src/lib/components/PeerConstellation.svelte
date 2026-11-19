@@ -8,8 +8,17 @@
 		blind = 0,
 		width = 132,
 		height = 112,
+		rings = false,
 		label
-	}: { peers: number; blind?: number; width?: number; height?: number; label: string } = $props();
+	}: {
+		peers: number;
+		blind?: number;
+		width?: number;
+		height?: number;
+		// Faint orbit rings behind the nodes, for the larger network view.
+		rings?: boolean;
+		label: string;
+	} = $props();
 
 	const MAX = 10;
 
@@ -40,6 +49,23 @@
 	aria-label={label}
 	class="flex-none"
 >
+	{#if rings}
+		<circle
+			cx={width / 2}
+			cy={height / 2}
+			r={Math.min(width, height) / 2 - 10}
+			fill="none"
+			stroke="rgb(93 221 173 / 0.10)"
+		/>
+		<circle
+			cx={width / 2}
+			cy={height / 2}
+			r={Math.min(width, height) / 2 - 38}
+			fill="none"
+			stroke="rgb(93 221 173 / 0.14)"
+			stroke-dasharray="2 4"
+		/>
+	{/if}
 	<g stroke="rgb(93 221 173 / 0.35)" stroke-width="1">
 		{#each nodes as n, i (i)}
 			<line

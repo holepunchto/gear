@@ -2,6 +2,7 @@ import Id from 'hypercore-id-encoding';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getAllSourceRepos } from '$lib/server/source';
+import { events } from '$lib/server/events';
 
 const repoNameRegex = /^[a-zA-Z0-9_-]+$/;
 
@@ -23,6 +24,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				name: entry.name,
 				key,
 				length: entry.core.length,
+				contiguousLength: entry.core.contiguousLength,
 				peers: entry.core.peers.length,
 				writable: entry.core.writable,
 				url: `git+pear://0.${entry.core.length}.${key}/${entry.name}`
@@ -31,7 +33,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// The discover manifest streams in from the layout load (hyperconf: baked
 	// config + OTA core) — the page filters out what's already in the library.
-	return { repos };
+	// Network stats seed the hero panel; /api/events keeps them live.
+	return {
+		repos,
+		stats: events.getStats(),
+		blindPeersConfigured: ((await locals.db.getBlindPeers()) as string[]).length
+	};
 };
 
 export const actions: Actions = {
