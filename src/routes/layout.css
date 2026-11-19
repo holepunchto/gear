@@ -40,7 +40,7 @@
 	/* Text */
 	--color-fg: #e8f1ec;
 	--color-fg-2: #9aaca3;
-	--color-fg-3: #6f8279;
+	--color-fg-3: #7b8e85;
 
 	/* Neutral, re-tinted onto the surfaces and text above so existing
 	   neutral-* classes pick up the palette. */
@@ -49,7 +49,7 @@
 	--color-neutral-200: #d0ddd6;
 	--color-neutral-300: #b6c5bd;
 	--color-neutral-400: #9aaca3;
-	--color-neutral-500: #6f8279;
+	--color-neutral-500: #7b8e85;
 	--color-neutral-600: #526159;
 	--color-neutral-700: #2a3932;
 	--color-neutral-800: #1a2620;
@@ -229,6 +229,15 @@
 	h2,
 	h3 {
 		font-family: var(--font-display);
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--color-accent-400);
+		outline-offset: 2px;
+	}
+
+	button:not(:disabled):active {
+		transform: translateY(1px);
 	}
 
 	@media (prefers-reduced-motion: reduce) {

@@ -102,7 +102,7 @@
 			<span title={isoDate(c.timestamp)}>{relativeTime(c.timestamp)}</span>
 		</span>
 		{#if c.oid}
-			<code class="hidden shrink-0 font-mono text-[11px] text-neutral-600 sm:inline">
+			<code class="hidden shrink-0 font-mono text-[11px] text-fg-3 sm:inline">
 				{c.oid.slice(0, 7)}
 			</code>
 		{/if}
@@ -365,7 +365,7 @@
 						{#each sourceLines as line, i}
 							<tr>
 								<td
-									class="sticky left-0 w-0 border-r border-line bg-surface px-3 text-right align-top whitespace-nowrap text-neutral-600 tabular-nums select-none {i ===
+									class="sticky left-0 w-0 border-r border-line bg-surface px-3 text-right align-top whitespace-nowrap text-fg-3 tabular-nums select-none {i ===
 									0
 										? 'pt-3.5'
 										: ''} {i === sourceLines.length - 1 ? 'pb-3.5' : ''}"
