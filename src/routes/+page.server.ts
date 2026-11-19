@@ -134,8 +134,9 @@ export const actions: Actions = {
 
 	delete: async ({ request, locals }) => {
 		const form = await request.formData();
+		// A record can have an empty name (a clone of a link with no /<name>);
+		// deleting it is how it goes away.
 		const name = String(form.get('name') ?? '').trim();
-		if (!name) return fail(400, { delete: { error: 'Name is required' } });
 
 		const ok = await locals.db.deleteRemote(name);
 		if (!ok) return fail(404, { delete: { error: 'Repository not found' } });
