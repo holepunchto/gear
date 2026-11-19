@@ -7,6 +7,7 @@
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import MoveAway from '$lib/components/releases/MoveAway.svelte';
 	import Rotated from '$lib/components/releases/Rotated.svelte';
+	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
 	import {
 		ago,
 		avatar,
@@ -91,25 +92,7 @@
 						Retired
 					</span>
 				{:else if key.latest}
-					<span
-						class="inline-flex items-center gap-1.5 rounded-full bg-accent-400/12 px-3 py-[5px] text-xs font-semibold text-accent-300"
-					>
-						<svg
-							width="13"
-							height="13"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2.4"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							aria-hidden="true"
-							><path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z" /><path
-								d="m9 12 2 2 4-4"
-							/></svg
-						>
-						Signed release
-					</span>
+					<ReleaseSeal quorum={key.quorum} signers={key.signers.length} />
 				{/if}
 			</div>
 			<span class="text-fg-2">

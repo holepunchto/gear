@@ -2,6 +2,7 @@
 	import ChangeList from './ChangeList.svelte';
 	import {
 		changesSummary,
+		multisig,
 		proposalName,
 		shortKey,
 		type Changes,
@@ -83,7 +84,11 @@
 			class="-mx-2 flex gap-3.5 rounded-lg px-2 pt-1 text-fg no-underline transition-colors hover:bg-surface-2"
 		>
 			<div class="flex w-3 flex-none flex-col items-center" aria-hidden="true">
-				<span class="h-3 w-3 rounded-full bg-accent-400"></span>
+				<span
+					class="h-3 w-3 rounded-full bg-seal-400 {multisig(key.signers.length)
+						? 'shadow-[0_0_8px_rgb(139_92_246/0.7)]'
+						: ''}"
+				></span>
 				<span class="w-0.5 flex-1 bg-neutral-800"></span>
 			</div>
 			<div class="flex flex-1 items-baseline gap-2.5 pb-3.5">
