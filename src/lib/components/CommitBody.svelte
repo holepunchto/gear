@@ -19,8 +19,9 @@
 	type Seg = { text: string; cls?: string };
 
 	// Issue refs, standalone @mentions (the lookbehind keeps the @ inside
-	// email addresses plain) and breaking-change markers.
-	const INLINE_RE = /(?<![\w.@-])(@[a-zA-Z0-9-]+)|(#\d+)|(BREAKING[ -]CHANGE)/g;
+	// email addresses plain) and breaking-change markers. A ref is a
+	// standalone `#23` token, so URL fragments and hex colours stay plain.
+	const INLINE_RE = /(?<![\w.@-])(@[a-zA-Z0-9-]+)|((?<![^\s([])#\d+(?!\w))|(BREAKING[ -]CHANGE)/g;
 	// `Key-With-Hyphens:` trailer lines (Co-Authored-By, Signed-off-by).
 	const TRAILER_RE = /^[A-Z][A-Za-z]*(?:-[A-Za-z]+)+:/;
 	// `feat(scope)!:` style prefix at the start of a line.
