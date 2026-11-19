@@ -3,6 +3,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getAllSourceRepos } from '$lib/server/source';
 import { events } from '$lib/server/events';
+import { startAdd, getPendingAdds } from '$lib/server/pending';
 
 const repoNameRegex = /^[a-zA-Z0-9_-]+$/;
 
@@ -27,9 +28,29 @@ export const load: PageServerLoad = async ({ locals }) => {
 				contiguousLength: entry.core.contiguousLength,
 				peers: entry.core.peers.length,
 				writable: entry.core.writable,
-				url: `git+pear://0.${entry.core.length}.${key}/${entry.name}`
+				url: `git+pear://0.${entry.core.length}.${key}/${entry.name}`,
+				syncing: false
 			};
 		});
+
+	// Repos still being added have no record yet. List the ones in flight so
+	// the library shows them filling up; a failed add only shows on its page.
+	for (const add of getPendingAdds()) {
+		if (add.error !== null || repos.some((r) => r.name === add.name)) continue;
+		const stats = events.getRepoStats(add.name);
+		const key = Id.encode(add.key);
+		const length = stats?.length ?? 0;
+		repos.push({
+			name: add.name,
+			key,
+			length,
+			contiguousLength: stats?.contiguousLength ?? 0,
+			peers: stats?.peers ?? 0,
+			writable: false,
+			url: `git+pear://0.${length}.${key}/${add.name}`,
+			syncing: true
+		});
+	}
 
 	// The discover manifest streams in from the layout load (hyperconf: baked
 	// config + OTA core) — the page filters out what's already in the library.
@@ -70,13 +91,14 @@ export const actions: Actions = {
 			return fail(400, { add: { error: 'Must be a valid git+pear:// URL' } });
 		}
 
+		let name;
 		try {
-			const { name } = await locals.db.addRemote(url);
-			throw redirect(303, `/${name}`);
+			name = await startAdd(locals.db, url, {});
 		} catch (e) {
-			if ((e as { status?: number }).status === 303) throw e; // re-throw redirect
-			return fail(500, { add: { error: (e as Error).message } });
+			return fail(400, { add: { error: (e as Error).message } });
 		}
+
+		throw redirect(303, `/${name}`);
 	},
 
 	addFromSource: async ({ request, locals }) => {
@@ -93,15 +115,16 @@ export const actions: Actions = {
 			blindPeers: []
 		}));
 
+		let added;
 		try {
-			await locals.db.addRemote(url, {
+			added = await startAdd(locals.db, url, {
 				blindPeerKeys: blindPeers.map((k: string) => Id.decode(k))
 			});
 		} catch (e) {
-			return fail(500, { addFromSource: { error: (e as Error).message } });
+			return fail(400, { addFromSource: { error: (e as Error).message } });
 		}
 
-		throw redirect(303, `/${name}`);
+		throw redirect(303, `/${added}`);
 	},
 
 	delete: async ({ request, locals }) => {

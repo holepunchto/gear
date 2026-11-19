@@ -16,6 +16,8 @@
 		peers: number;
 		writable: boolean;
 		url: string;
+		// Still being added: no record to delete yet.
+		syncing: boolean;
 	};
 	let { data, form }: PageProps = $props();
 
@@ -476,6 +478,7 @@
 									<button
 										type="button"
 										onclick={() => armDelete(repo.name)}
+										hidden={repo.syncing}
 										title="Delete repository"
 										aria-label="Delete {repo.name}"
 										class="tap-44 cursor-pointer rounded-lg p-1.5 text-fg-3 transition-colors hover:bg-red-500/10 hover:text-red-400"

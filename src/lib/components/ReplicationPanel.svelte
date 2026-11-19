@@ -8,6 +8,7 @@
 	let {
 		length,
 		contiguous,
+		held,
 		peers,
 		writable,
 		fresh,
@@ -16,6 +17,8 @@
 	}: {
 		length: number;
 		contiguous: number;
+		// Blocks held with gaps, for the count: a sync fills them out of order.
+		held: number;
 		peers: number;
 		writable: boolean;
 		// Block ranges that arrived in the last moment — their cells flash.
@@ -76,7 +79,7 @@
 			</div>
 			{#if length > 0}
 				<span class="font-mono text-xs text-fg-2 sm:text-[13px]">
-					<b class="font-medium text-fg"><Ticker value={contiguous} /></b> / {length.toLocaleString()}
+					<b class="font-medium text-fg"><Ticker value={held} /></b> / {length.toLocaleString()}
 					blocks
 				</span>
 			{/if}

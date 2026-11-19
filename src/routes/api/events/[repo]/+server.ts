@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
 import { events } from '$lib/server/events';
+import { getPendingAdd } from '$lib/server/pending';
 
 // Per-repo live stats stream. Backed by the shared EventHub — the hub
 // lazily attaches core listeners ('append', 'peer-add', 'peer-remove') the
@@ -10,7 +11,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const name = params.repo;
 
 	// Lazy attach — first subscriber for this repo wires the core listeners.
-	await events.ensureRepoAttached(locals.db, name);
+	await events.ensureRepoAttached(locals.db, name, getPendingAdd(name)?.key);
 
 	const initial = events.getRepoStats(name);
 	if (!initial) {
@@ -21,6 +22,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	let heartbeat: ReturnType<typeof setInterval> | null = null;
 	let onRepo: (() => void) | null = null;
 	let onAppend: ((delta: { from: number; to: number; added: number }) => void) | null = null;
+	let onReady: (() => void) | null = null;
+	let onFailed: (() => void) | null = null;
 
 	const stream = new ReadableStream({
 		start(controller) {
@@ -50,6 +53,16 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			onAppend = (delta) => send('append', delta);
 			events.on(`append:${name}`, onAppend);
 
+			// A repo being added: 'ready' once it lands, 'failed' if it can't.
+			// Sent straight away too when it settled before this stream opened.
+			onReady = () => send('ready', {});
+			events.on(`ready:${name}`, onReady);
+			onFailed = () => send('failed', {});
+			events.on(`failed:${name}`, onFailed);
+			const add = getPendingAdd(name);
+			if (!add) send('ready', {});
+			else if (add.error) send('failed', {});
+
 			heartbeat = setInterval(() => {
 				if (closed) return;
 				try {
@@ -62,9 +75,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		cancel() {
 			if (onRepo) events.off(`repo:${name}`, onRepo);
 			if (onAppend) events.off(`append:${name}`, onAppend);
+			if (onReady) events.off(`ready:${name}`, onReady);
+			if (onFailed) events.off(`failed:${name}`, onFailed);
 			if (heartbeat) clearInterval(heartbeat);
 			onRepo = null;
 			onAppend = null;
+			onReady = null;
+			onFailed = null;
 			heartbeat = null;
 		}
 	});

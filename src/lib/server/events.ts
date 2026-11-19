@@ -41,6 +41,13 @@ type ConnLike = {
 	on(event: string, listener: () => void): void;
 };
 
+type JoinCore = {
+	_joinCore(
+		key: Uint8Array,
+		opts: { server: boolean; client: boolean }
+	): Promise<{ core: unknown }>;
+};
+
 type BlindPeerLike = { connected: boolean };
 type BlindPeeringLike = { blindPeers: Map<unknown, BlindPeerLike> };
 
@@ -59,6 +66,10 @@ export type RepoStats = {
 	// Blocks held locally from the start, with no gaps. Below `length` while
 	// a replica is still catching up.
 	contiguousLength: number;
+	// Blocks held locally, gaps or not — at least contiguousLength plus every
+	// block downloaded since attach. A sync fetches blocks out of order, so
+	// this is what moves while contiguousLength sits near zero.
+	held: number;
 	peers: number;
 };
 
@@ -178,31 +189,40 @@ class EventHub extends EventEmitter {
 	 * when an SSE client actually cares about a given repo, so 100 stored
 	 * repos don't mean 100 idle listener sets.
 	 */
-	async ensureRepoAttached(db: GipDB, name: string) {
+	async ensureRepoAttached(db: GipDB, name: string, key?: Uint8Array) {
 		if (this.repoState.has(name)) return;
 
 		// getCore with no swarm intent — we just want a handle. The core was
 		// already joined when the repo was first opened/created elsewhere;
-		// here we just need its events.
-		const entry = await db.getCore(name, { server: false, client: false });
-		if (!entry) return;
-
-		const core = entry.core as CoreLike;
+		// here we just need its events. A repo still being added has no
+		// record yet, so it comes by key — the same cached session getCore
+		// hands out once the record lands, so nothing is wired twice.
+		const core = (
+			key
+				? await (db as unknown as JoinCore)._joinCore(key, { server: false, client: false })
+				: await db.getCore(name, { server: false, client: false })
+		)?.core as CoreLike | undefined;
+		if (!core) return;
 
 		// Seed initial state.
 		this.repoState.set(name, {
 			length: core.length,
 			contiguousLength: core.contiguousLength,
+			held: core.contiguousLength,
 			peers: core.peers.length
 		});
 
 		if (this.attachedCores.has(core as unknown as object)) return;
 		this.attachedCores.add(core as unknown as object);
 
+		const base = core.contiguousLength;
+		let downloaded = 0;
+
 		const recompute = () => {
 			this.repoState.set(name, {
 				length: core.length,
 				contiguousLength: core.contiguousLength,
+				held: Math.min(core.length, Math.max(base + downloaded, core.contiguousLength)),
 				peers: core.peers.length
 			});
 			// Specific event for per-repo SSE handlers; generic 'repo' event
@@ -234,12 +254,20 @@ class EventHub extends EventEmitter {
 		// one recompute per half second at most.
 		let downloadTimer: ReturnType<typeof setTimeout> | null = null;
 		core.on('download', () => {
+			downloaded++;
 			if (downloadTimer) return;
 			downloadTimer = setTimeout(() => {
 				downloadTimer = null;
 				recompute();
 			}, 500);
 		});
+	}
+
+	/**
+	 * Drop a name's stats so the next attach wires whatever core it has now.
+	 */
+	forget(name: string) {
+		this.repoState.delete(name);
 	}
 
 	/**
