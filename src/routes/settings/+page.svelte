@@ -62,6 +62,16 @@
 
 	let copiedSigningKey = $state(false);
 
+	let copiedPear = $state<string | null>(null);
+
+	async function copyPearKey(name: string, key: string) {
+		try {
+			await navigator.clipboard.writeText(key);
+			copiedPear = name;
+			setTimeout(() => (copiedPear = null), 1200);
+		} catch {}
+	}
+
 	async function copySigningKey() {
 		try {
 			await navigator.clipboard.writeText(data.signingKey);
@@ -124,16 +134,16 @@
 	<!-- SIGNING KEY -->
 	<section class="mb-5 overflow-hidden rounded-2xl bg-surface ring-1 ring-line ring-inset">
 		<div class="border-b border-line bg-surface-2 px-5 py-3.5">
-			<h2 class="m-0 text-base font-semibold text-fg">Your signing key</h2>
+			<h2 class="m-0 text-base font-semibold text-fg">Your signing keys</h2>
 			<p class="m-0 mt-0.5 text-xs text-neutral-400">
-				Send this to whoever sets up a release key, so they can add you as a signer. Its secret half
-				stays on this device.
+				Send one to whoever sets up a release key, so they can add you as a signer. The Gear key's
+				secret half stays on this device; a pear key signs with its password.
 			</p>
 		</div>
 		<div class="px-5 py-5">
 			<div class="grid grid-cols-1 items-start gap-2 sm:grid-cols-[140px_1fr_auto] sm:gap-3">
 				<label for="signing-key" class="text-xs font-medium text-neutral-400 sm:pt-2">
-					Signing key
+					Gear key
 				</label>
 				<code
 					id="signing-key"
@@ -148,7 +158,30 @@
 				>
 					{copiedSigningKey ? 'Copied' : 'Copy'}
 				</button>
+				{#each data.pearKeys as k (k.name)}
+					<span class="text-xs font-medium text-neutral-400 sm:pt-2">
+						pear key <span class="font-mono text-fg-2">{k.name}</span>
+					</span>
+					<code
+						class="min-w-0 rounded-[10px] bg-bg px-3 py-2 font-mono text-[12.5px] break-all text-neutral-100 ring-1 ring-line-strong ring-inset"
+					>
+						{k.key}
+					</code>
+					<button
+						type="button"
+						onclick={() => copyPearKey(k.name, k.key)}
+						class="tap-44 cursor-pointer justify-self-start rounded-lg bg-surface-3 px-3 py-2 text-xs font-medium text-fg ring-1 ring-line-strong ring-inset hover:bg-surface-4 sm:justify-self-auto"
+					>
+						{copiedPear === k.name ? 'Copied' : 'Copy'}
+					</button>
+				{/each}
 			</div>
+			{#if data.pearKeys.length > 0}
+				<p class="m-0 mt-3 text-xs text-neutral-400">
+					pear keys come from <span class="font-mono">~/.pear</span>, as
+					<span class="font-mono">pear multisig keys list</span> shows them.
+				</p>
+			{/if}
 		</div>
 	</section>
 

@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import type { PageProps } from './$types';
 	import CopyField from '$lib/components/releases/CopyField.svelte';
+	import PearSign from '$lib/components/releases/PearSign.svelte';
 	import {
 		ago,
 		avatar,
@@ -17,6 +18,7 @@
 
 	let inspection = $state<Inspection | null>(null);
 	let signing = $state(false);
+	let password = $state('');
 
 	onMount(liveReleases);
 
@@ -258,14 +260,28 @@
 			use:enhance={() => {
 				signing = true;
 				return async ({ update }) => {
+					password = '';
 					await update();
 					signing = false;
 				};
 			}}
 		>
+			{#if key.signAs}
+				<label class="flex flex-col gap-1.5 text-xs text-fg-2">
+					Password for your pear key <span class="font-mono text-fg">{key.signAs}</span>
+					<input
+						type="password"
+						name="password"
+						bind:value={password}
+						required
+						autocomplete="off"
+						class="h-11 rounded-[10px] border-0 bg-bg px-3 text-sm text-fg ring-1 ring-line-strong ring-inset focus:ring-2 focus:ring-accent-400/50 focus:outline-none"
+					/>
+				</label>
+			{/if}
 			<button
 				type="submit"
-				disabled={!inspection?.ok || signing}
+				disabled={!inspection?.ok || signing || (key.signAs !== null && !password)}
 				class="h-[60px] cursor-pointer rounded-[18px] bg-accent-400 text-base font-semibold text-accent-900 shadow-[0_12px_34px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300 disabled:cursor-default disabled:bg-surface-4 disabled:text-fg-3 disabled:shadow-none"
 			>
 				{#if signing}
@@ -285,5 +301,10 @@
 				<span class="text-center text-sm text-red-400" role="alert">{form.sign.error}</span>
 			{/if}
 		</form>
+		{#if key.signAs}
+			<div class="mt-4">
+				<PearSign request={proposal.request} />
+			</div>
+		{/if}
 	{/if}
 </main>

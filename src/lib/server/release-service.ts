@@ -8,6 +8,7 @@ import { openRepo, getTagTarget, getTagRefs, getBranchRefs, getCommitHistory } f
 import { parseCommitMessage, type ParsedCommit } from './commit-parse';
 import { createTag, TagError } from './tags.js';
 import { newerTags } from './newer-tags.js';
+import { listPearKeys, pearDir, signWithPearKey } from './pear-keys.js';
 import { events } from './events';
 import { log, logError } from './log.js';
 
@@ -72,6 +73,9 @@ export type Release = {
 
 // `gear` says the seat is known to sign in Gear: it's this device's, or a
 // Gear co-signer's signature came from it. Any other may be a pear key.
+// A `pear multisig` key in ~/.pear: its name and public key.
+export type PearKey = { name: string; key: string };
+
 export type Signer = { key: string; label: string | null; me: boolean; gear: boolean };
 
 // A rotation hands a key's release log over to `to`. `name` is what this
@@ -99,6 +103,9 @@ export type KeySummary = {
 	name: string;
 	owner: boolean;
 	role: Role;
+	// The pear key this device signs this key with, by name, or null for its
+	// Gear key. Signing with it takes the key's password.
+	signAs: string | null;
 	// Hidden from the repo, the badges and Your releases; still seeded.
 	archived: boolean;
 	share: string;
@@ -180,6 +187,8 @@ type KeyRecord = {
 	labels: Record<string, string>;
 	// Signers whose signatures came from Gear.
 	gear?: string[];
+	// This device signs with this pear key instead of its Gear key.
+	signAs?: PearKey;
 	added: number;
 	archived?: boolean;
 };
@@ -266,8 +275,19 @@ class Releases {
 		return { addCore: (core: unknown) => blind.addCoreBackground(core, { announce: true }) };
 	}
 
+	// This device's Gear key.
 	get seatKey() {
 		return z32.encode(this.seat!.publicKey) as string;
+	}
+
+	// The key this device signs `record` with: a pear key or its Gear key.
+	private seatFor(record: KeyRecord) {
+		return record.signAs?.key ?? this.seatKey;
+	}
+
+	// The pear multisig keys on this computer. None on phones.
+	async pearKeys(): Promise<PearKey[]> {
+		return listPearKeys(pearDir());
 	}
 
 	async open() {
@@ -569,7 +589,7 @@ class Releases {
 		// before it.
 		const latest = rk.length - (rotated ? 2 : 1);
 		const latestRelease = latest >= 0 ? await this.read(rk, latest) : null;
-		const me = this.seatKey;
+		const me = this.seatFor(record);
 		const proposals = await this.store.listProposals(record.key);
 
 		const pending = await Promise.all(
@@ -597,6 +617,7 @@ class Releases {
 			name: record.name,
 			owner: record.owner,
 			role: record.follower ? 'follower' : record.owner ? 'owner' : 'signer',
+			signAs: record.signAs?.name ?? null,
 			archived: record.archived ?? false,
 			share: shareLink(record, latestRelease),
 			quorum: record.quorum,
@@ -634,6 +655,8 @@ class Releases {
 		repo: string;
 		signers: { key: string; label: string }[];
 		quorum: number;
+		// A pear key to sign this key with, by name.
+		signAs?: string;
 	}) {
 		const name = opts.name.trim();
 		if (!NAME.test(name)) {
@@ -657,6 +680,11 @@ class Releases {
 		if (!Number.isInteger(opts.quorum) || opts.quorum < 1 || opts.quorum > signers.length) {
 			throw new ReleaseError(`Signatures needed must be between 1 and ${signers.length}`);
 		}
+
+		const signAs = opts.signAs
+			? (await this.pearKeys()).find((k) => k.name === opts.signAs)
+			: undefined;
+		if (opts.signAs && !signAs) throw new ReleaseError(`No pear key named ${opts.signAs}`);
 
 		const entry = (await this.db.getCore(opts.repo, { server: false, client: false })) as {
 			core: { key: Uint8Array };
@@ -691,6 +719,7 @@ class Releases {
 			repo: { name: opts.repo, key: z32.encode(entry.core.key) },
 			owner: true,
 			labels,
+			signAs,
 			added: Date.now()
 		};
 		await this.store.putKey(record);
@@ -698,7 +727,9 @@ class Releases {
 		return key;
 	}
 
-	async propose(key: string, tag: string) {
+	// `password` signs the proposal when this device signs the key with a
+	// pear key.
+	async propose(key: string, tag: string, password?: string) {
 		const record = await this.record(key);
 		const rk = await this.key(record);
 		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
@@ -739,16 +770,14 @@ class Releases {
 			rotate: null
 		});
 
-		if (record.signers.includes(this.seatKey)) {
-			await this.sign(key, id).catch((err) => logError('signing own proposal failed', err));
-		}
+		await this.signOwn(record, id, password);
 
 		events.emit('release', { key });
 		return id;
 	}
 
 	// Make the tag on a repo this device owns, then propose it.
-	async proposeNewTag(key: string, tag: string, target: string) {
+	async proposeNewTag(key: string, tag: string, target: string, password?: string) {
 		const record = await this.record(key);
 		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
 		await this.canPropose(key, tag);
@@ -761,7 +790,25 @@ class Releases {
 			if (err instanceof TagError) throw new ReleaseError(err.message);
 			throw err;
 		}
-		return this.propose(key, tag);
+		return this.propose(key, tag, password);
+	}
+
+	// Signs a proposal this device just made, when it holds a seat. A Gear
+	// seat signing is best effort; a pear key's wrong password is reported,
+	// with the proposal kept so it can be signed from its page.
+	private async signOwn(record: KeyRecord, id: string, password?: string) {
+		if (!record.signers.includes(this.seatFor(record))) return;
+		if (!record.signAs) {
+			await this.sign(record.key, id).catch((err) => logError('signing own proposal failed', err));
+			return;
+		}
+		if (!password) return;
+		try {
+			await this.sign(record.key, id, password);
+		} catch (err) {
+			if (!(err instanceof ReleaseError)) throw err;
+			throw new ReleaseError(`Proposed, not signed yet: ${err.message}`);
+		}
 	}
 
 	// Make a key with new signers, then propose handing this key's release
@@ -795,9 +842,7 @@ class Releases {
 			rotate: { to, name: opts.name.trim() }
 		});
 
-		if (record.signers.includes(this.seatKey)) {
-			await this.sign(key, id).catch((err) => logError('signing own rotation failed', err));
-		}
+		await this.signOwn(record, id);
 
 		events.emit('release', { key });
 		return id;
@@ -845,7 +890,10 @@ class Releases {
 		}
 
 		const signers = described.signers.map((s) => z32.encode(s) as string);
-		if (!signers.includes(this.seatKey)) {
+		const pear = signers.includes(this.seatKey)
+			? undefined
+			: (await this.pearKeys()).find((k) => signers.includes(k.key));
+		if (!signers.includes(this.seatKey) && !pear) {
 			// It may be for a pear key of yours: hand back what the CLI signs.
 			throw new ReleaseError(
 				'Your Gear signing key is not one of the signers on this release key',
@@ -858,7 +906,9 @@ class Releases {
 		const key = z32.encode(described.key) as string;
 		const id = z32.encode(described.source) as string;
 
-		if (!(await this.store.getKey(key))) {
+		const known = (await this.store.getKey(key)) as KeyRecord | null;
+		if (known && pear && !known.signAs) await this.store.putKey({ ...known, signAs: pear });
+		if (!known) {
 			const record: KeyRecord = {
 				key,
 				name: described.namespace.startsWith(NAMESPACE)
@@ -870,6 +920,7 @@ class Releases {
 				repo: null,
 				owner: false,
 				labels: {},
+				signAs: pear,
 				added: Date.now()
 			};
 			await this.store.putKey(record);
@@ -954,7 +1005,13 @@ class Releases {
 		const p = await this.store.getProposal(key, id);
 		if (!p) throw new ReleaseError('Unknown proposal');
 		const signed = (await this.store.listResponses(key, id)).map((r) => r.signer);
-		return { ...p, signed, signedByMe: signed.includes(this.seatKey) };
+		const me = this.seatFor(await this.record(key));
+		return {
+			...p,
+			request: ReleaseKey.request(p.proposal),
+			signed,
+			signedByMe: signed.includes(me)
+		};
 	}
 
 	async inspect(key: string, id: string): Promise<Inspection> {
@@ -1035,7 +1092,7 @@ class Releases {
 	private async successor(to: Uint8Array) {
 		const key = z32.encode(to) as string;
 		const record = (await this.store.getKey(key)) as KeyRecord | null;
-		const me = this.seatKey;
+		const me = record ? this.seatFor(record) : this.seatKey;
 		const signers = (keys: string[], labels: Record<string, string> = {}, gear: string[] = []) =>
 			keys.map((s) => ({
 				key: s,
@@ -1112,20 +1169,49 @@ class Releases {
 		return null;
 	}
 
-	async sign(key: string, id: string) {
-		const rk = await this.key(await this.record(key));
+	// With a pear key, `password` decrypts it for this one signature.
+	async sign(key: string, id: string, password?: string) {
+		const record = await this.record(key);
+		const rk = await this.key(record);
 		const p = await this.getProposal(key, id);
 
 		let response: string;
 		try {
-			response = await rk.sign(p.proposal, this.seat);
+			response = record.signAs
+				? await this.signWithPear(rk, record.signAs, p.proposal, password)
+				: await rk.sign(p.proposal, this.seat);
 		} catch (err) {
+			if (err instanceof ReleaseError) throw err;
 			throw new ReleaseError((err as Error).message);
 		}
 
-		await this.store.putResponse(key, id, { signer: this.seatKey, response });
+		await this.store.putResponse(key, id, { signer: this.seatFor(record), response });
 		events.emit('release', { key });
 		return GEAR_RESPONSE + response;
+	}
+
+	// Inspects like ReleaseKey.sign, then signs the raw request with the pear
+	// key the way `pear multisig sign` does. The key file is read here and
+	// nowhere else.
+	private async signWithPear(rk: Key, pear: PearKey, proposal: string, password?: string) {
+		if (!password) throw new ReleaseError(`Enter the password for your pear key ${pear.name}`);
+		await rk.inspect(proposal);
+		const request = z32.decode(ReleaseKey.request(proposal)) as Uint8Array;
+		let response: string;
+		try {
+			response = z32.encode(await signWithPearKey(pearDir(), pear.name, request, password));
+		} catch (err) {
+			const message = (err as Error).message;
+			if (/decryption failed/.test(message)) {
+				throw new ReleaseError(`Wrong password for your pear key ${pear.name}`);
+			}
+			if ((err as { code?: string }).code === 'ENOENT') {
+				throw new ReleaseError(`No pear key ${pear.name} on this computer`);
+			}
+			throw err;
+		}
+		ReleaseKey.verify(proposal, response);
+		return response;
 	}
 
 	async addResponse(key: string, id: string, text: string) {
@@ -1159,7 +1245,8 @@ class Releases {
 	// This device's signature, marked as Gear's for the proposer.
 	async myResponse(key: string, id: string) {
 		const responses = await this.store.listResponses(key, id);
-		const mine = responses.find((r) => r.signer === this.seatKey);
+		const me = this.seatFor(await this.record(key));
+		const mine = responses.find((r) => r.signer === me);
 		return mine ? GEAR_RESPONSE + mine.response : null;
 	}
 

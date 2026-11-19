@@ -15,10 +15,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// blind peers — the latter never fire 'connection' on the swarm because
 	// blind-peering connects via dht.connect() directly.
 	const s = events.getStats();
+	const releases = await getReleases(locals.db);
 
 	return {
 		identity: Id.encode(publicKey),
-		signingKey: (await getReleases(locals.db)).seatKey,
+		signingKey: releases.seatKey,
+		pearKeys: await releases.pearKeys(),
 		blindPeers,
 		seedReadOnly,
 		cli: cliStatus(),

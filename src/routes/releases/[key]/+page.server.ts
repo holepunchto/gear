@@ -19,7 +19,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const releases = await getReleases(locals.db);
 		return attempt('propose', async () => ({
-			id: await releases.propose(params.key, String(form.get('tag') ?? ''))
+			id: await releases.propose(params.key, String(form.get('tag') ?? ''), password(form))
 		}));
 	},
 
@@ -30,7 +30,8 @@ export const actions: Actions = {
 			id: await releases.proposeNewTag(
 				params.key,
 				String(form.get('name') ?? '').trim(),
-				String(form.get('target') ?? '')
+				String(form.get('target') ?? ''),
+				password(form)
 			)
 		}));
 	},
@@ -39,7 +40,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const releases = await getReleases(locals.db);
 		return attempt('sign', async () => ({
-			response: await releases.sign(params.key, String(form.get('id')))
+			response: await releases.sign(params.key, String(form.get('id')), password(form))
 		}));
 	},
 
@@ -95,3 +96,10 @@ export const actions: Actions = {
 		return { withdraw: { ok: true } };
 	}
 };
+
+// A pear key's password, posted over loopback to sign one entry. Never
+// stored or logged.
+function password(form: FormData) {
+	const value = form.get('password');
+	return value ? String(value) : undefined;
+}

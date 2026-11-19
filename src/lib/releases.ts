@@ -10,6 +10,7 @@ export type {
 	Inspection,
 	KeySummary,
 	Pending,
+	PearKey,
 	Release,
 	RepoRelease,
 	Rotate,

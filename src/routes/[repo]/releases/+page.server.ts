@@ -13,6 +13,7 @@ export const load: PageServerLoad = async ({ locals, parent, depends }) => {
 		.sort((a, b) => Number(a.rotatedTo !== null) - Number(b.rotatedTo !== null));
 	return {
 		seat: releases.seatKey,
+		pearKeys: await releases.pearKeys(),
 		keys: await Promise.all(active.map((k) => releases.details(k.key))),
 		archived: keys.length - active.length
 	};
@@ -29,7 +30,8 @@ export const actions: Actions = {
 				name: String(form.get('name') ?? ''),
 				repo: params.repo,
 				signers: keys.map((key, i) => ({ key, label: labels[i] ?? '' })),
-				quorum: Number(form.get('quorum'))
+				quorum: Number(form.get('quorum')),
+				signAs: String(form.get('signAs') ?? '') || undefined
 			})
 		}));
 	},
