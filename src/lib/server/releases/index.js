@@ -6,7 +6,7 @@ import crypto from 'hypercore-crypto';
 import c from 'compact-encoding';
 import b4a from 'b4a';
 import z32 from 'z32';
-import { Record, Proposal, RELEASE } from './messages.js';
+import { Record, Proposal, RELEASE, ROTATE } from './messages.js';
 
 export default class ReleaseKey extends ReadyResource {
 	constructor(
@@ -102,11 +102,11 @@ export default class ReleaseKey extends ReadyResource {
 	 * Opened by key alone: reads the first and the latest release and learns
 	 * the signers and quorum from the manifest, which arrives with the first
 	 * block. Throws when no peer serves the key in time or it isn't a release
-	 * key.
+	 * key. A timeout of 0 waits for the first entry however long it takes.
 	 */
-	async follow() {
+	async follow({ timeout = this.timeout } = {}) {
 		await this.ready();
-		const first = c.decode(Record, await this.core.get(0, { timeout: this.timeout }));
+		const first = c.decode(Record, await this.core.get(0, { timeout }));
 		const manifest = this.core.manifest;
 		if (!manifest || manifest.signers.length === 0 || first.previous !== 0) {
 			throw new Error('Not a release key');
@@ -129,9 +129,31 @@ export default class ReleaseKey extends ReadyResource {
 		return c.decode(Record, await this.core.get(index, { timeout: this.timeout }));
 	}
 
+	/**
+	 * The key a ROTATE entry hands this one over to, or null. A rotation is
+	 * always the last entry: once it is in, the key takes no more proposals.
+	 * @returns {Promise<Uint8Array | null>}
+	 */
+	async rotatedTo() {
+		await this.ready();
+		if (this.core.length === 0) return null;
+		const last = await this.get(this.core.length - 1);
+		return last.type === ROTATE ? last.to : null;
+	}
+
 	async propose(release) {
+		return this._propose({ ...release, type: RELEASE });
+	}
+
+	/** Proposes the final entry, which hands the release log over to `to`. */
+	async proposeRotate(to) {
+		return this._propose({ type: ROTATE, to });
+	}
+
+	async _propose(record) {
 		await this.ready();
 		await this.core.update();
+		if (await this.rotatedTo()) throw new Error('Release key was rotated');
 
 		const previous = this.core.length;
 		const staging = this.store.get({ keyPair: crypto.keyPair() });
@@ -141,7 +163,7 @@ export default class ReleaseKey extends ReadyResource {
 			for (let i = 0; i < previous; i++) {
 				await staging.append(await this.core.get(i, { timeout: this.timeout }));
 			}
-			await staging.append(c.encode(Record, { ...release, type: RELEASE, previous }));
+			await staging.append(c.encode(Record, { previous, ...record }));
 
 			this.swarm.join(staging.discoveryKey);
 			if (this.blind) this.blind.addCore(staging);
@@ -170,6 +192,7 @@ export default class ReleaseKey extends ReadyResource {
 		if (req.fork !== this.core.fork) throw new Error('Proposal is on another fork');
 
 		await this.core.update();
+		if (await this.rotatedTo()) throw new Error('Release key was rotated');
 		const previous = this.core.length;
 		if (req.length !== previous + 1) {
 			throw new Error(`Proposal appends at ${req.length - 1}, release key is at ${previous}`);
@@ -192,8 +215,11 @@ export default class ReleaseKey extends ReadyResource {
 			}
 
 			const record = c.decode(Record, last);
-			if (record.type !== RELEASE || record.previous !== previous) {
+			if (record.previous !== previous) {
 				throw new Error('Proposal record does not follow the latest release');
+			}
+			if (record.type === ROTATE && b4a.equals(record.to, this.core.key)) {
+				throw new Error('Rotation points at this same key');
 			}
 			return { record, request: req };
 		} finally {
@@ -222,6 +248,7 @@ export default class ReleaseKey extends ReadyResource {
 
 	async commit(proposal, responses) {
 		await this.ready();
+		if (await this.rotatedTo()) throw new Error('Release key was rotated');
 		const { source, request } = c.decode(Proposal, z32.decode(proposal));
 		const staging = this.store.get({ key: source });
 		await staging.ready();

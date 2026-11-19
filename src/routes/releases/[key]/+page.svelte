@@ -6,10 +6,12 @@
 	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import MoveAway from '$lib/components/releases/MoveAway.svelte';
+	import Rotated from '$lib/components/releases/Rotated.svelte';
 	import {
 		ago,
 		avatar,
 		liveReleases,
+		proposalName,
 		shortKey,
 		signerInitials,
 		signerName,
@@ -22,6 +24,15 @@
 
 	const key = $derived(data.key);
 	const current = $derived(key.pending[0] ?? null);
+
+	function rotation(to: string, name: string | null, previous: number) {
+		return [
+			{ k: 'Entry', v: `Rotation · the last entry, #${previous}` },
+			{ k: 'Hands over to', v: to },
+			{ k: 'New key name', v: name ?? 'not known on this device' },
+			{ k: 'After it', v: `${key.name} takes no more releases` }
+		];
+	}
 
 	function payload(r: Release, previous: number) {
 		return [
@@ -59,7 +70,11 @@
 				<h1
 					class="m-0 font-display text-[48px] leading-none font-semibold tracking-[-0.04em] break-all text-fg sm:text-[64px]"
 				>
-					{current ? (current.release?.name ?? 'Proposal') : (key.latest?.name ?? key.name)}
+					{current
+						? current.rotate
+							? 'Rotation'
+							: proposalName(current, 'Proposal')
+						: (key.latest?.name ?? key.name)}
 				</h1>
 				{#if current}
 					<span
@@ -68,6 +83,12 @@
 						<span class="h-2 w-2 animate-pulse rounded-full bg-apricot-400" aria-hidden="true"
 						></span>
 						Collecting signatures
+					</span>
+				{:else if key.rotatedTo}
+					<span
+						class="inline-flex items-center rounded-full bg-white/6 px-3 py-[5px] text-xs font-semibold text-fg-2"
+					>
+						Retired
 					</span>
 				{:else if key.latest}
 					<span
@@ -96,6 +117,14 @@
 					Proposed by <b class="font-semibold text-fg">{current.mine ? 'you' : 'a co-signer'}</b>
 					· {ago(current.added)} · will be entry
 					<span class="font-mono text-fg">#{current.previous}</span> of the release log
+					{#if current.rotate}
+						· hands it over to <span class="font-mono text-fg"
+							>{current.rotate.name ?? shortKey(current.rotate.to)}</span
+						>
+					{/if}
+				{:else if key.rotatedTo}
+					<span class="font-mono text-fg">{key.name}</span> · retired · {key.quorum} of {key.signers
+						.length} signed its last entry
 				{:else if key.latest}
 					<span class="font-mono text-fg">{key.name}</span> · entry #{key.latest.index} · {key.quorum}
 					of {key.signers.length} signed
@@ -204,7 +233,21 @@
 					>
 						What gets signed
 					</h2>
-					{#if current.release}
+					{#if current.rotate}
+						<dl
+							class="m-0 grid grid-cols-[minmax(0,120px)_minmax(0,1fr)] px-5 pt-2 pb-3 sm:grid-cols-[160px_minmax(0,1fr)]"
+						>
+							{#each rotation(current.rotate.to, current.rotate.name, current.previous) as p (p.k)}
+								<dt class="border-b border-white/4 py-[11px] text-fg-2">{p.k}</dt>
+								<dd
+									class="m-0 truncate border-b border-white/4 py-[11px] font-mono text-[13px] text-fg"
+									title={p.v}
+								>
+									{p.v}
+								</dd>
+							{/each}
+						</dl>
+					{:else if current.release}
 						<dl
 							class="m-0 grid grid-cols-[minmax(0,120px)_minmax(0,1fr)] px-5 pt-2 pb-3 sm:grid-cols-[160px_minmax(0,1fr)]"
 						>
@@ -227,6 +270,8 @@
 				</section>
 
 				<CollectSignatures {key} {current} response={data.responses[current.id] ?? null} />
+			{:else if key.rotatedTo}
+				<Rotated {key} />
 			{:else if key.role !== 'follower' && !key.archived}
 				<ProposeForm {key} candidates={data.candidates} />
 			{/if}

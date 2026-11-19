@@ -21,6 +21,10 @@ const MAX_SIGNERS = 16;
 const MAX_PASTE = 4096;
 // A release key to follow, with the name it goes by: release+pear://<key>/<name>.
 const SHARE = 'release+pear://';
+// How many rotations a lookup follows to a repo's newest key.
+const MAX_HOPS = 8;
+// Record types, as in ./releases/messages.js.
+const ROTATE = 1;
 
 export class ReleaseError extends Error {}
 
@@ -49,6 +53,10 @@ export type Release = {
 
 export type Signer = { key: string; label: string | null; me: boolean };
 
+// A rotation hands a key's release log over to `to`. `name` is what this
+// device calls the new key, when it knows it.
+export type Rotate = { to: string; name: string | null };
+
 export type Pending = {
 	id: string;
 	proposal: string;
@@ -57,6 +65,7 @@ export type Pending = {
 	mine: boolean;
 	added: number;
 	release: Release | null;
+	rotate: Rotate | null;
 	signed: string[];
 	signedByMe: boolean;
 };
@@ -77,6 +86,9 @@ export type KeySummary = {
 	repo: { name: string; key: string } | null;
 	length: number;
 	latest: (Release & { index: number }) | null;
+	// Set once a rotation is committed: the key is retired and takes no more
+	// proposals. `known` says whether this device has the new key.
+	rotatedTo: (Rotate & { known: boolean }) | null;
 	pending: Pending[];
 };
 
@@ -122,8 +134,12 @@ export type Changes = {
 	status: 'reached' | 'forked' | 'capped' | 'unrelated' | 'first' | 'missing';
 };
 
+// What a rotation hands over to: the new key's signers and threshold, when
+// this device can open it.
+export type Successor = Rotate & { signers: Signer[] | null; quorum: number | null };
+
 export type Inspection =
-	| { ok: true; release: Release; checks: Check[] }
+	| { ok: true; release: Release | null; rotate: Successor | null; checks: Check[] }
 	| { ok: false; error: string; checks: Check[] };
 
 type KeyRecord = {
@@ -154,10 +170,12 @@ type Key = {
 	signers: string[];
 	quorum: number;
 	ready(): Promise<void>;
-	follow(): Promise<RawRelease>;
-	get(index: number): Promise<RawRelease>;
+	follow(opts?: { timeout?: number }): Promise<RawEntry>;
+	get(index: number): Promise<RawEntry>;
+	rotatedTo(): Promise<Uint8Array | null>;
 	propose(release: object): Promise<string>;
-	inspect(proposal: string): Promise<{ record: RawRelease }>;
+	proposeRotate(to: Uint8Array): Promise<string>;
+	inspect(proposal: string): Promise<{ record: RawEntry }>;
 	sign(proposal: string, keyPair: unknown): Promise<string>;
 	commit(proposal: string, responses: string[]): Promise<number>;
 };
@@ -180,6 +198,7 @@ const Module = ReleaseKey as unknown as new (
 };
 
 type RawRelease = {
+	type: 0;
 	name: string;
 	tag: string;
 	commit: Uint8Array;
@@ -188,12 +207,16 @@ type RawRelease = {
 	previous: number;
 };
 
+type RawEntry = RawRelease | { type: typeof ROTATE; previous: number; to: Uint8Array };
+
 type Store = InstanceType<typeof ReleaseStore>;
 
 class Releases {
 	private db: GipDB;
 	private store: Store;
 	private keys = new Map<string, Promise<Key>>();
+	// Keys a followed key rotated to that are being followed now.
+	private successors = new Set<string>();
 	private seat: { publicKey: Uint8Array; secretKey: Uint8Array } | null = null;
 
 	constructor(db: GipDB) {
@@ -239,7 +262,37 @@ class Releases {
 					quorum: record.quorum
 				});
 		this.keys.set(record.key, opening);
+		// A failed open reaches whoever awaits `opening`; this branch only skips
+		// the watch.
+		opening.then((rk) => this.watchRotation(record, rk)).catch(() => {});
 		return opening;
+	}
+
+	// A followed key that rotates is followed to its new key too, once the new
+	// key opens as a release key.
+	private watchRotation(record: KeyRecord, rk: Key) {
+		if (!record.follower) return;
+		const check = () =>
+			this.followRotation(record, rk).catch((err) => logError('following a rotated key', err));
+		check();
+		rk.core.on('append', check);
+	}
+
+	private async followRotation(record: KeyRecord, rk: Key) {
+		const to = await rk.rotatedTo();
+		if (!to) return;
+		const key = z32.encode(to) as string;
+		if (this.successors.has(key) || (await this.store.getKey(key))) return;
+
+		this.successors.add(key);
+		try {
+			// No timeout: the new key may have no release yet, and following
+			// waits for its first one.
+			await this.followKey(to, record.name, 0);
+			log(`followed ${record.name} to its new key ${short(key)}`);
+		} finally {
+			this.successors.delete(key);
+		}
 	}
 
 	private async start(opts: KeyOpts) {
@@ -336,8 +389,11 @@ class Releases {
 		const rk = await this.key(await this.record(key));
 		if (index >= rk.length) throw new ReleaseError('No such release');
 		const entry = await this.read(rk, index);
-		if (!entry) throw new ReleaseError('This release has not arrived yet');
-		return entry;
+		if (entry) return entry;
+		if (await this.entry(rk, index)) {
+			throw new ReleaseError('This entry hands the release log over to a new key');
+		}
+		throw new ReleaseError('This release has not arrived yet');
 	}
 
 	// Walks first-parent history from the release's commit until it meets the
@@ -437,6 +493,12 @@ class Releases {
 
 	private async summary(record: KeyRecord): Promise<KeySummary> {
 		const rk = await this.key(record);
+		const last = rk.length > 0 ? await this.entry(rk, rk.length - 1) : null;
+		const rotated = last?.type === ROTATE ? (z32.encode(last.to) as string) : null;
+		const successor = rotated ? await this.store.getKey(rotated) : null;
+		// A rotation is always the last entry, so the latest release is the one
+		// before it.
+		const latest = rk.length - (rotated ? 2 : 1);
 		const me = this.seatKey;
 		const proposals = await this.store.listProposals(record.key);
 
@@ -453,6 +515,7 @@ class Releases {
 						mine: p.mine,
 						added: p.added,
 						release: p.release,
+						rotate: p.rotate ?? null,
 						signed,
 						signedByMe: signed.includes(me)
 					};
@@ -474,14 +537,25 @@ class Releases {
 			})),
 			repo: record.repo,
 			length: rk.length,
-			latest: rk.length > 0 ? await this.read(rk, rk.length - 1) : null,
+			latest: latest >= 0 ? await this.read(rk, latest) : null,
+			rotatedTo: rotated
+				? { to: rotated, name: successor?.name ?? null, known: successor !== null }
+				: null,
 			pending: pending.sort((a, b) => b.added - a.added)
 		};
 	}
 
-	private async read(rk: Key, index: number) {
+	// The entry at `index`, or null when it hasn't arrived yet.
+	private async entry(rk: Key, index: number) {
 		if (!(await rk.core.has(index))) return null;
-		return { index, ...view(await rk.get(index)) };
+		return rk.get(index);
+	}
+
+	// The release at `index`, or null when it hasn't arrived or is a rotation.
+	private async read(rk: Key, index: number) {
+		const entry = await this.entry(rk, index);
+		if (!entry || entry.type === ROTATE) return null;
+		return { index, ...view(entry) };
 	}
 
 	async createKey(opts: {
@@ -590,7 +664,8 @@ class Releases {
 			previous: length - 1,
 			mine: true,
 			added: Date.now(),
-			release: view({ ...release, previous: length - 1 })
+			release: view({ ...release, type: 0, previous: length - 1 }),
+			rotate: null
 		});
 
 		if (record.signers.includes(this.seatKey)) {
@@ -618,19 +693,64 @@ class Releases {
 		return this.propose(key, tag);
 	}
 
-	// Refuse a tag that is already released, or a second proposal of ours
-	// while one is still collecting.
-	private async canPropose(key: string, tag: string) {
+	// Make a key with new signers, then propose handing this key's release
+	// log over to it. Once that commits, this key takes no more proposals.
+	async proposeRotate(
+		key: string,
+		opts: { name: string; signers: { key: string; label: string }[]; quorum: number }
+	) {
+		const record = await this.record(key);
+		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
+		await this.canPropose(key);
+
+		const to = await this.createKey({ ...opts, repo: record.repo.name });
+		if (to === key) {
+			throw new ReleaseError('That is this same key. Change the signers or how many must agree');
+		}
+
+		const rk = await this.key(record);
+		const proposal = await rk.proposeRotate(z32.decode(to));
+		const { source, length } = ReleaseKey.describe(proposal);
+		const id = z32.encode(source) as string;
+
+		await this.store.putProposal({
+			key,
+			id,
+			proposal,
+			previous: length - 1,
+			mine: true,
+			added: Date.now(),
+			release: null,
+			rotate: { to, name: opts.name.trim() }
+		});
+
+		if (record.signers.includes(this.seatKey)) {
+			await this.sign(key, id).catch((err) => logError('signing own rotation failed', err));
+		}
+
+		events.emit('release', { key });
+		return id;
+	}
+
+	// Refuse a proposal on a key that is followed, archived or rotated, a tag
+	// that is already released, or a second proposal of ours while one is
+	// still collecting.
+	private async canPropose(key: string, tag?: string) {
 		const record = await this.record(key);
 		if (record.follower) throw new ReleaseError('You follow this key; only its signers release');
 		if (record.archived) throw new ReleaseError('This key is archived; unarchive it to release');
 		const rk = await this.key(record);
+		if (await rk.rotatedTo()) {
+			throw new ReleaseError('This key was rotated; release from the key it points to');
+		}
 		const open = (await this.store.listProposals(key)).find(
 			(p) => p.mine && p.previous >= rk.length
 		);
 		if (open) {
-			throw new ReleaseError(`${open.release?.name ?? 'A release'} is still collecting signatures`);
+			const what = open.rotate ? 'A rotation' : (open.release?.name ?? 'A release');
+			throw new ReleaseError(`${what} is still collecting signatures`);
 		}
+		if (tag === undefined) return;
 
 		const index = (await this.released(key)).get(tag);
 		if (index !== undefined) throw new ReleaseError(`${tag} is already release #${index}`);
@@ -682,7 +802,8 @@ class Releases {
 				previous: described.length - 1,
 				mine: false,
 				added: Date.now(),
-				release: null
+				release: null,
+				rotate: null
 			});
 			events.emit('release', { key });
 		}
@@ -696,15 +817,19 @@ class Releases {
 	async follow(text: string) {
 		const parsed = parseShare(text);
 		if (!parsed) throw new ReleaseError('That is not a release key');
+		return this.followKey(parsed.key, parsed.name);
+	}
 
-		const key = z32.encode(parsed.key) as string;
+	// `timeout` 0 waits for the key's first entry however long it takes.
+	private async followKey(keyBytes: Uint8Array, name: string | null, timeout?: number) {
+		const key = z32.encode(keyBytes) as string;
 		if (await this.store.getKey(key)) return key;
 
-		const opening = this.start({ key: parsed.key });
+		const opening = this.start({ key: keyBytes });
 		const rk = await opening;
-		let latest: RawRelease;
+		let latest: RawEntry;
 		try {
-			latest = await rk.follow();
+			latest = await rk.follow({ timeout });
 		} catch (err) {
 			await rk.close();
 			const message =
@@ -714,15 +839,23 @@ class Releases {
 			throw new ReleaseError(message);
 		}
 
-		const repoKey = z32.encode(latest.repo.key) as string;
-		const repo = await this.findRepo(repoKey);
+		// A key that has rotated ends in the rotation; its latest release is the
+		// entry before.
+		const release =
+			latest.type === ROTATE
+				? rk.length > 1
+					? ((await rk.get(rk.length - 2)) as RawRelease)
+					: null
+				: latest;
+		const repoKey = release && (z32.encode(release.repo.key) as string);
+		const repo = repoKey && (await this.findRepo(repoKey));
 		const record: KeyRecord = {
 			key,
-			name: parsed.name ?? short(key),
+			name: name ?? short(key),
 			namespace: '',
 			signers: rk.signers,
 			quorum: rk.quorum,
-			repo: repo ? { name: repo, key: repoKey } : null,
+			repo: repo && repoKey ? { name: repo, key: repoKey } : null,
 			owner: false,
 			follower: true,
 			labels: {},
@@ -730,6 +863,7 @@ class Releases {
 		};
 		await this.store.putKey(record);
 		this.keys.set(key, opening);
+		this.watchRotation(record, rk);
 		events.emit('release', { key });
 		return key;
 	}
@@ -746,15 +880,17 @@ class Releases {
 		const rk = await this.key(record);
 		const p = await this.getProposal(key, id);
 
-		let raw: RawRelease;
+		let raw: RawEntry;
 		try {
 			raw = (await rk.inspect(p.proposal)).record;
 		} catch (err) {
 			return { ok: false, error: (err as Error).message, checks: [] };
 		}
 
-		const release = view(raw);
 		const stored = await this.store.getProposal(key, id);
+		if (raw.type === ROTATE) return this.inspectRotate(key, id, stored, raw);
+
+		const release = view(raw);
 		if (stored && !stored.release) await this.store.putProposal({ ...stored, release });
 
 		const checks: Check[] = [
@@ -769,7 +905,74 @@ class Releases {
 			...(await this.repoChecks(record, release))
 		];
 
-		return { ok: true, release, checks };
+		return { ok: true, release, rotate: null, checks };
+	}
+
+	// A rotation is the key's last entry. The signer sees what it hands over
+	// to: the new key's signers and threshold when this device can open it.
+	private async inspectRotate(
+		key: string,
+		id: string,
+		stored: Awaited<ReturnType<Store['getProposal']>>,
+		raw: { previous: number; to: Uint8Array }
+	): Promise<Inspection> {
+		const to = z32.encode(raw.to) as string;
+		const next = await this.successor(raw.to);
+		const rotate: Successor = {
+			to,
+			name: next?.name ?? stored?.rotate?.name ?? null,
+			signers: next?.signers ?? null,
+			quorum: next?.quorum ?? null
+		};
+		if (stored && !stored.rotate) {
+			await this.store.putProposal({ ...stored, rotate: { to, name: rotate.name } });
+		}
+
+		const checks: Check[] = [
+			{ label: 'Appends to this release key', ok: true, detail: short(key) },
+			{
+				label: 'Last entry: no more releases on this key after it',
+				ok: true,
+				detail: `entry #${raw.previous}`
+			},
+			{ label: 'Proposal matches its source', ok: true, detail: short(id) },
+			{
+				label: next?.signers
+					? `New key: ${next.quorum} of ${next.signers.length} must sign`
+					: "New key's signers can't be seen from here yet",
+				ok: Boolean(next?.signers),
+				detail: short(to)
+			}
+		];
+		return { ok: true, release: null, rotate, checks };
+	}
+
+	// The signers and threshold of a key, from this device's records or, when
+	// it doesn't know the key, by opening it. A key with no entries yet can't
+	// be opened by key alone.
+	private async successor(to: Uint8Array) {
+		const key = z32.encode(to) as string;
+		const record = (await this.store.getKey(key)) as KeyRecord | null;
+		const me = this.seatKey;
+		const signers = (keys: string[], labels: Record<string, string> = {}) =>
+			keys.map((s) => ({ key: s, label: labels[s] ?? null, me: s === me }));
+		if (record) {
+			return {
+				name: record.name,
+				signers: signers(record.signers, record.labels),
+				quorum: record.quorum
+			};
+		}
+
+		const rk = new Module(this.corestore, this.db.swarm, { key: to, timeout: 5000 });
+		try {
+			await rk.follow();
+			return { name: null, signers: signers(rk.signers), quorum: rk.quorum };
+		} catch {
+			return null;
+		} finally {
+			await rk.close();
+		}
 	}
 
 	private async repoChecks(record: KeyRecord, release: Release): Promise<Check[]> {
@@ -914,11 +1117,13 @@ class Releases {
 }
 
 export function repoReleases(keys: KeySummary[]) {
+	const byKey = new Map(keys.map((k) => [k.key, k]));
 	const out: Record<string, RepoRelease> = {};
-	for (const k of keys) {
-		const p = k.pending[0];
-		const repo = k.repo?.key ?? k.latest?.repo.key ?? p?.release?.repo.key;
+	for (const first of keys) {
+		const repo = first.repo?.key ?? first.latest?.repo.key ?? first.pending[0]?.release?.repo.key;
 		if (!repo || out[repo]) continue;
+		const k = newest(first, byKey);
+		const p = k.pending[0];
 		out[repo] = {
 			key: k.key,
 			name: k.name,
@@ -930,7 +1135,9 @@ export function repoReleases(keys: KeySummary[]) {
 			pending: p
 				? {
 						id: p.id,
-						name: p.release?.name ?? null,
+						name: p.rotate
+							? `Rotation to ${p.rotate.name ?? short(p.rotate.to)}`
+							: (p.release?.name ?? null),
 						missing: Math.max(0, k.quorum - p.signed.length),
 						waitingOnMe: !p.signedByMe && k.signers.some((s) => s.me)
 					}
@@ -938,6 +1145,16 @@ export function repoReleases(keys: KeySummary[]) {
 		};
 	}
 	return out;
+}
+
+// Follows rotations to the newest key in `byKey`, at most MAX_HOPS.
+function newest(k: KeySummary, byKey: Map<string, KeySummary>) {
+	for (let hops = 0; hops < MAX_HOPS && k.rotatedTo; hops++) {
+		const next = byKey.get(k.rotatedTo.to);
+		if (!next) break;
+		k = next;
+	}
+	return k;
 }
 
 function view(raw: RawRelease): Release {

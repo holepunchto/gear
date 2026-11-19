@@ -61,9 +61,9 @@ or raced another one.
 ## Decisions
 
 1. **Signers and quorum never change for a key.** Changing them changes the key.
-   Rotating means making a new key and appending a final `{ rotatedTo: <newKey> }`
-   entry to the old one, signed by the old quorum. Readers follow the pointer.
-   The mockup's "require M to change signers" control becomes "Rotate key".
+   Rotating means making a new key and appending a final
+   `{ type: ROTATE, previous, to: <newKey> }` entry to the old one, signed by the
+   old quorum. Readers follow the pointer. See [Rotation](#rotation).
 2. **A seat is one device keypair.** Gear derives it from its corestore
    (`store.createKeyPair('gear/release-signer/v1')`), so no password key file is
    involved. Adding a second device of your own adds a seat, so do it when the
@@ -109,7 +109,10 @@ ReleaseKey.verify(proposal, response); // → signer public key, or throws
 const { record } = await key.inspect(proposal); // replicates the source and checks it
 const response = await key.sign(proposal, seatKeyPair); // inspects first, always
 await key.commit(proposal, responses); // → new length
-await key.get(index); // → release record
+await key.get(index); // → release record, or { type: ROTATE, previous, to }
+
+const rotation = await key.proposeRotate(newKey); // same sign and commit flow
+await key.rotatedTo(); // → the new key once the rotation is in, else null
 ```
 
 A signing request does not carry the source core's key: it holds only the
@@ -133,12 +136,13 @@ fails `inspect` ("appends at N, release key is at N+1").
 Tests: `npm test` runs `src/lib/server/releases/test.js` under Bare against a
 hyperdht testnet with two seeders standing in for blind peers. It covers a
 2-of-3 release, a second release from another proposer, a commit below quorum, a
-stale proposal and a non-signer. The same file passes under `brittle-node`.
+stale proposal, a non-signer, and rotation: a 1-of-1 key rotating to a 2-of-3,
+an empty key rotating, a rotated key refusing more entries, a rotation with the
+wrong `previous`, and a follower walking to the new key. The same file passes under `brittle-node`.
 
 ### Not done yet
 
 - Mailbox transport for proposals and responses.
-- Rotation records (`ROTATE` is in the codec; nothing writes it).
 - Checking a release record against the repo (does the commit exist at
   `repo.length`?). That belongs in gear, on top of `inspect`.
 - `inspect` joins and then leaves the staging topic without ref-counting, so a
@@ -186,6 +190,42 @@ being told; a test checks this against a testnet. A core whose first block
 isn't a release record, or that no peer serves within the timeout, is refused.
 Gear then keeps the key with the follower role and mirrors it to its blind
 peers like any other key. A follower never proposes or signs.
+
+## Rotation
+
+Signers and quorum are fixed for a key, so changing them means a new key. To
+rotate, a signer picks the new signers and quorum ("Rotate to new signers…",
+prefilled with the key's name and signers). Gear creates the new key, then
+proposes a ROTATE entry on the old one: `{ type: ROTATE, previous, to }`. It goes
+through the same propose, sign and commit flow as a release: the proposer signs
+it if they hold a seat, co-signers paste it in and sign, and anyone holding a
+quorum commits it. An empty key can rotate too (`previous: 0`), which gives
+anyone it was shared with a signed pointer to the new key.
+
+- **It is the last entry.** Once it is in, `propose`, `proposeRotate`,
+  `inspect` and `commit` all refuse ("Release key was rotated"), and Gear
+  shows the key as retired, with "Rotated to <name> →" on its page and in its
+  release log. Its history stays readable.
+- **Stale proposals.** A rotation and a release proposed at the same length
+  race like two releases: the first to commit wins and the other fails
+  `inspect` because it no longer appends at the end. A release signed before
+  the rotation committed can't be committed after it.
+- **Replay.** The signatures cover the signing request, which binds the old
+  key, the entry's length and the staging tree hash, so a rotation signed for
+  one key or one position can't be committed anywhere else. `inspect` also
+  checks that `previous` matches the entry's position and that `to` isn't the
+  key itself. The codec reads `to` as exactly 32 bytes.
+- **What a signer sees.** The sign view says the rotation hands the release log
+  over and lists the new key's signers and quorum when this device knows the
+  key or can open it. A fresh key with no entries can't be opened by key alone,
+  so the view then says so and asks the signer to check the key with the
+  proposer.
+- **Readers.** A repo's Releases tab, its badges and Your releases follow
+  rotations to the newest key this device has, at most 8 hops. A follower that
+  sees a ROTATE entry follows the new key too, once its first release arrives
+  and it opens as a release key. A signer or owner of the old key who isn't on
+  the new one gets a "Follow the new key" button.
+- After the rotation commits, the old key offers a one-click Archive.
 
 ## pear multisig keys
 

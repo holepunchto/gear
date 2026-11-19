@@ -3,7 +3,7 @@
 	import type { ActionResult } from '@sveltejs/kit';
 	import CopyField from './CopyField.svelte';
 	import PearSign from './PearSign.svelte';
-	import type { KeySummary, Pending } from '$lib/releases';
+	import { proposalName, type KeySummary, type Pending } from '$lib/releases';
 
 	// A pending proposal's signatures: the proposal to send, this device's
 	// signature, pasting a co-signer's, and Commit. Posts to the key page's
@@ -97,7 +97,7 @@
 				disabled={!ready || busy !== null}
 				class="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-accent-400 px-5 text-sm font-semibold text-accent-900 shadow-[0_8px_28px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300 disabled:cursor-default disabled:bg-surface-4 disabled:text-fg-3 disabled:shadow-none"
 			>
-				{busy === 'commit' ? 'Committing…' : `Commit ${current.release?.name ?? ''}`}
+				{busy === 'commit' ? 'Committing…' : `Commit ${proposalName(current, '')}`}
 			</button>
 		</form>
 		{#if !ready}
@@ -119,7 +119,7 @@
 					disabled={busy !== null}
 					class="h-11 cursor-pointer rounded-[10px] px-3.5 text-[13px] font-medium text-apricot-300 ring-1 ring-apricot-400/35 ring-inset hover:bg-apricot-400/8"
 				>
-					Withdraw {current.release?.name ?? ''}
+					Withdraw {proposalName(current, '')}
 				</button>
 			</form>
 		{/if}

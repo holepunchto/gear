@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SeatDots from './SeatDots.svelte';
-	import type { KeySummary } from '$lib/releases';
+	import { proposalName, shortKey, type KeySummary } from '$lib/releases';
 
 	let { keys }: { keys: KeySummary[] } = $props();
 
@@ -12,19 +12,19 @@
 			return {
 				kind: 'you',
 				href: `/releases/${k.key}/${p.id}`,
-				version: p.release?.name ?? k.latest?.name ?? '—',
+				version: p.rotate ? (k.latest?.name ?? '—') : proposalName(p, k.latest?.name ?? '—'),
 				filled: p.mine ? p.signed.length : 0,
-				status: 'Waiting on your signature'
+				status: p.rotate ? `${proposalName(p)} · waiting on you` : 'Waiting on your signature'
 			};
 		}
 		if (p) {
 			return {
 				kind: 'collecting',
 				href: `/releases/${k.key}`,
-				version: p.release?.name ?? k.latest?.name ?? '—',
+				version: p.rotate ? (k.latest?.name ?? '—') : proposalName(p, k.latest?.name ?? '—'),
 				filled: p.signed.length,
 				status: p.mine
-					? `Collecting · ${p.signed.length} of ${k.quorum} in`
+					? `${p.rotate ? proposalName(p) + ' · ' : 'Collecting · '}${p.signed.length} of ${k.quorum} in`
 					: 'You signed · waiting on a commit'
 			};
 		}
@@ -33,7 +33,11 @@
 			href: `/releases/${k.key}`,
 			version: k.latest?.name ?? '—',
 			filled: k.latest ? k.quorum : 0,
-			status: k.latest ? `Released · entry #${k.latest.index}` : 'No releases yet'
+			status: k.rotatedTo
+				? `Rotated to ${k.rotatedTo.name ?? shortKey(k.rotatedTo.to)}`
+				: k.latest
+					? `Released · entry #${k.latest.index}`
+					: 'No releases yet'
 		};
 	}
 
