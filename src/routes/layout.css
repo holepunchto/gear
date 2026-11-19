@@ -111,6 +111,18 @@
 
 	/* Motion */
 	--animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+	--animate-arrive: arrive 1.6s ease-out;
+}
+
+@keyframes arrive {
+	0% {
+		background-color: #c9f5df;
+		box-shadow: 0 0 12px #23cc94;
+	}
+	100% {
+		background-color: #23cc94;
+		box-shadow: 0 0 0 transparent;
+	}
 }
 
 @keyframes pulse-soft {
