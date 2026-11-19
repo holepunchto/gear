@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
 	import CommitBody from '$lib/components/CommitBody.svelte';
+	import NewTag from '$lib/components/NewTag.svelte';
 	import { relativeTime, isoDate, isRecent } from '$lib/time';
 	import type { PageProps } from './$types';
 
@@ -11,6 +12,7 @@
 	const c = $derived(data.commit);
 
 	let copied = $state(false);
+	let tagging = $state(false);
 
 	async function copyOid() {
 		try {
@@ -60,8 +62,24 @@
 			>
 				{copied ? '✓' : '⧉'}
 			</button>
+			{#if data.repo.writable}
+				<button
+					type="button"
+					onclick={() => (tagging = !tagging)}
+					aria-expanded={tagging}
+					class="rounded-md px-2 py-1 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+				>
+					Tag this commit
+				</button>
+			{/if}
 		</span>
 	</div>
+
+	{#if tagging}
+		<div class="border-t border-line px-4 py-3 sm:px-5">
+			<NewTag repoName={data.repo.name} commit={c.oid} />
+		</div>
+	{/if}
 
 	{#if c.parents.length}
 		<div
