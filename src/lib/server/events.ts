@@ -268,6 +268,13 @@ class EventHub extends EventEmitter {
 				recompute();
 			}, 500);
 		});
+
+		// gip closes the core when the repo is deleted, and a re-added repo gets
+		// a new core. Forget this one, or its stats stay frozen forever.
+		core.on('close', () => {
+			this.attachedCores.delete(core as unknown as object);
+			this.repoState.delete(name);
+		});
 	}
 
 	/**
