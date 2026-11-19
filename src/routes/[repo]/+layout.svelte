@@ -8,6 +8,7 @@
 	import LiveActivity, { type Activity } from '$lib/components/LiveActivity.svelte';
 	import Ticker from '$lib/components/Ticker.svelte';
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
+	import ReleaseCard from '$lib/components/releases/ReleaseCard.svelte';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
 
@@ -634,6 +635,9 @@
 		</div>
 		<aside class="hidden min-w-0 flex-[1_1_300px] flex-col gap-4 lg:flex">
 			<LiveActivity items={activity} {now} />
+			{#if repo.release}
+				<ReleaseCard release={repo.release} />
+			{/if}
 		</aside>
 	</div>
 </main>

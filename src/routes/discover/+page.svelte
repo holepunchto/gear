@@ -3,6 +3,8 @@
 	import { afterNavigate, goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { PageProps } from './$types';
+	import ReleaseLine from '$lib/components/releases/ReleaseLine.svelte';
+	import { linkKey } from '$lib/releases';
 
 	type DiscoverRepo = { name: string; url: string; description?: string | null };
 	type Sort = 'name' | 'size';
@@ -232,6 +234,7 @@
 				{#each list as d (d.name)}
 					{@const have = library.has(d.name)}
 					{@const size = blocks(d.url)}
+					{@const release = data.badges[linkKey(d.url) ?? '']}
 					<li class="flex gap-3.5 rounded-2xl bg-surface p-4 ring-1 ring-line ring-inset">
 						<span
 							aria-hidden="true"
@@ -345,6 +348,9 @@
 									></span>
 								</span>
 								{size.toLocaleString()} blocks
+								{#if release}
+									<span class="ml-auto min-w-0"><ReleaseLine {release} /></span>
+								{/if}
 							</div>
 
 							{#if addError?.name === d.name}

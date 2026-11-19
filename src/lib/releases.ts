@@ -1,7 +1,7 @@
 import { invalidate } from '$app/navigation';
 import { initials } from '$lib/initials';
 import { relativeTime } from '$lib/time';
-import type { Signer } from '$lib/server/release-service';
+import type { RepoRelease, Signer } from '$lib/server/release-service';
 
 export type {
 	Candidates,
@@ -10,6 +10,7 @@ export type {
 	KeySummary,
 	Pending,
 	Release,
+	RepoRelease,
 	Signer,
 	TagOption
 } from '$lib/server/release-service';
@@ -37,6 +38,31 @@ export function signerName(s: Signer) {
 export function signerInitials(s: Signer) {
 	if (s.label) return initials(s.label);
 	return s.me ? 'You' : s.key.slice(0, 2).toUpperCase();
+}
+
+// Where a repo's release badge links: the sign view when it waits on you,
+// the latest release, or the key.
+export function releaseHref(r: RepoRelease) {
+	if (r.pending?.waitingOnMe) return `/releases/${r.key}/${r.pending.id}`;
+	if (r.index !== null) return `/releases/${r.key}/${r.index}`;
+	return `/releases/${r.key}`;
+}
+
+// What a pending release is waiting on, or null.
+export function releaseWaiting(r: RepoRelease) {
+	const p = r.pending;
+	if (!p) return null;
+	const name = p.name ?? 'A release';
+	if (p.waitingOnMe) return `${name} is waiting on your signature`;
+	if (p.missing > 0) {
+		return `${name} is waiting on ${p.missing} more ${p.missing === 1 ? 'signature' : 'signatures'}`;
+	}
+	return `${name} is waiting on a commit`;
+}
+
+// The key inside a git+pear:// link.
+export function linkKey(url: string) {
+	return /^git\+pear:\/\/(?:\d+\.\d+\.)?([^/]+)/.exec(url)?.[1] ?? null;
 }
 
 // A signer being added to a new key, before it exists.
