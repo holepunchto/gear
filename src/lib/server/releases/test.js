@@ -5,7 +5,10 @@ import Hyperswarm from 'hyperswarm';
 import createTestnet from 'hyperdht/testnet.js';
 import crypto from 'hypercore-crypto';
 import b4a from 'b4a';
+import z32 from 'z32';
+import c from 'compact-encoding';
 import ReleaseKey from './index.js';
+import { Proposal } from './messages.js';
 
 test('2 of 3 signers release, anyone commits', async function (t) {
 	const { dc, kd, am } = await create(t);
@@ -77,6 +80,46 @@ test('a non-signer cannot sign', async function (t) {
 	await t.exception(kd.key.sign(proposal, crypto.keyPair()), /not a declared signer/);
 });
 
+test('a signer opens the key from the proposal alone', async function (t) {
+	const { dc, kd, bootstrap } = await create(t);
+
+	const proposal = await dc.key.propose(release('1.0.0'));
+	const described = ReleaseKey.describe(proposal);
+	t.ok(b4a.equals(described.key, dc.key.key));
+	t.is(described.quorum, 2);
+	t.is(described.length, 1);
+	t.is(described.source.byteLength, 32);
+
+	const envelope = c.decode(Proposal, z32.decode(proposal));
+	const renamed = z32.encode(c.encode(Proposal, { ...envelope, namespace: 'gear/other' }));
+	t.exception(() => ReleaseKey.describe(renamed), /namespace does not match/);
+
+	const p = await peer(t, bootstrap);
+	const key = new ReleaseKey(p.store, p.swarm, described);
+	t.teardown(() => key.close(), { order: -1 });
+
+	const response = await key.sign(proposal, kd.seat);
+	t.is(await dc.key.commit(proposal, [response, await dc.key.sign(proposal, dc.seat)]), 1);
+
+	await key.core.update({ wait: true });
+	t.is((await key.get(0)).name, '1.0.0');
+});
+
+test('a response is verified against its proposal offline', async function (t) {
+	const { dc, kd } = await create(t);
+
+	const proposal = await dc.key.propose(release('1.0.0'));
+	const other = await dc.key.propose(release('1.0.1'));
+	const response = await kd.key.sign(proposal, kd.seat);
+
+	t.ok(b4a.equals(ReleaseKey.verify(proposal, response), kd.seat.publicKey));
+	t.exception(() => ReleaseKey.verify(other, response), /another proposal/);
+
+	const forged = z32.decode(response);
+	forged[forged.byteLength - 1] ^= 1;
+	t.exception(() => ReleaseKey.verify(proposal, z32.encode(forged)), /signature is invalid/);
+});
+
 async function create(t) {
 	const { bootstrap } = await createTestnet(3, { teardown: t.teardown });
 
@@ -110,7 +153,7 @@ async function create(t) {
 	);
 
 	t.ok(b4a.equals(dc.key.key, am.key.key));
-	return { dc, kd, am };
+	return { dc, kd, am, bootstrap };
 }
 
 async function peer(t, bootstrap) {

@@ -22,6 +22,44 @@ export default class ReleaseKey extends ReadyResource {
 		this.core = null;
 	}
 
+	/** @param {string} proposal */
+	static describe(proposal) {
+		const { source, namespace, request } = c.decode(Proposal, z32.decode(proposal));
+		const { key, length, manifest } = SignRequest.decode(request);
+		/** @type {{ publicKey: Uint8Array, namespace: Uint8Array }[]} */
+		const seats = manifest.signers;
+		const hashed = crypto.hash(b4a.from(namespace));
+		if (!seats.every((s) => b4a.equals(s.namespace, hashed))) {
+			throw new Error('Proposal namespace does not match its key');
+		}
+		return {
+			key,
+			source,
+			namespace,
+			length,
+			quorum: manifest.quorum,
+			signers: seats.map((s) => s.publicKey)
+		};
+	}
+
+	/** @param {string} proposal @param {string} response */
+	static verify(proposal, response) {
+		const { request } = c.decode(Proposal, z32.decode(proposal));
+		const res = SignRequest.decodeResponse(z32.decode(response));
+		if (!b4a.equals(res.requestHash, crypto.hash(request))) {
+			throw new Error('Response is for another proposal');
+		}
+
+		/** @type {{ signable: Uint8Array }[]} */
+		const signables = SignRequest.signable(res.publicKey, SignRequest.decode(request));
+		const valid =
+			signables.length === res.signatures.length &&
+			signables.every((s, i) => crypto.verify(s.signable, res.signatures[i], res.publicKey));
+		if (!valid) throw new Error('Response signature is invalid');
+
+		return res.publicKey;
+	}
+
 	get key() {
 		return this.core.key;
 	}
@@ -74,7 +112,9 @@ export default class ReleaseKey extends ReadyResource {
 				})
 				.done();
 
-			return z32.encode(c.encode(Proposal, { source: staging.key, request }));
+			return z32.encode(
+				c.encode(Proposal, { source: staging.key, request, namespace: this.namespace })
+			);
 		} finally {
 			await staging.close();
 		}

@@ -74,15 +74,21 @@ export const Proposal = {
 		c.uint.preencode(state, 1);
 		c.fixed32.preencode(state, p.source);
 		c.buffer.preencode(state, p.request);
+		c.string.preencode(state, p.namespace);
 	},
 	encode(state, p) {
 		c.uint.encode(state, 1);
 		c.fixed32.encode(state, p.source);
 		c.buffer.encode(state, p.request);
+		c.string.encode(state, p.namespace);
 	},
 	decode(state) {
 		const version = c.uint.decode(state);
 		if (version !== 1) throw new Error('Unknown proposal version: ' + version);
-		return { source: c.fixed32.decode(state), request: c.buffer.decode(state) };
+		return {
+			source: c.fixed32.decode(state),
+			request: c.buffer.decode(state),
+			namespace: c.string.decode(state)
+		};
 	}
 };

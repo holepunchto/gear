@@ -100,7 +100,9 @@ database) or `gip-transport` (the git remote helper).
 const key = new ReleaseKey(store, swarm, { signers, namespace, quorum, blind });
 await key.ready(); // key.key, key.length
 
-const proposal = await key.propose(release); // z32 envelope { source, request }
+const proposal = await key.propose(release); // z32 envelope { source, request, namespace }
+ReleaseKey.describe(proposal); // → { key, source, signers, quorum, namespace, length }
+ReleaseKey.verify(proposal, response); // → signer public key, or throws
 const { record } = await key.inspect(proposal); // replicates the source and checks it
 const response = await key.sign(proposal, seatKeyPair); // inspects first, always
 await key.commit(proposal, responses); // → new length
@@ -109,7 +111,15 @@ await key.get(index); // → release record
 
 A signing request does not carry the source core's key: it holds only the
 length, fork, tree hash and the target manifest. So a proposal is an envelope
-around `{ source, request }`.
+around `{ source, request, namespace }`.
+
+The manifest names the signers and the quorum but holds only a hash of the
+namespace, so the envelope carries the namespace too. A signer who has never
+seen the key opens it from `ReleaseKey.describe(proposal)`, which refuses a
+namespace that doesn't hash to the one in the manifest.
+
+`ReleaseKey.verify` checks a pasted response without the network: it was made
+over this proposal's request, by a declared signer, and its signatures hold.
 
 Each proposal gets a fresh staging core with a random keypair. Truncating a
 staging core would bump its fork and invalidate signatures, so a staging core is
