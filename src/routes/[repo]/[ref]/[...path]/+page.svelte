@@ -3,6 +3,7 @@
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { page } from '$app/state';
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
+	import FileIcon from '$lib/components/FileIcon.svelte';
 	import Code from '$lib/components/Code.svelte';
 	import { highlightLines, languageFor } from '$lib/highlight';
 	import { initials } from '$lib/initials';
@@ -245,20 +246,7 @@
 										/>
 									</svg>
 								{:else}
-									<svg
-										width="18"
-										height="18"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="1.6"
-										stroke-linejoin="round"
-										class="text-fg-3"
-										aria-hidden="true"
-									>
-										<path d="M6 3h8l4 4v14H6z" />
-										<path d="M14 3v4h4" />
-									</svg>
+									<FileIcon name={item.name} />
 								{/if}
 							</td>
 							<td class="w-1/3 max-w-0 py-3 pr-4 pl-3 align-middle">
