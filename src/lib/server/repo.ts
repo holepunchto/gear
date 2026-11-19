@@ -112,6 +112,23 @@ export async function getTagRefs(remote: unknown): Promise<RefEntry[]> {
 	);
 }
 
+/**
+ * The commit a tag points at and that commit's tree, or null when the tag or
+ * the commit isn't there.
+ */
+export async function getTagTarget(
+	remote: unknown,
+	name: string
+): Promise<{ commit: string; tree: string } | null> {
+	const r = remote as RemoteWithDB;
+	const tag = (await r._db.get('@gip/tags', { name })) as { commitOid: string } | null;
+	if (!tag) return null;
+
+	const obj = await r.getObject(tag.commitOid);
+	if (!obj || obj.type !== 'commit') return null;
+	return { commit: tag.commitOid, tree: (parseCommit(obj.data) as { tree: string }).tree };
+}
+
 async function readCommit(r: RemoteWithDB, oid: string): Promise<RefCommit | null> {
 	const obj = await r.getObject(oid);
 	if (!obj || obj.type !== 'commit') return null;

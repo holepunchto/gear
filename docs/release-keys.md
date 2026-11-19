@@ -134,7 +134,7 @@ stale proposal and a non-signer. The same file passes under `brittle-node`.
 
 ### Not done yet
 
-- Wiring into gear: blind peering, routes and UI.
+- Screens for the release routes.
 - Mailbox transport for proposals and responses.
 - Rotation records (`ROTATE` is in the codec; nothing writes it).
 - Checking a release record against the repo (does the commit exist at

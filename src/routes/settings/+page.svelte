@@ -60,6 +60,16 @@
 		} catch {}
 	}
 
+	let copiedSigningKey = $state(false);
+
+	async function copySigningKey() {
+		try {
+			await navigator.clipboard.writeText(data.signingKey);
+			copiedSigningKey = true;
+			setTimeout(() => (copiedSigningKey = false), 1200);
+		} catch {}
+	}
+
 	function shortPeer(key: string) {
 		return key.slice(0, 8) + '…' + key.slice(-6);
 	}
@@ -106,6 +116,37 @@
 					class="tap-44 cursor-pointer justify-self-start rounded-lg bg-surface-3 px-3 py-2 text-xs font-medium text-fg ring-1 ring-line-strong ring-inset hover:bg-surface-4 sm:justify-self-auto"
 				>
 					{copied ? 'Copied' : 'Copy'}
+				</button>
+			</div>
+		</div>
+	</section>
+
+	<!-- SIGNING KEY -->
+	<section class="mb-5 overflow-hidden rounded-2xl bg-surface ring-1 ring-line ring-inset">
+		<div class="border-b border-line bg-surface-2 px-5 py-3.5">
+			<h2 class="m-0 text-base font-semibold text-fg">Your signing key</h2>
+			<p class="m-0 mt-0.5 text-xs text-neutral-400">
+				Send this to whoever sets up a release key, so they can add you as a signer. Its secret half
+				stays on this device.
+			</p>
+		</div>
+		<div class="px-5 py-5">
+			<div class="grid grid-cols-1 items-start gap-2 sm:grid-cols-[140px_1fr_auto] sm:gap-3">
+				<label for="signing-key" class="text-xs font-medium text-neutral-400 sm:pt-2">
+					Signing key
+				</label>
+				<code
+					id="signing-key"
+					class="min-w-0 rounded-[10px] bg-bg px-3 py-2 font-mono text-[12.5px] break-all text-neutral-100 ring-1 ring-line-strong ring-inset"
+				>
+					{data.signingKey}
+				</code>
+				<button
+					type="button"
+					onclick={copySigningKey}
+					class="tap-44 cursor-pointer justify-self-start rounded-lg bg-surface-3 px-3 py-2 text-xs font-medium text-fg ring-1 ring-line-strong ring-inset hover:bg-surface-4 sm:justify-self-auto"
+				>
+					{copiedSigningKey ? 'Copied' : 'Copy'}
 				</button>
 			</div>
 		</div>

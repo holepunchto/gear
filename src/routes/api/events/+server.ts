@@ -22,6 +22,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	let onStats: (() => void) | null = null;
 	let onRepo: ((payload: { name: string } & RepoStats) => void) | null = null;
 	let onSources: (() => void) | null = null;
+	let onRelease: ((payload: { key: string }) => void) | null = null;
 
 	const stream = new ReadableStream({
 		start(controller) {
@@ -52,6 +53,10 @@ export const GET: RequestHandler = async ({ locals }) => {
 			onSources = () => send('sources', {});
 			events.on('sources', onSources);
 
+			// A release key changed: a new entry, proposal or signature.
+			onRelease = (payload) => send('release', payload);
+			events.on('release', onRelease);
+
 			// Heartbeat — keeps intermediaries from closing the idle connection.
 			heartbeat = setInterval(() => {
 				if (closed) return;
@@ -66,10 +71,12 @@ export const GET: RequestHandler = async ({ locals }) => {
 			if (onStats) events.off('stats', onStats);
 			if (onRepo) events.off('repo', onRepo);
 			if (onSources) events.off('sources', onSources);
+			if (onRelease) events.off('release', onRelease);
 			if (heartbeat) clearInterval(heartbeat);
 			onStats = null;
 			onRepo = null;
 			onSources = null;
+			onRelease = null;
 			heartbeat = null;
 		}
 	});
