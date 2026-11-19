@@ -113,10 +113,10 @@
 			<circle cx="11" cy="11" r="7" />
 			<path d="m20 20-3.5-3.5" />
 		{:else}
-			<circle cx="12" cy="12" r="3" />
 			<path
-				d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"
+				d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
 			/>
+			<circle cx="12" cy="12" r="3" />
 		{/if}
 	</svg>
 {/snippet}
@@ -174,15 +174,6 @@
 				>
 					Releases
 				</a>
-				<a
-					href="/settings"
-					class="rounded-lg px-3 py-[7px] text-sm font-medium no-underline transition-colors {onSettings
-						? 'bg-white/6 text-fg'
-						: 'text-fg-2 hover:text-fg'}"
-					aria-current={onSettings ? 'page' : undefined}
-				>
-					Settings
-				</a>
 			</nav>
 
 			<button
@@ -232,6 +223,17 @@
 						</span>
 					{/if}
 				</div>
+				<a
+					href="/settings"
+					aria-label="Settings"
+					title="Settings"
+					aria-current={onSettings ? 'page' : undefined}
+					class="tap-44 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full no-underline ring-1 transition-colors ring-inset sm:h-[38px] sm:w-[38px] {onSettings
+						? 'bg-white/6 text-fg ring-line-strong'
+						: 'text-fg-2 ring-line hover:text-fg'}"
+				>
+					{@render navIcon('settings')}
+				</a>
 				<button
 					type="button"
 					onclick={copyIdentity}
@@ -269,7 +271,7 @@
 
 	<nav
 		aria-label="Main"
-		class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-20 grid h-[60px] grid-cols-5 rounded-[22px] bg-surface-3/85 p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.5)] ring-1 ring-line-strong backdrop-blur-lg ring-inset sm:hidden"
+		class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-20 grid h-[60px] grid-cols-4 rounded-[22px] bg-surface-3/85 p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.5)] ring-1 ring-line-strong backdrop-blur-lg ring-inset sm:hidden"
 	>
 		<a
 			href="/"
@@ -305,15 +307,6 @@
 		>
 			{@render navIcon('search')}Search
 		</button>
-		<a
-			href="/settings"
-			class="flex flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] no-underline {onSettings
-				? 'bg-accent-400/12 font-semibold text-accent-300'
-				: 'font-medium text-fg-2'}"
-			aria-current={onSettings ? 'page' : undefined}
-		>
-			{@render navIcon('settings')}Settings
-		</a>
 	</nav>
 
 	{#if overlayOpen}
