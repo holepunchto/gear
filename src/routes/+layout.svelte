@@ -10,16 +10,11 @@
 	let { children, data } = $props();
 
 	let overlayOpen = $state(false);
-	let menuOpen = $state(false);
-
-	const navItems = [
-		{ href: '/', label: 'Repos' },
-		{ href: '/settings', label: 'Settings' }
-	];
 
 	// Live peer count — SSR gives us the initial value, then an EventSource
 	// subscription to /api/events keeps it fresh. Auto-reconnects on drop.
 	let peers = $state<number>(0);
+	let blindPeers = $state<number>(0);
 
 	// Avatar initials — first two chars of the z32 identity, uppercased.
 	// Stable for a given key, so the user can recognise their own peer in
@@ -45,6 +40,7 @@
 			try {
 				const s = JSON.parse((e as MessageEvent).data);
 				if (typeof s.peers === 'number') peers = s.peers;
+				if (typeof s.blindPeers === 'number') blindPeers = s.blindPeers;
 			} catch {
 				// malformed payload — drop it
 			}
@@ -67,8 +63,9 @@
 		}
 	});
 
-	const isActive = (href: string) =>
-		href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href);
+	// Repo pages live under the library, so Library stays lit everywhere but
+	// Settings.
+	const onSettings = $derived(page.url.pathname.startsWith('/settings'));
 
 	async function copyIdentity() {
 		try {
@@ -86,98 +83,149 @@
 	<link rel="icon" type="image/svg+xml" href={favicon} />
 </svelte:head>
 
+{#snippet navIcon(name: string)}
+	<svg
+		width="20"
+		height="20"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="2"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		{#if name === 'library'}
+			<rect x="4" y="4" width="7" height="7" rx="1.5" />
+			<rect x="13" y="4" width="7" height="7" rx="1.5" />
+			<rect x="4" y="13" width="7" height="7" rx="1.5" />
+			<rect x="13" y="13" width="7" height="7" rx="1.5" />
+		{:else if name === 'discover'}
+			<circle cx="12" cy="12" r="9" />
+			<path d="m15.5 8.5-2 5-5 2 2-5z" />
+		{:else if name === 'search'}
+			<circle cx="11" cy="11" r="7" />
+			<path d="m20 20-3.5-3.5" />
+		{:else}
+			<circle cx="12" cy="12" r="3" />
+			<path
+				d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"
+			/>
+		{/if}
+	</svg>
+{/snippet}
+
 <!--
 	Flex column so the content region fills whatever the sticky header leaves,
 	at every breakpoint. It used to be min-h-[calc(100vh-90px)], and the header
 	is nowhere near 90px tall on desktop — the shortfall showed the body's
 	pear-950 through as a green strip along the bottom.
 -->
-<div class="flex min-h-screen flex-col bg-neutral-950">
-	<header class="sticky top-0 z-10 border-b border-neutral-800 bg-black pt-4 backdrop-blur sm:pt-0">
-		<div class="mx-auto max-w-[1100px] px-3 sm:px-6">
-			<!--
-			Mobile: two lines — logo+peers on top, search bar below.
-			Desktop (sm:): single line — logo+nav | search | peers+avatar.
-			Achieved via flex-wrap + order utilities.
-		-->
-			<div
-				class="flex flex-wrap items-center gap-x-2 gap-y-2 py-2 sm:flex-nowrap sm:gap-x-3 sm:py-2.5"
-			>
-				<div class="order-1 flex shrink-0 items-center gap-0.5">
-					<a
-						href="/"
-						class="flex shrink-0 items-center gap-2 pr-1 font-semibold tracking-tight text-white no-underline"
-						aria-label="Gear — home"
-					>
-						<GearLogo class="text-accent-400" />
-					</a>
-					<div class="mx-1.5 hidden h-4 w-px bg-neutral-800 sm:block"></div>
-					<nav class="hidden items-center gap-0.5 sm:flex">
-						{#each navItems as item}
-							<a
-								href={item.href}
-								class="shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap no-underline transition-colors
-								{isActive(item.href)
-									? 'bg-pear-900 text-white'
-									: 'text-neutral-400 hover:bg-pear-700/60 hover:text-white'}"
-							>
-								{item.label}
-							</a>
-						{/each}
-					</nav>
-				</div>
+<div class="relative flex min-h-screen flex-col overflow-x-clip bg-neutral-950">
+	<div
+		aria-hidden="true"
+		class="pointer-events-none absolute top-[-320px] left-1/2 h-[640px] w-[1100px] max-w-[200vw] -translate-x-1/2 bg-[radial-gradient(closest-side,rgb(35_204_148/0.14),transparent)]"
+	></div>
 
-				<!-- Search trigger — full-width second line on mobile, inline flex-1 on desktop -->
+	<header
+		class="sticky top-0 z-10 border-b border-line bg-bg/70 pt-[env(safe-area-inset-top)] backdrop-blur-md"
+	>
+		<div class="flex items-center gap-3 px-4 py-3 sm:gap-5 sm:px-8 sm:py-3.5">
+			<a
+				href="/"
+				class="flex shrink-0 items-center gap-2.5 text-fg no-underline"
+				aria-label="Gear — home"
+			>
+				<GearLogo size={26} class="text-accent-400 drop-shadow-[0_0_8px_rgb(35_204_148/0.6)]" />
+				<span class="font-display text-[17px] font-bold tracking-[-0.01em]">gear</span>
+			</a>
+
+			<nav aria-label="Main" class="hidden items-center gap-1 sm:flex">
+				<a
+					href="/"
+					class="rounded-lg px-3 py-[7px] text-sm font-medium no-underline transition-colors {onSettings
+						? 'text-fg-2 hover:text-fg'
+						: 'bg-white/6 text-fg'}"
+					aria-current={onSettings ? undefined : 'page'}
+				>
+					Library
+				</a>
 				<button
 					type="button"
 					onclick={() => (overlayOpen = true)}
-					title="Search repositories (⌘K)"
-					aria-label="Search repositories"
-					class="order-3 flex w-full cursor-pointer items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-left transition-colors hover:border-neutral-700 sm:order-2 sm:flex-1"
+					class="cursor-pointer rounded-lg px-3 py-[7px] text-sm font-medium text-fg-2 transition-colors hover:text-fg"
 				>
-					<svg
-						width="13"
-						height="13"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						class="shrink-0 text-neutral-600"
-						aria-hidden="true"
-					>
-						<circle cx="11" cy="11" r="8" />
-						<path d="m21 21-4.35-4.35" />
-					</svg>
-					<span class="flex-1 font-mono text-[13px] text-neutral-600">Search repositories…</span>
-					<kbd
-						class="hidden shrink-0 rounded border border-neutral-800 bg-neutral-800/60 px-1.5 py-0.5 font-sans text-[10px] text-neutral-600 sm:inline"
-						>⌘K</kbd
-					>
+					Discover
 				</button>
+				<a
+					href="/settings"
+					class="rounded-lg px-3 py-[7px] text-sm font-medium no-underline transition-colors {onSettings
+						? 'bg-white/6 text-fg'
+						: 'text-fg-2 hover:text-fg'}"
+					aria-current={onSettings ? 'page' : undefined}
+				>
+					Settings
+				</a>
+			</nav>
 
-				<div class="order-2 ml-auto flex shrink-0 items-center gap-2 sm:order-3 sm:ml-0">
-					<div
-						class="inline-flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-300 tabular-nums sm:px-2.5"
-						title="Active peer connections"
-					>
-						<span
-							class="h-1.5 w-1.5 rounded-full {peers > 0
-								? 'animate-pulse-soft bg-accent-400 ring-4 ring-accent-500/20'
-								: 'bg-neutral-600'}"
-						></span>
-						<strong class="font-semibold text-white">{peers}</strong>
-						<span class="hidden sm:inline">peer{peers === 1 ? '' : 's'}</span>
-					</div>
-					<button
-						type="button"
-						onclick={copyIdentity}
-						class="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-accent-500/40 bg-accent-500/15 font-mono text-[11px] font-semibold tracking-wide text-accent-200 transition-colors hover:border-accent-400 hover:bg-accent-500/25 hover:text-accent-100"
-						title={copiedIdentity
-							? 'Copied'
-							: `Your public key — click to copy (${data.identityShort})`}
-						aria-label="Copy public key"
+			<button
+				type="button"
+				onclick={() => (overlayOpen = true)}
+				title="Search repositories (⌘K)"
+				class="hidden h-[38px] min-w-0 flex-[1_1_320px] cursor-pointer items-center gap-2.5 rounded-[10px] bg-surface-2 px-3 text-left text-fg-3 ring-1 ring-line-strong transition-colors ring-inset hover:text-fg-2 sm:flex"
+			>
+				<svg
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					aria-hidden="true"
+				>
+					<circle cx="11" cy="11" r="7" />
+					<path d="m20 20-3.5-3.5" />
+				</svg>
+				<span class="min-w-0 flex-1 truncate text-sm">Search repositories</span>
+				<kbd class="rounded-[5px] bg-white/6 px-1.5 py-0.5 font-mono text-[11px] text-fg-2">⌘K</kbd>
+			</button>
+
+			<div class="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
+				<div
+					class="inline-flex h-8 items-center gap-2 rounded-full px-3 text-xs font-medium tabular-nums sm:h-[38px] sm:gap-2.5 sm:pr-3.5 sm:pl-3 sm:text-[13px] {peers >
+					0
+						? 'bg-accent-400/10 text-accent-100 shadow-glow ring-1 ring-accent-400/35 ring-inset'
+						: 'bg-surface-2 text-fg-3 ring-1 ring-line-strong ring-inset'}"
+					title="Active peer connections"
+				>
+					<span
+						class="h-2 w-2 rounded-full {peers > 0
+							? 'animate-pulse-soft bg-accent-400 shadow-glow-strong'
+							: 'bg-neutral-600'}"
+					></span>
+					<span>
+						<b class="font-semibold {peers > 0 ? 'text-white' : 'text-fg-2'}">{peers}</b>
+						peer{peers === 1 ? '' : 's'}
+					</span>
+					{#if blindPeers > 0}
+						<span class="hidden text-pear-400 sm:inline" aria-hidden="true">·</span>
+						<span class="hidden sm:inline">
+							<b class="font-semibold text-white">{blindPeers}</b> blind
+						</span>
+					{/if}
+				</div>
+				<button
+					type="button"
+					onclick={copyIdentity}
+					class="h-8 w-8 shrink-0 cursor-pointer rounded-full bg-[conic-gradient(from_200deg,#23cc94,#407e62,#fb923c,#23cc94)] p-0.5 sm:h-[38px] sm:w-[38px]"
+					title={copiedIdentity
+						? 'Copied'
+						: `Your public key — click to copy (${data.identityShort})`}
+					aria-label="Copy public key"
+				>
+					<span
+						class="flex h-full w-full items-center justify-center rounded-full bg-surface font-mono text-[11px] font-semibold text-fg sm:text-xs"
 					>
 						{#if copiedIdentity}
 							<svg
@@ -196,52 +244,49 @@
 						{:else}
 							<span aria-hidden="true">{avatarInitials}</span>
 						{/if}
-					</button>
-					<button
-						type="button"
-						onclick={() => (menuOpen = !menuOpen)}
-						aria-label="Menu"
-						aria-expanded={menuOpen}
-						class="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-neutral-800 text-neutral-400 transition-colors hover:border-neutral-700 hover:text-white sm:hidden"
-					>
-						<svg
-							width="15"
-							height="15"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							aria-hidden="true"
-						>
-							{#if menuOpen}
-								<path d="M6 6l12 12M18 6L6 18" />
-							{:else}
-								<path d="M4 7h16M4 12h16M4 17h16" />
-							{/if}
-						</svg>
-					</button>
-				</div>
+					</span>
+				</button>
 			</div>
-
-			{#if menuOpen}
-				<nav class="flex flex-col gap-0.5 pb-3 sm:hidden">
-					{#each navItems as item}
-						<a
-							href={item.href}
-							onclick={() => (menuOpen = false)}
-							class="rounded-md px-2.5 py-2 text-sm font-medium no-underline transition-colors
-							{isActive(item.href)
-								? 'bg-pear-900 text-white'
-								: 'text-neutral-400 hover:bg-pear-700/60 hover:text-white'}"
-						>
-							{item.label}
-						</a>
-					{/each}
-				</nav>
-			{/if}
 		</div>
 	</header>
+
+	<nav
+		aria-label="Main"
+		class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-20 grid h-[60px] grid-cols-4 rounded-[22px] bg-surface-3/85 p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.5)] ring-1 ring-line-strong backdrop-blur-lg ring-inset sm:hidden"
+	>
+		<a
+			href="/"
+			class="flex flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] no-underline {onSettings
+				? 'font-medium text-fg-2'
+				: 'bg-accent-400/12 font-semibold text-accent-300'}"
+			aria-current={onSettings ? undefined : 'page'}
+		>
+			{@render navIcon('library')}Library
+		</a>
+		<button
+			type="button"
+			onclick={() => (overlayOpen = true)}
+			class="flex cursor-pointer flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] font-medium text-fg-2"
+		>
+			{@render navIcon('discover')}Discover
+		</button>
+		<button
+			type="button"
+			onclick={() => (overlayOpen = true)}
+			class="flex cursor-pointer flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] font-medium text-fg-2"
+		>
+			{@render navIcon('search')}Search
+		</button>
+		<a
+			href="/settings"
+			class="flex flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] no-underline {onSettings
+				? 'bg-accent-400/12 font-semibold text-accent-300'
+				: 'font-medium text-fg-2'}"
+			aria-current={onSettings ? 'page' : undefined}
+		>
+			{@render navIcon('settings')}Settings
+		</a>
+	</nav>
 
 	{#if overlayOpen}
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -286,7 +331,7 @@
 		</div>
 	{/if}
 
-	<div class="flex-1 text-neutral-200">
+	<div class="flex-1 pb-[calc(76px+env(safe-area-inset-bottom))] text-neutral-200 sm:pb-0">
 		{@render children()}
 	</div>
 </div>
