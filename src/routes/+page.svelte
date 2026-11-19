@@ -551,7 +551,6 @@
 								</span>
 								<span class="flex min-w-0 flex-1 flex-col gap-[3px]">
 									<span class="truncate font-medium text-fg">{d.name}</span>
-									<span class="font-mono text-[11px] text-fg-3">tags only</span>
 								</span>
 								<form
 									method="POST"
