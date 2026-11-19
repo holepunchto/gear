@@ -42,6 +42,15 @@ export default class ReleaseKey extends ReadyResource {
 		};
 	}
 
+	/**
+	 * The raw signing request inside a proposal, z32. It is what
+	 * `pear multisig sign` takes.
+	 * @param {string} proposal
+	 */
+	static request(proposal) {
+		return z32.encode(c.decode(Proposal, z32.decode(proposal)).request);
+	}
+
 	/** @param {string} proposal @param {string} response */
 	static verify(proposal, response) {
 		const { request } = c.decode(Proposal, z32.decode(proposal));

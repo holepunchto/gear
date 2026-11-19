@@ -49,6 +49,7 @@ export type Signer = { key: string; label: string | null; me: boolean };
 export type Pending = {
 	id: string;
 	proposal: string;
+	request: string;
 	previous: number;
 	mine: boolean;
 	added: number;
@@ -319,6 +320,7 @@ class Releases {
 					return {
 						id: p.id,
 						proposal: p.proposal,
+						request: ReleaseKey.request(p.proposal),
 						previous: p.previous,
 						mine: p.mine,
 						added: p.added,

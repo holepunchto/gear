@@ -7,6 +7,8 @@ import crypto from 'hypercore-crypto';
 import b4a from 'b4a';
 import z32 from 'z32';
 import c from 'compact-encoding';
+import sodium from 'sodium-native';
+import { generateKeys, sign } from 'hypercore-sign-lib';
 import ReleaseKey from './index.js';
 import { Proposal } from './messages.js';
 
@@ -120,7 +122,22 @@ test('a response is verified against its proposal offline', async function (t) {
 	t.exception(() => ReleaseKey.verify(proposal, z32.encode(forged)), /signature is invalid/);
 });
 
-async function create(t) {
+test('a pear multisig key signs next to a gear seat', async function (t) {
+	const pear = await generateKeys(password('hunter2'));
+	const { dc, kd } = await create(t, [crypto.keyPair(), { publicKey: pear.publicKey }]);
+
+	const proposal = await dc.key.propose(release('1.0.0'));
+
+	// What `pear multisig sign <request>` does with the request it is shown.
+	const request = z32.decode(ReleaseKey.request(proposal));
+	const response = z32.encode(await sign(request, pear.secretKey, password('hunter2')));
+
+	t.ok(b4a.equals(ReleaseKey.verify(proposal, response), pear.publicKey));
+	t.is(await kd.key.commit(proposal, [await dc.key.sign(proposal, dc.seat), response]), 1);
+	t.is((await dc.key.get(0)).name, '1.0.0');
+});
+
+async function create(t, seats = [crypto.keyPair(), crypto.keyPair(), crypto.keyPair()]) {
 	const { bootstrap } = await createTestnet(3, { teardown: t.teardown });
 
 	const seeders = [await peer(t, bootstrap), await peer(t, bootstrap)];
@@ -134,7 +151,6 @@ async function create(t) {
 		}
 	};
 
-	const seats = [crypto.keyPair(), crypto.keyPair(), crypto.keyPair()];
 	const opts = {
 		signers: seats.map((s) => s.publicKey),
 		namespace: 'gip-transport/stable',
@@ -142,7 +158,7 @@ async function create(t) {
 		blind
 	};
 
-	const [dc, kd, am] = await Promise.all(
+	const [dc, kd, am = kd] = await Promise.all(
 		seats.map(async (seat) => {
 			const p = await peer(t, bootstrap);
 			const key = new ReleaseKey(p.store, p.swarm, opts);
@@ -165,6 +181,13 @@ async function peer(t, bootstrap) {
 		await store.close();
 	});
 	return { store, swarm };
+}
+
+// A password in secure memory, the way the pear CLI hands it over.
+function password(text) {
+	const pwd = sodium.sodium_malloc(b4a.byteLength(text));
+	b4a.write(pwd, text);
+	return pwd;
 }
 
 function release(name) {

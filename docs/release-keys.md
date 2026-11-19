@@ -152,6 +152,27 @@ seat key, `store.createKeyPair('gear/release-signer/v1')`. When the private
 profile exists, the records move there behind the same methods; the seat stays
 per device.
 
+## pear multisig keys
+
+A seat can be a `pear multisig` key. Both are z32 ed25519 public keys, so
+`pear multisig keys get <name>` prints a key that pastes straight into the
+signer list.
+
+That signer signs with the CLI. `pear multisig sign <request> <name>` takes the
+raw signing request, which is the `request` inside a Gear proposal
+(`ReleaseKey.request(proposal)`). It decrypts `~/.pear/<name>` with a password
+and signs with hypercore-sign-lib. The response is the same
+`SignRequest.encodeResponse` that `ReleaseKey.sign` makes, so "Paste a
+signature" takes it, and `verify` and `commit` accept it. A test signs a
+proposal with hypercore-sign-lib and commits it in a 2-of-2 key next to a
+Gear seat.
+
+The CLI signs whatever request it is shown. It doesn't replicate the staging
+core or check the record the way `inspect` does, so a pear signer should
+inspect the proposal in Gear first, or trust the proposer.
+
+Not done: signing in Gear with a key from `~/.pear`.
+
 ## Risks to check on Bare
 
 - `hyper-multisig/lib/core.js` calls the global `Buffer.from`. Bare 1.37 has
