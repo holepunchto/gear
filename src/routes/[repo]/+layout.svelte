@@ -4,11 +4,9 @@
 	import type { Snippet } from 'svelte';
 	import { goto, invalidate } from '$app/navigation';
 	import { enhance } from '$app/forms';
-	import CommitMessage from '$lib/components/CommitMessage.svelte';
 	import ReplicationPanel from '$lib/components/ReplicationPanel.svelte';
 	import LiveActivity, { type Activity } from '$lib/components/LiveActivity.svelte';
 	import Ticker from '$lib/components/Ticker.svelte';
-	import { relativeTime, isoDate, isRecent } from '$lib/time';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
 
@@ -508,49 +506,6 @@
 		last={lastAppend}
 		{now}
 	/>
-
-	{#if repo.refCommit}
-		{@const c = repo.refCommit}
-		<!-- Tip commit of the active ref — what GitHub shows under the clone
-			bar. Apricot accent for "fresh" (within 24h) so the eye lands on
-			activity without misreading it as an error. -->
-		<a
-			href="/{repo.name}/commit/{c.oid}"
-			class="mb-3 flex items-start gap-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 no-underline transition-colors hover:border-neutral-700 hover:bg-neutral-800/60 sm:px-4"
-			title="View commit"
-		>
-			<div
-				class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full {isRecent(c.timestamp)
-					? 'bg-apricot-500/15 text-apricot-300 ring-1 ring-apricot-500/30'
-					: 'bg-neutral-800 text-neutral-400'}"
-				aria-hidden="true"
-			>
-				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-					<circle cx="12" cy="12" r="3" />
-					<path d="M3 12h6" />
-					<path d="M15 12h6" />
-				</svg>
-			</div>
-			<div class="min-w-0 flex-1">
-				<div class="text-[13.5px]">
-					<CommitMessage parsed={c.message} variant="inline" />
-				</div>
-				<div class="mt-0.5 text-[11.5px] text-neutral-500">
-					<span class="text-neutral-300">{c.author ?? 'unknown'}</span>
-					committed
-					<span
-						class="{isRecent(c.timestamp) ? 'text-apricot-300' : 'text-neutral-400'}"
-						title={isoDate(c.timestamp)}
-					>
-						{relativeTime(c.timestamp)}
-					</span>
-					<span class="ml-2 hidden font-mono text-neutral-600 sm:inline">
-						{c.oid.slice(0, 7)}
-					</span>
-				</div>
-			</div>
-		</a>
-	{/if}
 
 	<nav aria-label="Repository" class="-mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
 		<div class="inline-flex gap-0.5 rounded-xl bg-surface p-1 ring-1 ring-line ring-inset">

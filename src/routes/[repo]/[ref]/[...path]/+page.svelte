@@ -5,6 +5,7 @@
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
 	import Code from '$lib/components/Code.svelte';
 	import { highlightLines, languageFor } from '$lib/highlight';
+	import { initials } from '$lib/initials';
 
 	let { data }: PageProps = $props();
 
@@ -42,12 +43,6 @@
 		if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
 		if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
 		return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
-	}
-
-	// Recency hint for the apricot accent — within the last day.
-	const RECENT_MS = 24 * 60 * 60 * 1000;
-	function isRecent(timestampSeconds: number) {
-		return Date.now() - timestampSeconds * 1000 < RECENT_MS;
 	}
 
 	function relativeTime(timestampSeconds: number) {
@@ -114,37 +109,63 @@
 	</svelte:element>
 {/if}
 
-<!-- Toolbar: ref chip + item count -->
+<!-- Toolbar: ref chip, the ref's tip commit at the root, item count -->
 <div
-	class="flex flex-wrap items-center gap-2 rounded-t-lg border border-b-0 border-neutral-800 bg-neutral-900 px-3 py-2.5 sm:gap-3 sm:px-3.5"
+	class="flex flex-wrap items-center gap-2 rounded-t-2xl border border-b-0 border-line bg-surface-2 px-3.5 py-3 sm:gap-3 sm:px-[18px]"
 >
 	<span
-		class="inline-flex items-center gap-1.5 rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1 text-[13px] font-medium text-white"
+		class="inline-flex shrink-0 items-center gap-1.5 font-mono text-[13px] text-fg"
 		title="Current ref"
 	>
 		<svg
-			width="12"
-			height="12"
+			width="13"
+			height="13"
 			viewBox="0 0 24 24"
 			fill="none"
 			stroke="currentColor"
 			stroke-width="2"
 			stroke-linecap="round"
-			stroke-linejoin="round"
-			class="text-neutral-400"
+			class="text-accent-300"
 			aria-hidden="true"
 		>
-			<line x1="6" x2="6" y1="3" y2="15" />
-			<circle cx="18" cy="6" r="3" />
-			<circle cx="6" cy="18" r="3" />
-			<path d="M18 9a9 9 0 0 1-9 9" />
+			<circle cx="6" cy="5" r="2" />
+			<circle cx="6" cy="19" r="2" />
+			<circle cx="18" cy="8" r="2" />
+			<path d="M6 7v10M18 10c0 4-6 3-11 7" />
 		</svg>
 		{ref}
 	</span>
-	<span class="flex-1"></span>
+	{#if data.kind === 'tree' && !segments.length && data.repo.refCommit}
+		{@const c = data.repo.refCommit}
+		<a
+			href="/{repoName}/commit/{c.oid}"
+			class="hidden min-w-0 flex-1 items-center gap-3 pl-2 text-[13px] no-underline sm:flex"
+			title="Latest commit on {ref}"
+		>
+			<span
+				aria-hidden="true"
+				class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-pear-700 text-[11px] font-semibold text-accent-100"
+			>
+				{initials(c.author)}
+			</span>
+			<span class="shrink-0 font-semibold text-fg">{c.author ?? 'unknown'}</span>
+			<span class="min-w-0 flex-1 truncate text-fg-2">
+				<CommitMessage parsed={c.message} variant="compact" />
+			</span>
+			<span class="shrink-0 font-mono text-xs text-fg-3">{c.oid.slice(0, 7)}</span>
+			<span class="shrink-0 text-fg-3" title={isoDate(c.timestamp)}>
+				{relativeTime(c.timestamp)}
+			</span>
+		</a>
+		<span class="flex-1 sm:hidden"></span>
+	{:else}
+		<span class="flex-1"></span>
+	{/if}
 	{#if data.kind === 'tree'}
-		<span class="text-xs text-neutral-500">
-			<strong class="font-semibold text-neutral-200">{data.items.length}</strong>
+		<span
+			class="text-xs text-fg-3 {!segments.length && data.repo.refCommit ? 'sm:hidden' : ''}"
+		>
+			<strong class="font-semibold text-fg-2">{data.items.length}</strong>
 			item{data.items.length === 1 ? '' : 's'}
 		</span>
 	{:else}
@@ -198,57 +219,59 @@
 
 {#if data.kind === 'tree'}
 	<!-- FILE TREE -->
-	<div class="overflow-hidden rounded-b-lg border border-neutral-800 bg-neutral-900">
+	<div class="overflow-hidden rounded-b-2xl border border-line bg-surface">
 		{#if data.items.length === 0}
 			<div class="px-5 py-10 text-center text-sm text-neutral-500">This folder is empty.</div>
 		{:else}
 			<table class="w-full border-collapse text-[13px]">
 				<tbody>
 					{#each data.items as item (item.name)}
-						<tr class="relative border-b border-neutral-800 last:border-b-0 hover:bg-neutral-800/40">
-							<td class="w-6 py-2.5 pr-0 pl-4 align-middle">
+						<tr
+							class="relative border-b border-white/[0.035] transition-colors last:border-b-0 hover:bg-surface-2"
+						>
+							<td class="w-7 py-3 pr-0 pl-3.5 align-middle sm:pl-[18px]">
 								{#if item.kind === 'dir'}
 									<svg
-										width="16"
-										height="16"
+										width="18"
+										height="18"
 										viewBox="0 0 24 24"
 										fill="currentColor"
+										fill-opacity="0.85"
 										class="text-accent-400"
 										aria-hidden="true"
 									>
 										<path
-											d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z"
+											d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2.2h8.4A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"
 										/>
 									</svg>
 								{:else}
 									<svg
-										width="16"
-										height="16"
+										width="18"
+										height="18"
 										viewBox="0 0 24 24"
 										fill="none"
 										stroke="currentColor"
-										stroke-width="2"
-										stroke-linecap="round"
+										stroke-width="1.6"
 										stroke-linejoin="round"
-										class="text-neutral-500"
+										class="text-fg-3"
 										aria-hidden="true"
 									>
-										<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-										<polyline points="14 2 14 8 20 8" />
+										<path d="M6 3h8l4 4v14H6z" />
+										<path d="M14 3v4h4" />
 									</svg>
 								{/if}
 							</td>
-							<td class="w-1/3 max-w-0 py-2.5 pr-4 pl-2 align-middle">
+							<td class="w-1/3 max-w-0 py-3 pr-4 pl-3 align-middle">
 								<!-- Stretched link — the before: overlay makes the whole row navigate. -->
 								<a
 									href="/{repoName}/{ref}{item.path}"
-									class="block truncate font-medium text-white no-underline before:absolute before:inset-0 hover:text-accent-400"
+									class="block truncate font-medium text-fg no-underline before:absolute before:inset-0 hover:text-accent-300"
 								>
 									{item.name}
 								</a>
 							</td>
 							<td
-								class="hidden max-w-0 py-2.5 pr-4 align-middle text-xs text-neutral-500 sm:table-cell"
+								class="hidden max-w-0 py-3 pr-4 align-middle text-[13px] text-fg-2 sm:table-cell"
 							>
 								{#if item.commit}
 									{#if item.commit.oid}
@@ -268,19 +291,14 @@
 								{/if}
 							</td>
 							<td
-								class="w-24 py-2.5 pr-5 pl-0 text-right align-middle font-mono text-xs whitespace-nowrap tabular-nums"
+								class="w-24 py-3 pr-3.5 pl-0 text-right align-middle text-[13px] whitespace-nowrap text-fg-3 tabular-nums sm:pr-[18px]"
 							>
 								{#if item.commit}
-									<span
-										class={isRecent(item.commit.timestamp)
-											? 'text-apricot-300'
-											: 'text-neutral-500'}
-										title={isoDate(item.commit.timestamp)}
-									>
+									<span title={isoDate(item.commit.timestamp)}>
 										{relativeTime(item.commit.timestamp)}
 									</span>
 								{:else}
-									<span class="text-neutral-500">
+									<span>
 										{item.kind === 'file' ? formatSize(item.size) : '—'}
 									</span>
 								{/if}
@@ -294,9 +312,9 @@
 
 	<!-- README PREVIEW -->
 	{#if data.readme}
-		<div class="mt-5 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+		<div class="mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
 			<div
-				class="flex items-center gap-2 border-b border-neutral-800 bg-neutral-950 px-4 py-2.5 text-xs font-semibold text-neutral-400"
+				class="flex items-center gap-2 border-b border-line bg-surface-2 px-[18px] py-3 text-xs font-semibold text-fg-2"
 			>
 				<svg
 					width="14"
@@ -330,7 +348,7 @@
 	<!-- FILE VIEW (text, small enough to render) -->
 	{#if isMarkdown && renderedMode}
 		<div
-			class="prose prose-sm max-w-none overflow-hidden rounded-b-lg border border-neutral-800 bg-neutral-900 px-4 py-5 prose-neutral prose-invert sm:prose-base sm:px-7 sm:py-6
+			class="prose prose-sm max-w-none overflow-hidden rounded-b-2xl border border-line bg-surface px-4 py-5 prose-neutral prose-invert sm:prose-base sm:px-7 sm:py-6
 				prose-headings:scroll-mt-20
 				prose-a:text-accent-400 prose-a:no-underline hover:prose-a:underline
 				prose-code:rounded prose-code:bg-neutral-950 prose-code:px-1 prose-code:py-0.5 prose-code:font-mono prose-code:text-[0.9em] prose-code:text-neutral-200 prose-code:before:content-none prose-code:after:content-none
@@ -340,14 +358,14 @@
 			<SvelteMarkdown source={data.content} renderers={{ code: Code }} />
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-b-lg border border-neutral-800 bg-neutral-900">
+		<div class="overflow-hidden rounded-b-2xl border border-line bg-surface">
 			<div class="overflow-x-auto">
 				<table class="w-full border-collapse font-mono text-[12.5px] leading-[1.55]">
 					<tbody>
 						{#each sourceLines as line, i}
 							<tr>
 								<td
-									class="sticky left-0 w-0 border-r border-neutral-800 bg-neutral-900 px-3 text-right align-top whitespace-nowrap text-neutral-600 tabular-nums select-none {i ===
+									class="sticky left-0 w-0 border-r border-line bg-surface px-3 text-right align-top whitespace-nowrap text-neutral-600 tabular-nums select-none {i ===
 									0
 										? 'pt-3.5'
 										: ''} {i === sourceLines.length - 1 ? 'pb-3.5' : ''}"
@@ -368,7 +386,7 @@
 	{/if}
 {:else if data.kind === 'file-binary' || data.kind === 'file-large'}
 	<!-- PLACEHOLDER: binary or oversized -->
-	<div class="rounded-b-lg border border-neutral-800 bg-neutral-900 px-6 py-14 text-center">
+	<div class="rounded-b-2xl border border-line bg-surface px-6 py-14 text-center">
 		<div
 			class="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-xl bg-apricot-900/40 text-xl text-apricot-400"
 			aria-hidden="true"

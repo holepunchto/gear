@@ -1,9 +1,7 @@
 <script lang="ts" module>
 	// Standard conventional-commit types mapped to a Tailwind color family.
-	// Pattern: bg-{c}-500/15 + text-{c}-300 + ring-{c}-500/30 — the same
-	// "soft pill on dark surface" treatment apricot already uses for
-	// recent-activity highlights, so the type pills sit comfortably next to
-	// existing UI without screaming.
+	// Pattern: bg-{c}/12 + text-{c}-300, no ring — a quiet tint on the
+	// surface, so the type reads without the chip shouting over the subject.
 	//
 	// Choices intentionally re-use our brand palette where the semantics
 	// match (feat → accent green for "new", fix → apricot for "attention,
@@ -12,19 +10,19 @@
 	// string in full because Tailwind's JIT can only see complete class
 	// names — string-interpolated families wouldn't survive the build.
 	const TYPE_CLASSES: Record<string, string> = {
-		feat: 'bg-accent-500/15 text-accent-300 ring-accent-500/30',
-		fix: 'bg-apricot-500/15 text-apricot-300 ring-apricot-500/30',
-		perf: 'bg-amber-500/15 text-amber-300 ring-amber-500/30',
-		refactor: 'bg-teal-500/15 text-teal-300 ring-teal-500/30',
-		docs: 'bg-sky-500/15 text-sky-300 ring-sky-500/30',
-		style: 'bg-pink-500/15 text-pink-300 ring-pink-500/30',
-		test: 'bg-violet-500/15 text-violet-300 ring-violet-500/30',
-		build: 'bg-slate-500/15 text-slate-300 ring-slate-500/30',
-		ci: 'bg-slate-500/15 text-slate-300 ring-slate-500/30',
-		chore: 'bg-neutral-700/60 text-neutral-300 ring-neutral-600',
-		revert: 'bg-rose-500/15 text-rose-300 ring-rose-500/30'
+		feat: 'bg-accent-400/12 text-accent-300',
+		fix: 'bg-apricot-400/12 text-apricot-300',
+		perf: 'bg-amber-400/12 text-amber-300',
+		refactor: 'bg-teal-400/12 text-teal-300',
+		docs: 'bg-sky-400/12 text-sky-300',
+		style: 'bg-pink-400/12 text-pink-300',
+		test: 'bg-violet-400/12 text-violet-300',
+		build: 'bg-white/6 text-fg-2',
+		ci: 'bg-white/6 text-fg-2',
+		chore: 'bg-white/6 text-fg-2',
+		revert: 'bg-rose-400/12 text-rose-300'
 	};
-	const DEFAULT_TYPE_CLASS = 'bg-neutral-700/60 text-neutral-300 ring-neutral-600';
+	const DEFAULT_TYPE_CLASS = 'bg-white/6 text-fg-2';
 
 	function classesForType(type: string | null) {
 		if (!type) return DEFAULT_TYPE_CLASS;
@@ -57,7 +55,7 @@
 	<span class="inline-flex min-w-0 items-center gap-1.5">
 		{#if parsed.type}
 			<span
-				class="inline-flex shrink-0 items-center rounded px-1.5 py-px font-mono text-[10px] font-medium ring-1 {classesForType(
+				class="inline-flex shrink-0 items-center rounded-md px-[7px] py-px font-mono text-[11px] font-medium {classesForType(
 					parsed.type
 				)}"
 			>
@@ -70,7 +68,7 @@
 	<span class="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
 		{#if parsed.type}
 			<span
-				class="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 font-mono text-[10.5px] font-semibold tracking-wide uppercase ring-1 {classesForType(
+				class="inline-flex shrink-0 items-center rounded-md px-[7px] py-px font-mono text-[11px] font-medium {classesForType(
 					parsed.type
 				)}"
 			>
@@ -89,7 +87,7 @@
 			<div class="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
 				{#if parsed.type}
 					<span
-						class="inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[10.5px] font-semibold tracking-wide uppercase ring-1 {classesForType(
+						class="inline-flex items-center rounded-md px-[7px] py-px font-mono text-[11px] font-medium {classesForType(
 							parsed.type
 						)}"
 					>
@@ -98,7 +96,7 @@
 				{/if}
 				{#if parsed.hasBreaking}
 					<span
-						class="inline-flex items-center gap-1 rounded bg-red-500/15 px-1.5 py-0.5 font-mono text-[10.5px] font-semibold tracking-wide text-red-300 uppercase ring-1 ring-red-500/30"
+						class="inline-flex items-center gap-1 rounded-md bg-red-400/12 px-[7px] py-px font-mono text-[11px] font-medium text-red-300"
 						title="Breaking change"
 					>
 						<svg

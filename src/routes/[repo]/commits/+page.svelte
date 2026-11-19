@@ -4,6 +4,7 @@
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
 	import CommitDetails from '$lib/components/CommitDetails.svelte';
 	import { relativeTime, isoDate, isRecent } from '$lib/time';
+	import { initials } from '$lib/initials';
 
 	let { data }: PageProps = $props();
 
@@ -58,7 +59,7 @@
 	<!-- File-history header — the list below is filtered to commits that
 		touched this path. -->
 	<div
-		class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-[13px] text-neutral-400"
+		class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-surface px-3.5 py-2.5 text-[13px] text-fg-2 ring-1 ring-line ring-inset"
 	>
 		<span>History for</span>
 		<a
@@ -78,120 +79,90 @@
 {/if}
 
 {#if data.commits.length === 0}
-	<div class="rounded-lg border border-neutral-800 bg-neutral-900 px-6 py-12 text-center">
-		<h3 class="m-0 text-base font-semibold text-white">No commits</h3>
-		<p class="mx-auto mt-2 max-w-md text-sm text-neutral-400">
+	<div class="rounded-2xl bg-surface px-6 py-12 text-center ring-1 ring-line ring-inset">
+		<h3 class="m-0 text-base font-semibold text-fg">No commits</h3>
+		<p class="mx-auto mt-2 max-w-md text-sm text-fg-2">
 			This branch hasn't received any commits yet.
 		</p>
 	</div>
 {:else}
-	<div class="space-y-5">
+	<div>
 		{#each grouped as group (group.day)}
-			<div>
+			<section aria-label="Commits on {group.label}" class="pb-1.5">
 				<h2
-					class="mb-2 flex items-center gap-2 text-[12.5px] font-semibold tracking-wide text-neutral-400"
+					class="m-0 mt-2.5 mb-1.5 ml-7 font-sans text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase"
 				>
-					<svg
-						width="13"
-						height="13"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						class="text-neutral-500"
-						aria-hidden="true"
-					>
-						<circle cx="12" cy="12" r="3" />
-						<path d="M12 3v3" />
-						<path d="M12 18v3" />
-						<path d="M3 12h3" />
-						<path d="M18 12h3" />
-					</svg>
-					Commits on {group.label}
+					{group.label}
 				</h2>
-				<ul
-					class="m-0 list-none overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 p-0"
-				>
+				<ol class="m-0 list-none p-0">
 					{#each group.commits as commit (commit.oid)}
 						{@const recent = isRecent(commit.timestamp)}
 						{@const breaking = commit.message.hasBreaking}
-						<li
-							class="flex flex-wrap items-start gap-x-4 gap-y-1.5 border-b border-neutral-800 px-4 py-3 last:border-b-0 hover:bg-neutral-800/40 sm:px-5 sm:py-3.5
-								{breaking ? 'border-l-4 border-l-red-500/70 bg-red-500/[0.03]' : ''}"
-						>
-							<div class="min-w-0 flex-1">
-								<div class="flex items-start gap-2.5">
-									<div
-										class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full {recent
-											? 'bg-apricot-500/15 text-apricot-300 ring-1 ring-apricot-500/30'
-											: 'bg-neutral-800 text-neutral-500'}"
-										aria-hidden="true"
-									>
-										<svg
-											width="10"
-											height="10"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2.4"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										>
-											<circle cx="12" cy="12" r="3" />
-											<path d="M3 12h6" />
-											<path d="M15 12h6" />
-										</svg>
-									</div>
-									<div class="min-w-0 flex-1">
-										<a href="/{repoName}/commit/{commit.oid}" class="block no-underline">
-											<CommitMessage parsed={commit.message} variant="expanded" />
-										</a>
-										<CommitDetails parsed={commit.message} />
-										<div
-											class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-neutral-500"
-										>
-											<span class="text-neutral-300">{commit.author ?? 'unknown'}</span>
-											<span>committed</span>
-											<span
-												class={recent ? 'text-apricot-300' : 'text-neutral-400'}
-												title={isoDate(commit.timestamp)}
-											>
-												{relativeTime(commit.timestamp)}
-											</span>
-											{#if commit.parents.length > 1}
-												<span class="text-neutral-700">·</span>
-												<span title={`Merge of ${commit.parents.length} parents`}>
-													merge ({commit.parents.length} parents)
-												</span>
-											{/if}
-										</div>
-									</div>
-								</div>
+						<li class="flex gap-3.5">
+							<div aria-hidden="true" class="flex w-3.5 flex-none flex-col items-center">
+								<span class="h-4 w-0.5 bg-neutral-800"></span>
+								<span
+									class="shrink-0 rounded-full {recent
+										? 'h-2.5 w-2.5 bg-accent-400'
+										: 'h-2 w-2 bg-bg ring-2 ring-pear-500 ring-inset'}"
+								></span>
+								<span class="w-0.5 flex-1 bg-neutral-800"></span>
 							</div>
-							<div class="flex shrink-0 items-center gap-1.5">
-								<button
-									type="button"
-									onclick={() => copyOid(commit.oid)}
-									title="Copy commit hash"
-									aria-label="Copy commit hash"
-									class="rounded-md px-1.5 py-1 text-neutral-500 hover:bg-neutral-800 hover:text-white"
-								>
-									⧉
-								</button>
+							<div
+								class="my-1.5 flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl bg-surface px-3 py-2.5 ring-1 ring-inset sm:px-4 sm:py-3 {breaking
+									? 'ring-red-400/40'
+									: 'ring-line'}"
+							>
 								<a
 									href="/{repoName}/commit/{commit.oid}"
-									class="rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 font-mono text-[11.5px] text-neutral-300 no-underline transition-colors hover:border-neutral-700 hover:text-accent-300"
-									title={commit.oid}
+									class="flex min-w-0 text-sm font-medium text-fg no-underline hover:text-accent-200"
 								>
-									{commit.oid.slice(0, 7)}
+									<CommitMessage parsed={commit.message} variant="compact" />
 								</a>
+								<CommitDetails parsed={commit.message} />
+								<div class="flex min-w-0 items-center gap-2 text-xs text-fg-3">
+									<span
+										aria-hidden="true"
+										class="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-pear-700 text-[8px] font-semibold text-accent-100"
+									>
+										{initials(commit.author)}
+									</span>
+									<span class="truncate text-fg-2">{commit.author ?? 'unknown'}</span>
+									<span class="shrink-0" title={isoDate(commit.timestamp)}>
+										· {relativeTime(commit.timestamp)}
+									</span>
+									{#if commit.parents.length > 1}
+										<span
+											class="hidden shrink-0 sm:inline"
+											title={`Merge of ${commit.parents.length} parents`}
+										>
+											· merge ({commit.parents.length} parents)
+										</span>
+									{/if}
+									<span class="ml-auto flex shrink-0 items-center gap-1">
+										<button
+											type="button"
+											onclick={() => copyOid(commit.oid)}
+											title="Copy commit hash"
+											aria-label="Copy commit hash"
+											class="cursor-pointer rounded-md px-1.5 py-0.5 text-fg-3 hover:bg-surface-3 hover:text-fg"
+										>
+											⧉
+										</button>
+										<a
+											href="/{repoName}/commit/{commit.oid}"
+											class="font-mono text-fg-3 no-underline hover:text-accent-300"
+											title={commit.oid}
+										>
+											{commit.oid.slice(0, 7)}
+										</a>
+									</span>
+								</div>
 							</div>
 						</li>
 					{/each}
-				</ul>
-			</div>
+				</ol>
+			</section>
 		{/each}
 
 		{#if olderHref}
