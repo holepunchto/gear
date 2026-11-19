@@ -4,22 +4,21 @@
 	import type { ActionResult } from '@sveltejs/kit';
 	import type { Candidates, KeySummary } from '$lib/releases';
 
-	// Propose one of the repo's tags, or on a repo this device owns, make a
-	// new tag and propose it in one go. Posts to the key page's actions.
+	// Propose a tag newer than the latest release, an older one from behind a
+	// fold, or on a repo this device owns, make a new tag and propose it in one
+	// go. Posts to the key page's actions.
 	let { key, candidates }: { key: KeySummary; candidates: Candidates | null } = $props();
 
-	const unreleased = $derived(candidates?.tags.filter((t) => t.released === null) ?? []);
-
-	let tag = $state(untrack(() => candidates?.tags[0]?.name ?? ''));
+	let tag = $state(untrack(() => candidates?.tags[0] ?? ''));
+	let older = $state(untrack(() => candidates?.older[0] ?? ''));
 	let name = $state('');
 	let branch = $state(untrack(() => candidates?.head ?? candidates?.branches[0] ?? ''));
 	let busy = $state<string | null>(null);
 	let error = $state<string | null>(null);
 
 	$effect(() => {
-		if (candidates && !candidates.tags.some((t) => t.name === tag)) {
-			tag = candidates.tags[0]?.name ?? '';
-		}
+		if (candidates && !candidates.tags.includes(tag)) tag = candidates.tags[0] ?? '';
+		if (candidates && !candidates.older.includes(older)) older = candidates.older[0] ?? '';
 	});
 
 	function submitting(action: string) {
@@ -70,19 +69,19 @@
 			>
 				<label class="sr-only" for="tag-{key.key}">Tag</label>
 				<select id="tag-{key.key}" name="tag" bind:value={tag} class="{field} flex-1 px-2.5">
-					{#each candidates.tags as t (t.name)}
-						<option value={t.name}>
-							{t.name}{t.released === null ? '' : ` · released #${t.released}`}
-						</option>
+					{#each candidates.tags as t (t)}
+						<option value={t}>{t}</option>
 					{/each}
 				</select>
 				<button type="submit" disabled={busy !== null} class={primary}>
 					{busy === 'propose' ? 'Proposing…' : 'Propose release'}
 				</button>
 			</form>
-			{#if unreleased.length === 0}
-				<p class="m-0 text-xs text-fg-3">Every tag in {candidates.repo} is already released.</p>
-			{/if}
+		{:else if candidates.latest}
+			<p class="m-0 text-sm text-fg-2">
+				Up to date: <span class="font-mono text-fg">{candidates.latest.tag}</span> is the latest tag and
+				it's released.
+			</p>
 		{:else}
 			<p class="m-0 text-sm text-fg-2">
 				No tags in <a href="/{candidates.repo}/tags" class="font-mono">{candidates.repo}</a> yet.
@@ -129,12 +128,47 @@
 					</button>
 				</div>
 			</form>
-		{:else if unreleased.length === 0}
+		{:else if candidates.tags.length === 0}
 			<p class="m-0 text-sm text-fg-2">
 				You don't own {candidates.repo}, so its owner has to push the next tag. It shows up here
 				once they do.
 			</p>
 		{/if}
+	{/if}
+	{#if candidates && candidates.older.length > 0}
+		<details class="group border-t border-white/4 pt-3">
+			<summary
+				class="flex min-h-11 cursor-pointer list-none items-center text-[13px] font-medium text-fg-2 hover:text-fg"
+			>
+				Release an older tag…
+			</summary>
+			<form
+				method="POST"
+				action="/releases/{key.key}?/propose"
+				class="flex flex-col gap-2"
+				use:enhance={submitting('propose')}
+			>
+				<p class="m-0 text-xs text-apricot-300">
+					These are older than {candidates.latest?.name ?? 'the latest release'}, the latest
+					release. Releasing one puts an older version after it in the log.
+				</p>
+				<div class="flex flex-col gap-2 sm:flex-row">
+					<label class="sr-only" for="older-{key.key}">Older tag</label>
+					<select id="older-{key.key}" name="tag" bind:value={older} class="{field} flex-1 px-2.5">
+						{#each candidates.older as t (t)}
+							<option value={t}>{t}</option>
+						{/each}
+					</select>
+					<button
+						type="submit"
+						disabled={busy !== null}
+						class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-[10px] bg-surface-4 px-4 text-sm font-semibold text-fg ring-1 ring-line-strong ring-inset hover:bg-surface-3 disabled:opacity-60"
+					>
+						Propose older release
+					</button>
+				</div>
+			</form>
+		</details>
 	{/if}
 	{#if error}
 		<p class="m-0 text-sm text-red-400" role="alert">{error}</p>

@@ -14,8 +14,7 @@ export type {
 	RepoRelease,
 	Rotate,
 	Signer,
-	Successor,
-	TagOption
+	Successor
 } from '$lib/server/release-service';
 
 const AVATARS = [
