@@ -1,7 +1,15 @@
 import Id from 'hypercore-id-encoding';
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { openRepo, getCommitCount, getBranchRefs, getTagRefs } from '$lib/server/repo';
+import {
+	openRepo,
+	getCommitCount,
+	getBranchRefs,
+	getTagRefs,
+	getCommitTarget,
+	getCommitHistory
+} from '$lib/server/repo';
+import { parseCommitMessage } from '$lib/server/commit-parse';
 import type { ParsedCommit } from '$lib/server/commit-parse';
 import { getPendingAdd } from '$lib/server/pending';
 import { events } from '$lib/server/events';
@@ -72,15 +80,30 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 	const refName = params.ref ?? url.searchParams.get('ref') ?? head;
 	const branchEntry = branches.find((b) => b.name === refName);
 	const tagEntry = branchEntry ? undefined : tags.find((t) => t.name === refName);
-	const entry = branchEntry ?? tagEntry;
+	let entry = branchEntry ?? tagEntry;
 
-	const ref = refName
-		? {
+	// Not a branch or tag: a commit oid, full or a short prefix, browses the
+	// repo as it was at that commit.
+	let kind: 'branch' | 'tag' | 'commit' = tagEntry ? 'tag' : 'branch';
+	if (!entry && refName) {
+		const target = await getCommitTarget(remote, refName);
+		const [c] = target ? await getCommitHistory(remote, target.commit, 1) : [];
+		if (c) {
+			kind = 'commit';
+			entry = {
 				name: refName,
-				kind: tagEntry ? ('tag' as const) : ('branch' as const),
-				isHead: refName === head
-			}
-		: null;
+				oid: c.oid,
+				commitOid: c.oid,
+				commit: {
+					author: c.author,
+					message: parseCommitMessage(c.message),
+					timestamp: c.timestamp
+				}
+			};
+		}
+	}
+
+	const ref = refName ? { name: refName, kind, isHead: refName === head } : null;
 
 	// Tip commit summary + count for the repo header, both scoped to the
 	// active ref. The tip rides on the ref rows already loaded above; the

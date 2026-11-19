@@ -13,6 +13,8 @@
 	const repoName = $derived(page.params.repo);
 	const ref = $derived(data.ref);
 	const path = $derived('path' in data ? data.path : '');
+	// Browsing the repo as it was at a commit rather than on a branch or tag.
+	const atCommit = $derived(data.repo.ref?.kind === 'commit' ? data.repo.refCommit?.oid : null);
 
 	// Path segments for breadcrumb: ['src', 'server', 'file.ts']
 	const segments = $derived(path ? path.split('/') : []);
@@ -134,8 +136,20 @@
 			<circle cx="18" cy="8" r="2" />
 			<path d="M6 7v10M18 10c0 4-6 3-11 7" />
 		</svg>
-		{ref}
+		{#if atCommit}
+			<span title={atCommit}>at {atCommit.slice(0, 7)}</span>
+		{:else}
+			{ref}
+		{/if}
 	</span>
+	{#if atCommit && data.repo.head}
+		<a
+			href="/{repoName}/{data.repo.head}/"
+			class="tap-44 shrink-0 text-xs text-fg-3 no-underline hover:text-accent-300"
+		>
+			Back to {data.repo.head}
+		</a>
+	{/if}
 	{#if data.kind === 'tree' && !segments.length && data.repo.refCommit}
 		{@const c = data.repo.refCommit}
 		<a
