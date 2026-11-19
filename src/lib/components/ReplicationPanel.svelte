@@ -40,6 +40,8 @@
 	});
 
 	const syncing = $derived(contiguous < length);
+	// Nothing known about the repo yet: no count to show, the strip scans instead.
+	const waiting = $derived(length === 0 && !writable);
 	// Nothing replicated or pushed yet, so there is nothing to be in sync with.
 	const status = $derived(
 		length === 0 ? (writable ? 'Empty' : 'Waiting for peers') : syncing ? 'Syncing' : 'In sync'
@@ -72,14 +74,19 @@
 					{/if}
 				</span>
 			</div>
-			<span class="font-mono text-xs text-fg-2 sm:text-[13px]">
-				<b class="font-medium text-fg"><Ticker value={contiguous} /></b> / {length.toLocaleString()} blocks
-			</span>
+			{#if length > 0}
+				<span class="font-mono text-xs text-fg-2 sm:text-[13px]">
+					<b class="font-medium text-fg"><Ticker value={contiguous} /></b> / {length.toLocaleString()}
+					blocks
+				</span>
+			{/if}
 		</div>
 
 		<div
 			role="img"
-			aria-label="Newest blocks: {Math.min(contiguous, length)} of {length} held locally"
+			aria-label={waiting
+				? 'Looking for peers that have this repo'
+				: `Newest blocks: ${Math.min(contiguous, length)} of ${length} held locally`}
 			class="grid grid-cols-[repeat(32,minmax(0,1fr))] gap-0.5 sm:grid-cols-[repeat(64,minmax(0,1fr))] sm:gap-[3px]"
 		>
 			{#each cells as c, i (c.b)}
@@ -90,12 +97,14 @@
 						: c.state === 'remote'
 							? 'bg-neutral-800'
 							: 'bg-white/[0.025]'}
-					{c.fresh ? 'animate-arrive bg-accent-400' : ''}"
+					{c.fresh ? 'animate-arrive bg-accent-400' : ''}
+					{waiting ? 'scan' : ''}"
+					style:animation-delay={waiting ? `${i * 22}ms` : undefined}
 				></span>
 			{/each}
 		</div>
 
-		<div class="hidden flex-wrap gap-[18px] text-xs text-fg-3 sm:flex">
+		<div class="hidden flex-wrap gap-[18px] text-xs text-fg-3 {length > 0 ? 'sm:flex' : ''}">
 			<span class="flex items-center gap-1.5">
 				<span aria-hidden="true" class="h-2.5 w-2.5 rounded-[3px] bg-accent-400/60"></span>Held
 				locally
@@ -128,3 +137,22 @@
 		</div>
 	</div>
 </section>
+
+<style>
+	.scan {
+		animation: scan 2.4s ease-in-out infinite;
+	}
+
+	@keyframes scan {
+		0%,
+		40%,
+		100% {
+			background-color: rgb(255 255 255 / 0.025);
+			box-shadow: none;
+		}
+		12% {
+			background-color: rgb(35 204 148 / 0.45);
+			box-shadow: 0 0 8px rgb(35 204 148 / 0.5);
+		}
+	}
+</style>
