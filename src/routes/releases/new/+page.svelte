@@ -9,8 +9,9 @@
 
 	type Draft = { key: string; label: string; me: boolean };
 
-	let name = $state('');
-	// The form starts from the load and is the user's from then on.
+	// The form starts from the load and is the user's from then on. Arriving
+	// from a repo fills the source step, so it opens already done.
+	let name = $state(untrack(() => (data.repo ? `${data.repo}/stable` : '')));
 	let repo = $state(untrack(() => data.repo ?? data.repos[0] ?? ''));
 	let signers = $state<Draft[]>([{ key: untrack(() => data.seat), label: '', me: true }]);
 	let quorum = $state(1);
