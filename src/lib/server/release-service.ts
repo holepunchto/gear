@@ -19,6 +19,8 @@ const NAMESPACE = 'gear/releases/';
 const NAME = /^[a-z0-9][a-z0-9._/-]{0,63}$/i;
 const MAX_SIGNERS = 16;
 const MAX_PASTE = 4096;
+// A release key to follow, with the name it goes by: release+pear://<key>/<name>.
+const SHARE = 'release+pear://';
 
 export class ReleaseError extends Error {}
 
@@ -59,10 +61,15 @@ export type Pending = {
 	signedByMe: boolean;
 };
 
+// Owner made the key here, signer holds a seat on it, follower only reads it.
+export type Role = 'owner' | 'signer' | 'follower';
+
 export type KeySummary = {
 	key: string;
 	name: string;
 	owner: boolean;
+	role: Role;
+	share: string;
 	quorum: number;
 	signers: Signer[];
 	repo: { name: string; key: string } | null;
@@ -76,6 +83,7 @@ export type KeySummary = {
 export type RepoRelease = {
 	key: string;
 	name: string;
+	role: Role;
 	version: string | null;
 	index: number | null;
 	quorum: number;
@@ -124,6 +132,7 @@ type KeyRecord = {
 	quorum: number;
 	repo: { name: string; key: string } | null;
 	owner: boolean;
+	follower?: boolean;
 	labels: Record<string, string>;
 	added: number;
 };
@@ -139,7 +148,10 @@ type Core = {
 type Key = {
 	core: Core;
 	length: number;
+	signers: string[];
+	quorum: number;
 	ready(): Promise<void>;
+	follow(): Promise<RawRelease>;
 	get(index: number): Promise<RawRelease>;
 	propose(release: object): Promise<string>;
 	inspect(proposal: string): Promise<{ record: RawRelease }>;
@@ -148,9 +160,10 @@ type Key = {
 };
 
 type KeyOpts = {
-	signers: Uint8Array[];
-	namespace: string;
-	quorum: number;
+	key?: Uint8Array | null;
+	signers?: Uint8Array[];
+	namespace?: string;
+	quorum?: number;
 	blind?: unknown;
 	timeout?: number;
 };
@@ -214,16 +227,21 @@ class Releases {
 	private key(record: KeyRecord): Promise<Key> {
 		let opening = this.keys.get(record.key);
 		if (opening) return opening;
-		opening = this.start(record.signers, record.namespace, record.quorum);
+		// A follower may not know the namespace, so it opens by key.
+		opening = record.follower
+			? this.start({ key: z32.decode(record.key) })
+			: this.start({
+					signers: record.signers.map((s) => z32.decode(s)),
+					namespace: record.namespace,
+					quorum: record.quorum
+				});
 		this.keys.set(record.key, opening);
 		return opening;
 	}
 
-	private async start(signers: string[], namespace: string, quorum: number) {
+	private async start(opts: KeyOpts) {
 		const rk = new Module(this.corestore, this.db.swarm, {
-			signers: signers.map((s) => z32.decode(s)),
-			namespace,
-			quorum,
+			...opts,
 			blind: this.blind,
 			timeout: TIMEOUT
 		});
@@ -262,9 +280,11 @@ class Releases {
 		return this.summary(await this.record(key));
 	}
 
+	// Keys for a repo, by the repo they name or, when they name none (a key
+	// followed before its repo was added), by their latest release.
 	async forRepo(repoKey: string): Promise<KeySummary[]> {
-		const records = (await this.records()).filter((r) => r.repo?.key === repoKey);
-		return Promise.all(records.map((r) => this.summary(r)));
+		const keys = await this.listKeys();
+		return keys.filter((k) => (k.repo?.key ?? k.latest?.repo.key) === repoKey);
 	}
 
 	// Newest first. Entries that haven't arrived yet are left out.
@@ -432,6 +452,8 @@ class Releases {
 			key: record.key,
 			name: record.name,
 			owner: record.owner,
+			role: record.follower ? 'follower' : record.owner ? 'owner' : 'signer',
+			share: SHARE + record.key + (NAME.test(record.name) ? '/' + record.name : ''),
 			quorum: record.quorum,
 			signers: record.signers.map((key) => ({
 				key,
@@ -492,7 +514,11 @@ class Releases {
 		);
 		if (known) return known.key;
 
-		const opening = this.start(signers, namespace, opts.quorum);
+		const opening = this.start({
+			signers: signers.map((s) => z32.decode(s)),
+			namespace,
+			quorum: opts.quorum
+		});
 		const key = z32.encode((await opening).core.key) as string;
 		this.keys.set(key, opening);
 
@@ -580,7 +606,9 @@ class Releases {
 	// Refuse a tag that is already released, or a second proposal of ours
 	// while one is still collecting.
 	private async canPropose(key: string, tag: string) {
-		const rk = await this.key(await this.record(key));
+		const record = await this.record(key);
+		if (record.follower) throw new ReleaseError('You follow this key; only its signers release');
+		const rk = await this.key(record);
 		const open = (await this.store.listProposals(key)).find(
 			(p) => p.mine && p.previous >= rk.length
 		);
@@ -644,6 +672,50 @@ class Releases {
 		}
 
 		return { key, id };
+	}
+
+	// A key pasted in to follow: a bare z32 key or a share string. Reads the
+	// latest release to learn the repo and keeps the key with the follower
+	// role. A key this device already has is returned as is.
+	async follow(text: string) {
+		const parsed = parseShare(text);
+		if (!parsed) throw new ReleaseError('That is not a release key');
+
+		const key = z32.encode(parsed.key) as string;
+		if (await this.store.getKey(key)) return key;
+
+		const opening = this.start({ key: parsed.key });
+		const rk = await opening;
+		let latest: RawRelease;
+		try {
+			latest = await rk.follow();
+		} catch (err) {
+			await rk.close();
+			const message =
+				(err as { code?: string }).code === 'REQUEST_TIMEOUT'
+					? 'No peer is serving that release key right now'
+					: 'That key is not a release key';
+			throw new ReleaseError(message);
+		}
+
+		const repoKey = z32.encode(latest.repo.key) as string;
+		const repo = await this.findRepo(repoKey);
+		const record: KeyRecord = {
+			key,
+			name: parsed.name ?? short(key),
+			namespace: '',
+			signers: rk.signers,
+			quorum: rk.quorum,
+			repo: repo ? { name: repo, key: repoKey } : null,
+			owner: false,
+			follower: true,
+			labels: {},
+			added: Date.now()
+		};
+		await this.store.putKey(record);
+		this.keys.set(key, opening);
+		events.emit('release', { key });
+		return key;
 	}
 
 	async getProposal(key: string, id: string) {
@@ -820,6 +892,7 @@ export function repoReleases(keys: KeySummary[]) {
 		out[repo] = {
 			key: k.key,
 			name: k.name,
+			role: k.role,
 			version: k.latest?.name ?? null,
 			index: k.latest?.index ?? null,
 			quorum: k.quorum,
@@ -854,6 +927,17 @@ function normalizeKey(text: string) {
 	} catch {
 		return null;
 	}
+}
+
+function parseShare(text: string) {
+	const trimmed = text.trim();
+	if (trimmed.length > MAX_PASTE) return null;
+	const rest = trimmed.startsWith(SHARE) ? trimmed.slice(SHARE.length) : trimmed;
+	const slash = rest.indexOf('/');
+	const key = normalizeKey(slash === -1 ? rest : rest.slice(0, slash));
+	if (!key) return null;
+	const name = slash === -1 ? '' : rest.slice(slash + 1);
+	return { key: z32.decode(key) as Uint8Array, name: NAME.test(name) ? name : null };
 }
 
 function short(key: string) {

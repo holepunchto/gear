@@ -20,5 +20,18 @@ export const actions: Actions = {
 			return failure('receive', err);
 		}
 		throw redirect(303, `/releases/${target.key}/${target.id}`);
+	},
+
+	follow: async ({ request, locals }) => {
+		const form = await request.formData();
+		const releases = await getReleases(locals.db);
+
+		let key: string;
+		try {
+			key = await releases.follow(String(form.get('key') ?? ''));
+		} catch (err) {
+			return failure('follow', err);
+		}
+		throw redirect(303, `/releases/${key}`);
 	}
 };

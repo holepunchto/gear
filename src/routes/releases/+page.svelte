@@ -3,6 +3,8 @@
 	import { enhance } from '$app/forms';
 	import type { PageProps } from './$types';
 	import SeatRing from '$lib/components/releases/SeatRing.svelte';
+	import FollowKey from '$lib/components/releases/FollowKey.svelte';
+	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import { avatar, liveReleases, shortKey, signerInitials, signerName } from '$lib/releases';
 
 	let { data, form }: PageProps = $props();
@@ -162,9 +164,11 @@
 		{/if}
 	</section>
 
+	<FollowKey action="?/follow" error={form?.follow?.error} />
+
 	<section aria-label="Your release keys" class="flex flex-col gap-3.5">
 		<div class="flex items-baseline gap-3.5">
-			<h2 class="m-0 text-xl font-semibold text-fg">Keys you own or sign for</h2>
+			<h2 class="m-0 text-xl font-semibold text-fg">Keys you own, sign for or follow</h2>
 			<span class="text-[13px] text-fg-3">
 				{data.keys.length}
 				{data.keys.length === 1 ? 'key' : 'keys'}
@@ -175,7 +179,8 @@
 			<div class="rounded-2xl bg-surface px-6 py-12 text-center ring-1 ring-line ring-inset">
 				<h3 class="m-0 text-base font-semibold text-fg">No release keys yet</h3>
 				<p class="mx-auto mt-1.5 max-w-md text-sm text-fg-2">
-					Make one for a repo you release from, or paste a proposal a co-signer sent you.
+					Make one for a repo you release from, paste a proposal a co-signer sent you, or follow
+					someone's key.
 				</p>
 			</div>
 		{:else}
@@ -183,7 +188,7 @@
 				class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,380px),1fr))] gap-4 p-0"
 			>
 				{#each data.keys as k (k.key)}
-					<li>
+					<li class="flex flex-col gap-2">
 						<a
 							href="/releases/{k.key}"
 							class="flex h-full flex-col gap-3.5 rounded-[18px] bg-surface p-[18px] text-fg no-underline ring-1 transition-colors ring-inset hover:bg-surface-2 {k
@@ -205,7 +210,7 @@
 											? 'bg-accent-400/12 text-accent-300'
 											: 'bg-white/6 text-fg-2'}"
 									>
-										{k.owner ? 'Owner' : 'Signer'}
+										{k.role === 'owner' ? 'Owner' : k.role === 'follower' ? 'Following' : 'Signer'}
 									</span>
 								</div>
 								<div class="flex flex-col items-end gap-0.5 text-right">
@@ -246,6 +251,7 @@
 								</div>
 							{/if}
 						</a>
+						<KeyShare keyText={k.key} share={k.share} />
 					</li>
 				{/each}
 			</ul>
