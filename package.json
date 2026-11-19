@@ -17,6 +17,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check .",
 		"format": "prettier --write .",
+		"test": "brittle-bare src/lib/server/releases/test.js",
 		"postinstall": "patch-package"
 	},
 	"imports": {
@@ -42,6 +43,7 @@
 		}
 	},
 	"dependencies": {
+		"b4a": "^1.9.0",
 		"bare-apk": "^0.1.4",
 		"bare-console": "^6.2.0",
 		"bare-crypto": "^1.13.7",
@@ -58,15 +60,21 @@
 		"bare-subprocess": "^6.1.0",
 		"bare-url": "^2.5.1",
 		"blind-peering": "^2.6.1",
+		"compact-encoding": "^3.7.0",
 		"gear-ota": "file:ota",
 		"gip-remote": "^2.2.0",
 		"gip-transport": "^2.0.0",
 		"highlight.js": "11.12.0",
+		"hyper-multisig": "^2.5.0",
 		"hyperbee2": "^2.11.0",
 		"hyperconf": "^1.0.3",
+		"hypercore-crypto": "^3.7.0",
+		"hypercore-signing-request": "^5.2.0",
 		"hyperdb": "^6.8.0",
 		"node-emoji": "^2.2.0",
-		"protomux-wakeup": "^2.9.0"
+		"protomux-wakeup": "^2.9.0",
+		"ready-resource": "^1.2.0",
+		"z32": "^1.1.0"
 	},
 	"devDependencies": {
 		"@humanspeak/svelte-markdown": "^1.4.1",
@@ -77,9 +85,11 @@
 		"@tailwindcss/vite": "^4.2.2",
 		"@types/node": "^25.6.0",
 		"bare-build": "^1.0.4",
+		"brittle": "^4.5.0",
 		"conventional-commits-parser": "^6.4.0",
 		"corestore": "^7.12.0",
 		"hypercore-id-encoding": "^1.3.0",
+		"hyperdht": "^6.36.0",
 		"hyperschema": "^1.22.0",
 		"hyperswarm": "^4.17.0",
 		"paparam": "^1.10.1",
