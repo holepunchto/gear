@@ -68,9 +68,8 @@
 		stats = { ...data.stats };
 	});
 
-	// Discover: the manifest can hold ~100 repos, so start with a screenful.
-	const DISCOVER_PREVIEW = 12;
-	let showAllDiscover = $state(false);
+	// Discover: a short taste here; the full list lives on /discover.
+	const DISCOVER_PREVIEW = 8;
 	let adding = $state<string | null>(null);
 	let addError = $state<{ name: string; message: string } | null>(null);
 
@@ -552,7 +551,7 @@
 				<ul
 					class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3 p-0"
 				>
-					{#each showAllDiscover ? list : list.slice(0, DISCOVER_PREVIEW) as d (d.name)}
+					{#each list.slice(0, DISCOVER_PREVIEW) as d (d.name)}
 						<li
 							class="flex flex-col gap-1.5 rounded-xl bg-[#0a110d] px-3.5 py-3 ring-1 ring-line ring-inset"
 							title={d.description ?? undefined}
@@ -625,13 +624,12 @@
 					{/each}
 				</ul>
 				{#if list.length > DISCOVER_PREVIEW}
-					<button
-						type="button"
-						onclick={() => (showAllDiscover = !showAllDiscover)}
-						class="cursor-pointer self-start rounded-lg px-3 py-1.5 text-[13px] font-medium text-accent-300 transition-colors hover:bg-surface-3"
+					<a
+						href="/discover"
+						class="self-start rounded-lg px-3 py-1.5 text-[13px] font-medium text-accent-300 no-underline transition-colors hover:bg-surface-3"
 					>
-						{showAllDiscover ? 'Show fewer' : `Show all ${list.length}`}
-					</button>
+						Show more
+					</a>
 				{/if}
 			{/if}
 		{/await}

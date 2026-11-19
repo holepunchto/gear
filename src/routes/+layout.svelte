@@ -64,9 +64,9 @@
 	});
 
 	// Repo pages live under the library, so Library stays lit everywhere but
-	// Settings and the Discover section of the library page.
+	// Settings and Discover.
 	const onSettings = $derived(page.url.pathname.startsWith('/settings'));
-	const onDiscover = $derived(page.url.pathname === '/' && page.url.hash === '#discover');
+	const onDiscover = $derived(page.url.pathname === '/discover');
 	const onLibrary = $derived(!onSettings && !onDiscover);
 
 	async function copyIdentity() {
@@ -153,7 +153,7 @@
 					Library
 				</a>
 				<a
-					href="/#discover"
+					href="/discover"
 					class="rounded-lg px-3 py-[7px] text-sm font-medium no-underline transition-colors {onDiscover
 						? 'bg-white/6 text-fg'
 						: 'text-fg-2 hover:text-fg'}"
@@ -268,7 +268,7 @@
 			{@render navIcon('library')}Library
 		</a>
 		<a
-			href="/#discover"
+			href="/discover"
 			class="flex flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] no-underline {onDiscover
 				? 'bg-accent-400/12 font-semibold text-accent-300'
 				: 'font-medium text-fg-2'}"
