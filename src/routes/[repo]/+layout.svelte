@@ -66,6 +66,7 @@
 	let livePeers = $state(data.repo.peers);
 	let liveContiguous = $state(untrack(() => data.repo.contiguousLength));
 	let liveHeld = $state(untrack(() => data.repo.held));
+	let liveBuckets = $state.raw(untrack(() => data.repo.buckets));
 	let pushFlash = $state(false);
 
 	$effect(() => {
@@ -74,6 +75,7 @@
 		livePeers = data.repo.peers;
 		liveContiguous = data.repo.contiguousLength;
 		liveHeld = data.repo.held;
+		liveBuckets = data.repo.buckets;
 	});
 
 	// What happened while this page was open: appends and peer changes from
@@ -92,6 +94,9 @@
 	onMount(() => {
 		const name = untrack(() => data.repo.name);
 		const es = new EventSource(`/api/events/${encodeURIComponent(name)}`);
+		// While a repo is being added, arrival is logged from the held count
+		// every 500 blocks or so, not from appends.
+		let loggedHeld = untrack(() => data.repo.held);
 
 		es.addEventListener('repo', (e) => {
 			try {
@@ -99,6 +104,17 @@
 				if (typeof s.length === 'number') liveLength = s.length;
 				if (typeof s.contiguousLength === 'number') liveContiguous = s.contiguousLength;
 				if (typeof s.held === 'number') liveHeld = s.held;
+				if (s.buckets !== undefined) liveBuckets = s.buckets;
+				if (data.repo.syncing && typeof s.held === 'number') {
+					const n = s.held - loggedHeld;
+					if (n >= 500 || (n > 0 && s.held === s.length)) {
+						loggedHeld = s.held;
+						lastAppend = { added: n, at: Date.now() };
+						record(
+							`+${n} blocks · ${s.held.toLocaleString()} of ${s.length.toLocaleString()} held`
+						);
+					}
+				}
 				if (typeof s.peers === 'number' && s.peers !== livePeers) {
 					const n = s.peers - livePeers;
 					if (n > 0) record(`${n === 1 ? 'A peer' : `${n} peers`} joined · ${s.peers} now`);
@@ -119,6 +135,14 @@
 					to: number;
 					added: number;
 				};
+				// Mid-add, an append only reveals how long the remote core is;
+				// no block has arrived yet.
+				if (data.repo.syncing) {
+					const on = livePeers > 0 ? ` on ${livePeers} peer${livePeers === 1 ? '' : 's'}` : '';
+					record(`Found ${d.to.toLocaleString()} blocks${on}`);
+					invalidate('repo:' + name).catch(() => {});
+					return;
+				}
 				const range = { from: d.from, to: d.to };
 				lastAppend = { added: d.added, at: Date.now() };
 				record(`+${d.added} block${d.added === 1 ? '' : 's'}`);
@@ -516,6 +540,7 @@
 			length={liveLength}
 			contiguous={liveContiguous}
 			held={liveHeld}
+			buckets={liveBuckets}
 			peers={livePeers}
 			writable={repo.writable}
 			fresh={freshBlocks}

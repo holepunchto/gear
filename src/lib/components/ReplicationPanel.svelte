@@ -9,6 +9,7 @@
 		length,
 		contiguous,
 		held,
+		buckets,
 		peers,
 		writable,
 		fresh,
@@ -19,6 +20,9 @@
 		contiguous: number;
 		// Blocks held with gaps, for the count: a sync fills them out of order.
 		held: number;
+		// Percent held of each of 64 slices of the whole core while blocks are
+		// missing; the strip shows those instead of the newest blocks.
+		buckets: number[] | null;
 		peers: number;
 		writable: boolean;
 		// Block ranges that arrived in the last moment — their cells flash.
@@ -30,13 +34,38 @@
 
 	const CELLS = 64;
 
+	// A sync fetches blocks in random order, so every slice changes on every
+	// update. Only a slice that just became fully held flashes; the rest show
+	// progress through their fill.
+	let filled = $state.raw<Set<number>>(new Set());
+	let prevBuckets: number[] | null = null;
+	$effect(() => {
+		const prev = prevBuckets;
+		prevBuckets = buckets;
+		if (!buckets || !prev) return;
+		const changed = new Set<number>();
+		buckets.forEach((pct, i) => pct >= 100 && prev[i] < 100 && changed.add(i));
+		filled = changed;
+		const t = setTimeout(() => (filled = new Set()), 1600);
+		return () => clearTimeout(t);
+	});
+
 	const cells = $derived.by(() => {
+		if (buckets) {
+			return buckets.map((pct, i) => ({
+				b: i,
+				state: pct >= 100 ? 'held' : pct > 0 ? 'partial' : 'remote',
+				pct,
+				fresh: filled.has(i)
+			}));
+		}
 		const start = Math.max(0, length - CELLS);
 		return Array.from({ length: CELLS }, (_, i) => {
 			const b = start + i;
 			return {
 				b,
 				state: b >= length ? 'none' : b >= contiguous ? 'remote' : 'held',
+				pct: 0,
 				fresh: fresh.some((r) => b >= r.from && b < r.to)
 			};
 		});
@@ -89,7 +118,9 @@
 			role="img"
 			aria-label={waiting
 				? 'Looking for peers that have this repo'
-				: `Newest blocks: ${Math.min(contiguous, length)} of ${length} held locally`}
+				: buckets
+					? `Whole repo: ${held} of ${length} blocks held locally`
+					: `Newest blocks: ${Math.min(contiguous, length)} of ${length} held locally`}
 			class="grid grid-cols-[repeat(32,minmax(0,1fr))] gap-0.5 sm:grid-cols-[repeat(64,minmax(0,1fr))] sm:gap-[3px]"
 		>
 			{#each cells as c, i (c.b)}
@@ -99,9 +130,14 @@
 						? 'bg-accent-400/60'
 						: c.state === 'remote'
 							? 'bg-neutral-800'
-							: 'bg-white/[0.025]'}
+							: c.state === 'partial'
+								? ''
+								: 'bg-white/[0.025]'}
 					{c.fresh ? 'animate-arrive bg-accent-400' : ''}
 					{waiting ? 'scan' : ''}"
+					style:background-color={c.state === 'partial' && !c.fresh
+						? `color-mix(in srgb, rgb(35 204 148 / 0.6) ${c.pct}%, var(--color-neutral-800))`
+						: undefined}
 					style:animation-delay={waiting ? `${i * 22}ms` : undefined}
 				></span>
 			{/each}

@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import b4a from 'b4a';
 import type { GipDB } from './gip';
 import { log } from './log.js';
+import { HeldBlocks } from './held';
 
 // A single server-side event hub for live stats. Wires to swarm + per-core
 // events ONCE at boot (or first attach) and lets every SSE client subscribe
@@ -26,7 +27,8 @@ type CoreLike = {
 	length: number;
 	contiguousLength: number;
 	peers: Array<{ remotePublicKey: Uint8Array }>;
-	on(event: string, listener: () => void): void;
+	// 'download' passes the block index.
+	on(event: string, listener: (index: number) => void): void;
 	off(event: string, listener: () => void): void;
 };
 
@@ -70,6 +72,9 @@ export type RepoStats = {
 	// block downloaded since attach. A sync fetches blocks out of order, so
 	// this is what moves while contiguousLength sits near zero.
 	held: number;
+	// While blocks are missing: percent held of each of 64 equal slices of
+	// the core, so the strip can show a sync filling in. Null once in sync.
+	buckets: number[] | null;
 	peers: number;
 };
 
@@ -209,20 +214,22 @@ class EventHub extends EventEmitter {
 			length: core.length,
 			contiguousLength: core.contiguousLength,
 			held: core.contiguousLength,
+			buckets: null,
 			peers: core.peers.length
 		});
 
 		if (this.attachedCores.has(core as unknown as object)) return;
 		this.attachedCores.add(core as unknown as object);
 
-		const base = core.contiguousLength;
-		let downloaded = 0;
+		const blocks = new HeldBlocks(core.contiguousLength);
 
 		const recompute = () => {
+			const held = blocks.held(core.length, core.contiguousLength);
 			this.repoState.set(name, {
 				length: core.length,
 				contiguousLength: core.contiguousLength,
-				held: Math.min(core.length, Math.max(base + downloaded, core.contiguousLength)),
+				held,
+				buckets: held < core.length ? blocks.buckets(core.length) : null,
 				peers: core.peers.length
 			});
 			// Specific event for per-repo SSE handlers; generic 'repo' event
@@ -253,8 +260,8 @@ class EventHub extends EventEmitter {
 		// 'download' fires per block while a replica catches up, so batch it:
 		// one recompute per half second at most.
 		let downloadTimer: ReturnType<typeof setTimeout> | null = null;
-		core.on('download', () => {
-			downloaded++;
+		core.on('download', (index: number) => {
+			blocks.add(index);
 			if (downloadTimer) return;
 			downloadTimer = setTimeout(() => {
 				downloadTimer = null;
