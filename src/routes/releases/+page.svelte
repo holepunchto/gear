@@ -5,6 +5,7 @@
 	import SeatRing from '$lib/components/releases/SeatRing.svelte';
 	import FollowKey from '$lib/components/releases/FollowKey.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
+	import PearSign from '$lib/components/releases/PearSign.svelte';
 	import {
 		avatar,
 		liveReleases,
@@ -172,6 +173,12 @@
 		</form>
 		{#if form?.receive?.error}
 			<p class="m-0 text-xs text-red-400">{form.receive.error}</p>
+		{/if}
+		{#if form?.receive?.request}
+			<p class="m-0 text-xs text-fg-2">
+				If you sign this key with a pear key, sign it with the CLI:
+			</p>
+			<PearSign request={form.receive.request} open />
 		{/if}
 	</section>
 

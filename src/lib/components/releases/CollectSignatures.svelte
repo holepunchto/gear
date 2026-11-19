@@ -15,6 +15,11 @@
 	let error = $state<string | null>(null);
 
 	const ready = $derived(current.signed.length >= key.quorum);
+	// Signers still to sign who aren't known to use Gear: they may need the
+	// pear CLI command.
+	const pearSigners = $derived(
+		key.signers.filter((s) => !s.gear && !current.signed.includes(s.key))
+	);
 
 	function submitting(name: string) {
 		return () => {
@@ -40,16 +45,20 @@
 	class="flex flex-col gap-4 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
 >
 	{#if current.mine}
-		<div class="flex flex-col gap-2">
+		<div class="flex flex-col gap-3">
 			<h2 class="m-0 text-base font-semibold text-fg">Send this to your co-signers</h2>
-			<p class="m-0 text-xs text-fg-3">
-				They paste it under Release keys, check it on their copy and sign.
-			</p>
-			<CopyField value={current.proposal} label="Proposal" />
+			<div class="flex flex-col gap-2">
+				<span class="text-sm font-semibold text-fg">For Gear co-signers</span>
+				<span class="text-xs text-fg-3">
+					The proposal. They paste it under Release keys, check it on their copy and sign.
+				</span>
+				<CopyField value={current.proposal} label="Proposal" />
+			</div>
+			<PearSign request={current.request} signers={pearSigners} />
 		</div>
+	{:else}
+		<PearSign request={current.request} signers={pearSigners} />
 	{/if}
-
-	<PearSign request={current.request} />
 
 	{#if current.signedByMe && response && !current.mine}
 		<div class="flex flex-col gap-2">
