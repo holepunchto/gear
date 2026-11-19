@@ -4,10 +4,12 @@ import type { Actions, PageServerLoad } from './$types';
 import { getAllSourceRepos } from '$lib/server/source';
 import { events } from '$lib/server/events';
 import { startAdd, getPendingAdds } from '$lib/server/pending';
+import { getReleases } from '$lib/server/release-service';
 
 const repoNameRegex = /^[a-zA-Z0-9_-]+$/;
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, depends }) => {
+	depends('releases');
 	const names = await locals.db.getRepoNames();
 
 	// getCore with server:false/client:false → pure local metadata, no swarm
@@ -58,7 +60,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		repos,
 		stats: events.getStats(),
-		blindPeersConfigured: ((await locals.db.getBlindPeers()) as string[]).length
+		blindPeersConfigured: ((await locals.db.getBlindPeers()) as string[]).length,
+		releases: await (await getReleases(locals.db)).listKeys()
 	};
 };
 
