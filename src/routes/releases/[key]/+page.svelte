@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { enhance } from '$app/forms';
 	import type { PageProps } from './$types';
-	import CopyField from '$lib/components/releases/CopyField.svelte';
+	import CollectSignatures from '$lib/components/releases/CollectSignatures.svelte';
+	import ProposeForm from '$lib/components/releases/ProposeForm.svelte';
+	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import {
 		ago,
 		avatar,
@@ -13,25 +14,12 @@
 		type Release
 	} from '$lib/releases';
 
-	let { data, form }: PageProps = $props();
-
-	let busy = $state<string | null>(null);
+	let { data }: PageProps = $props();
 
 	onMount(liveReleases);
 
 	const key = $derived(data.key);
 	const current = $derived(key.pending[0] ?? null);
-	const ready = $derived(current !== null && current.signed.length >= key.quorum);
-
-	function submitting(name: string) {
-		return () => {
-			busy = name;
-			return async ({ update }: { update: () => Promise<void> }) => {
-				await update();
-				busy = null;
-			};
-		};
-	}
 
 	function payload(r: Release, previous: number) {
 		return [
@@ -48,10 +36,6 @@
 			}
 		];
 	}
-
-	const actionError = $derived(
-		form?.propose?.error ?? form?.sign?.error ?? form?.respond?.error ?? form?.commit?.error ?? null
-	);
 </script>
 
 <svelte:head>
@@ -233,197 +217,12 @@
 					{/if}
 				</section>
 
-				<section
-					aria-label="Collect signatures"
-					class="flex flex-col gap-4 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
-				>
-					{#if current.mine}
-						<div class="flex flex-col gap-2">
-							<h2 class="m-0 text-base font-semibold text-fg">Send this to your co-signers</h2>
-							<p class="m-0 text-xs text-fg-3">
-								They paste it under Release keys, check it on their copy and sign.
-							</p>
-							<CopyField value={current.proposal} label="Proposal" />
-						</div>
-					{/if}
-
-					{#if current.signedByMe && data.responses[current.id] && !current.mine}
-						<div class="flex flex-col gap-2">
-							<h2 class="m-0 text-base font-semibold text-fg">Your signature</h2>
-							<p class="m-0 text-xs text-fg-3">Send it back to whoever proposed this release.</p>
-							<CopyField value={data.responses[current.id] ?? ''} label="Your signature" />
-						</div>
-					{/if}
-
-					<form
-						method="POST"
-						action="?/respond"
-						class="flex flex-col gap-2"
-						use:enhance={submitting('respond')}
-					>
-						<label for="response" class="text-base font-semibold text-fg">Paste a signature</label>
-						<input type="hidden" name="id" value={current.id} />
-						<div class="flex flex-col gap-2 sm:flex-row">
-							<input
-								id="response"
-								name="response"
-								required
-								autocomplete="off"
-								spellcheck="false"
-								placeholder="A co-signer's signature"
-								class="min-w-0 flex-1 rounded-[10px] border-0 bg-bg px-3 py-2.5 font-mono text-[13px] text-fg ring-1 ring-line-strong ring-inset placeholder:text-fg-3 focus:ring-2 focus:ring-accent-400/50 focus:outline-none"
-							/>
-							<button
-								type="submit"
-								disabled={busy !== null}
-								class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-[10px] bg-surface-4 px-4 text-sm font-semibold text-fg ring-1 ring-line-strong ring-inset hover:bg-surface-3 disabled:opacity-60 sm:h-auto"
-							>
-								{busy === 'respond' ? 'Checking…' : 'Add signature'}
-							</button>
-						</div>
-					</form>
-
-					<div class="flex flex-wrap items-center gap-2.5">
-						<form method="POST" action="?/commit" use:enhance={submitting('commit')}>
-							<input type="hidden" name="id" value={current.id} />
-							<button
-								type="submit"
-								disabled={!ready || busy !== null}
-								class="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-accent-400 px-5 text-sm font-semibold text-accent-900 shadow-[0_8px_28px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300 disabled:cursor-default disabled:bg-surface-4 disabled:text-fg-3 disabled:shadow-none"
-							>
-								{busy === 'commit' ? 'Committing…' : `Commit ${current.release?.name ?? ''}`}
-							</button>
-						</form>
-						{#if !ready}
-							<span class="text-xs text-fg-3">
-								{key.quorum - current.signed.length} more
-								{key.quorum - current.signed.length === 1 ? 'signature' : 'signatures'} to commit
-							</span>
-						{/if}
-						{#if current.mine}
-							<form
-								method="POST"
-								action="?/withdraw"
-								class="ml-auto"
-								use:enhance={submitting('withdraw')}
-							>
-								<input type="hidden" name="id" value={current.id} />
-								<button
-									type="submit"
-									disabled={busy !== null}
-									class="h-11 cursor-pointer rounded-[10px] px-3.5 text-[13px] font-medium text-apricot-300 ring-1 ring-apricot-400/35 ring-inset hover:bg-apricot-400/8"
-								>
-									Withdraw {current.release?.name ?? ''}
-								</button>
-							</form>
-						{/if}
-					</div>
-					{#if actionError}
-						<p class="m-0 text-sm text-red-400" role="alert">{actionError}</p>
-					{/if}
-				</section>
+				<CollectSignatures {key} {current} response={data.responses[current.id] ?? null} />
 			{:else}
-				<section
-					aria-label="Propose a release"
-					class="flex flex-col gap-3 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
-				>
-					<h2 class="m-0 text-xl font-semibold text-fg">Propose a release</h2>
-					{#if !key.repo}
-						<p class="m-0 text-sm text-fg-2">
-							This device doesn't have the repo these releases come from yet. Add it to your library
-							to propose from its tags.
-						</p>
-					{:else if data.tags.length === 0}
-						<p class="m-0 text-sm text-fg-2">
-							No tags in <a href="/{key.repo.name}">{key.repo.name}</a> yet. Push a tag, then propose
-							it here.
-						</p>
-					{:else}
-						<p class="m-0 text-sm text-fg-2">
-							Pick a tag from <span class="font-mono text-fg">{key.repo.name}</span>. Gear fills in
-							its commit, tree and the repo length, mirrors the proposal to your blind peers, and
-							signs it for you if you're a signer.
-						</p>
-						<form
-							method="POST"
-							action="?/propose"
-							class="flex flex-col gap-2 sm:flex-row"
-							use:enhance={submitting('propose')}
-						>
-							<label class="sr-only" for="tag">Tag</label>
-							<select
-								id="tag"
-								name="tag"
-								class="h-11 min-w-0 flex-1 rounded-[10px] border-0 bg-bg px-2.5 font-mono text-sm text-fg ring-1 ring-line-strong ring-inset focus:ring-2 focus:ring-accent-400/50 focus:outline-none"
-							>
-								{#each data.tags as tag (tag)}
-									<option value={tag}>{tag}</option>
-								{/each}
-							</select>
-							<button
-								type="submit"
-								disabled={busy !== null}
-								class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-[10px] bg-accent-400 px-5 text-sm font-semibold text-accent-900 transition-colors hover:bg-accent-300 disabled:opacity-60"
-							>
-								{busy === 'propose' ? 'Proposing…' : 'Propose release'}
-							</button>
-						</form>
-					{/if}
-					{#if actionError}
-						<p class="m-0 text-sm text-red-400" role="alert">{actionError}</p>
-					{/if}
-				</section>
+				<ProposeForm {key} candidates={data.candidates} />
 			{/if}
 		</div>
 
-		<aside
-			aria-label="Release log"
-			class="flex min-w-0 flex-[1_1_320px] flex-col gap-1 rounded-[18px] bg-surface px-5 py-[18px] ring-1 ring-line ring-inset"
-		>
-			<div class="mb-2.5 flex items-baseline justify-between gap-3">
-				<h2 class="m-0 font-sans text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">
-					Release log
-				</h2>
-				<span class="font-mono text-xs text-fg-3">{shortKey(key.key)}</span>
-			</div>
-			{#if current}
-				<div class="flex gap-3.5">
-					<div class="flex w-3 flex-none flex-col items-center" aria-hidden="true">
-						<span
-							class="h-3 w-3 rounded-full bg-bg shadow-[inset_0_0_0_2px_#fb923c,0_0_10px_rgb(251_146_60/0.5)]"
-						></span>
-						<span class="w-0.5 flex-1 bg-neutral-800"></span>
-					</div>
-					<div class="flex flex-1 items-baseline gap-2.5 pb-3.5">
-						<span class="w-7 font-mono text-xs text-fg-3">#{current.previous}</span>
-						<span class="font-display text-[15px] font-semibold text-apricot-300">
-							{current.release?.name ?? '…'}
-						</span>
-						<span class="ml-auto text-xs text-fg-3">
-							{current.signed.length} / {key.quorum} · pending
-						</span>
-					</div>
-				</div>
-			{/if}
-			{#each data.history as r (r.index)}
-				<div class="flex gap-3.5">
-					<div class="flex w-3 flex-none flex-col items-center" aria-hidden="true">
-						<span class="h-3 w-3 rounded-full bg-accent-400"></span>
-						<span class="w-0.5 flex-1 bg-neutral-800"></span>
-					</div>
-					<div class="flex flex-1 items-baseline gap-2.5 pb-3.5">
-						<span class="w-7 font-mono text-xs text-fg-3">#{r.index}</span>
-						<span class="font-display text-[15px] font-semibold text-fg">{r.name}</span>
-						<span class="ml-auto font-mono text-xs text-fg-3" title={r.commit}>
-							{r.commit.slice(0, 7)}
-						</span>
-					</div>
-				</div>
-			{:else}
-				{#if !current}
-					<p class="m-0 text-sm text-fg-3">Nothing signed yet.</p>
-				{/if}
-			{/each}
-		</aside>
+		<ReleaseLog {key} {current} history={data.history} />
 	</div>
 </main>

@@ -4,12 +4,14 @@ import { relativeTime } from '$lib/time';
 import type { Signer } from '$lib/server/release-service';
 
 export type {
+	Candidates,
 	Check,
 	Inspection,
 	KeySummary,
 	Pending,
 	Release,
-	Signer
+	Signer,
+	TagOption
 } from '$lib/server/release-service';
 
 const AVATARS = [
@@ -36,6 +38,9 @@ export function signerInitials(s: Signer) {
 	if (s.label) return initials(s.label);
 	return s.me ? 'You' : s.key.slice(0, 2).toUpperCase();
 }
+
+// A signer being added to a new key, before it exists.
+export type DraftSigner = { key: string; label: string; me: boolean };
 
 // Proposal times are local milliseconds.
 export function ago(ms: number) {
