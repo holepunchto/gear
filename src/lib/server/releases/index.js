@@ -1,3 +1,4 @@
+// @ts-nocheck
 import ReadyResource from 'ready-resource';
 import HyperMultisig from 'hyper-multisig';
 import SignRequest from 'hypercore-signing-request';

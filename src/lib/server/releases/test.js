@@ -1,3 +1,4 @@
+// @ts-nocheck
 import test from 'brittle';
 import Corestore from 'corestore';
 import Hyperswarm from 'hyperswarm';

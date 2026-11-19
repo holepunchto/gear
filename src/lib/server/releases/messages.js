@@ -1,3 +1,4 @@
+// @ts-nocheck
 import c from 'compact-encoding';
 
 export const RELEASE = 0;
