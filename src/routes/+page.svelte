@@ -7,6 +7,8 @@
 	import SyncRing from '$lib/components/SyncRing.svelte';
 	import Ticker from '$lib/components/Ticker.svelte';
 	import YourReleases from '$lib/components/releases/YourReleases.svelte';
+	import ReleaseLine from '$lib/components/releases/ReleaseLine.svelte';
+	import { linkKey } from '$lib/releases';
 	import type { PageProps } from './$types';
 
 	type Repo = {
@@ -407,6 +409,9 @@
 								<span class="truncate font-mono text-xs text-fg-3" title={repo.url}>
 									{shortUrl(repo.url)}
 								</span>
+								{#if data.badges[repo.key]}
+									<ReleaseLine release={data.badges[repo.key]} />
+								{/if}
 							</div>
 
 							<div class="relative z-10 -mt-1 -mr-1.5 flex shrink-0 items-center gap-0.5">
@@ -561,6 +566,7 @@
 					class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3 p-0"
 				>
 					{#each list.slice(0, DISCOVER_PREVIEW) as d (d.name)}
+						{@const release = data.badges[linkKey(d.url) ?? '']}
 						<li
 							class="flex flex-col gap-1.5 rounded-xl bg-[#0a110d] px-3.5 py-3 ring-1 ring-line ring-inset"
 							title={d.description ?? undefined}
@@ -574,6 +580,9 @@
 								</span>
 								<span class="flex min-w-0 flex-1 flex-col gap-[3px]">
 									<span class="truncate font-medium text-fg">{d.name}</span>
+									{#if release}
+										<ReleaseLine {release} />
+									{/if}
 								</span>
 								<form
 									method="POST"

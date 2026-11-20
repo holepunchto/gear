@@ -106,8 +106,8 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 	const key = Id.encode(remote.core.key);
 	const length = remote.core.length;
 
-	// The Releases tab label: the first release key cut from this repo.
-	const [release] = await (await getReleases(locals.db)).forRepo(key);
+	// The Releases tab label and the aside card.
+	const release = (await (await getReleases(locals.db)).byRepo())[key] ?? null;
 
 	return {
 		repo: {
@@ -128,14 +128,7 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 			tags,
 			syncing: false,
 			error: null,
-			release: release
-				? {
-						version: release.latest?.name ?? null,
-						quorum: release.quorum,
-						signers: release.signers.length,
-						pending: release.pending.length > 0
-					}
-				: null
+			release
 		}
 	};
 };

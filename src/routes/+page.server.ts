@@ -4,7 +4,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { getAllSourceRepos } from '$lib/server/source';
 import { events } from '$lib/server/events';
 import { startAdd, getPendingAdds } from '$lib/server/pending';
-import { getReleases } from '$lib/server/release-service';
+import { getReleases, repoReleases } from '$lib/server/release-service';
 
 const repoNameRegex = /^[a-zA-Z0-9_-]+$/;
 
@@ -57,11 +57,13 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 	// The discover manifest streams in from the layout load (hyperconf: baked
 	// config + OTA core) — the page filters out what's already in the library.
 	// Network stats seed the hero panel; /api/events keeps them live.
+	const releases = await (await getReleases(locals.db)).listKeys();
 	return {
 		repos,
 		stats: events.getStats(),
 		blindPeersConfigured: ((await locals.db.getBlindPeers()) as string[]).length,
-		releases: await (await getReleases(locals.db)).listKeys()
+		releases,
+		badges: repoReleases(releases)
 	};
 };
 

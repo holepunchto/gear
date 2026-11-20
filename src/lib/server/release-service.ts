@@ -70,6 +70,18 @@ export type KeySummary = {
 	pending: Pending[];
 };
 
+// A repo's release as every surface shows it: the latest version and what
+// is pending, from this device's point of view.
+export type RepoRelease = {
+	key: string;
+	name: string;
+	version: string | null;
+	index: number | null;
+	quorum: number;
+	signers: number;
+	pending: { id: string; name: string | null; missing: number; waitingOnMe: boolean } | null;
+};
+
 // What the propose form offers: the repo's tags, newest first with released
 // ones last, and on a repo this device owns, the branches a new tag can name.
 export type TagOption = { name: string; released: number | null };
@@ -222,6 +234,12 @@ class Releases {
 
 	async listKeys(): Promise<KeySummary[]> {
 		return Promise.all((await this.records()).map((r) => this.summary(r)));
+	}
+
+	// Release state by repo key, for every repo with a key this device knows.
+	// A repo's first key wins.
+	async byRepo() {
+		return repoReleases(await this.listKeys());
 	}
 
 	async getKey(key: string): Promise<KeySummary> {
@@ -712,6 +730,32 @@ class Releases {
 		await this.store.deleteProposal(key, id);
 		events.emit('release', { key });
 	}
+}
+
+export function repoReleases(keys: KeySummary[]) {
+	const out: Record<string, RepoRelease> = {};
+	for (const k of keys) {
+		const p = k.pending[0];
+		const repo = k.repo?.key ?? k.latest?.repo.key ?? p?.release?.repo.key;
+		if (!repo || out[repo]) continue;
+		out[repo] = {
+			key: k.key,
+			name: k.name,
+			version: k.latest?.name ?? null,
+			index: k.latest?.index ?? null,
+			quorum: k.quorum,
+			signers: k.signers.length,
+			pending: p
+				? {
+						id: p.id,
+						name: p.release?.name ?? null,
+						missing: Math.max(0, k.quorum - p.signed.length),
+						waitingOnMe: !p.signedByMe && k.signers.some((s) => s.me)
+					}
+				: null
+		};
+	}
+	return out;
 }
 
 function view(raw: RawRelease): Release {
