@@ -32,22 +32,27 @@ export const actions: Actions = {
 	propose: async ({ request, locals, params }) => {
 		const form = await request.formData();
 		const releases = await getReleases(locals.db);
-		return attempt('propose', async () => ({
-			id: await releases.propose(params.key, String(form.get('tag') ?? ''), password(form))
-		}));
+		return attempt('propose', async () => {
+			const id = await releases.propose(params.key, String(form.get('tag') ?? ''), password(form));
+			// Signed alone: it is publishing, so the flow page opens on it done.
+			await releases.landed(params.key, id);
+			return { id };
+		});
 	},
 
 	proposeNew: async ({ request, locals, params }) => {
 		const form = await request.formData();
 		const releases = await getReleases(locals.db);
-		return attempt('propose', async () => ({
-			id: await releases.proposeNewTag(
+		return attempt('propose', async () => {
+			const id = await releases.proposeNewTag(
 				params.key,
 				String(form.get('name') ?? '').trim(),
 				String(form.get('target') ?? ''),
 				password(form)
-			)
-		}));
+			);
+			await releases.landed(params.key, id);
+			return { id };
+		});
 	},
 
 	sign: async ({ request, locals, params }) => {
