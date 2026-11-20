@@ -740,14 +740,15 @@ class Releases {
 		if (!entry) throw new ReleaseError('Pick a repo from your library');
 
 		// Same signers, quorum and namespace make the same key. A live one is
-		// reused; an archived, revoked or old one is replaced under a new namespace.
+		// reused, and says it `existed`; an archived, revoked or old one is
+		// replaced under a new namespace.
 		const same = ((await this.store.listKeys()) as KeyRecord[]).filter(
 			(r) => r.quorum === opts.quorum && r.signers.join() === signers.join()
 		);
 		const live = same.find(
 			(r) => nameOf(r.namespace) === name && r.mirror && !r.archived && !r.revoked
 		);
-		if (live) return live.key;
+		if (live) return { key: live.key, existed: true };
 		const namespace = namespaceFor(name, new Set(same.map((r) => r.namespace)));
 
 		const opening = this.start({
@@ -773,7 +774,7 @@ class Releases {
 		};
 		await this.store.putKey(record);
 		events.emit('release', { key });
-		return key;
+		return { key, existed: false };
 	}
 
 	// Proposes signing the repo up to where `tag` first appears, and signs it
@@ -1297,7 +1298,7 @@ class Releases {
 		if (record.follower) throw new ReleaseError('You follow this key; only its signers rotate it');
 		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
 
-		const to = await this.createKey({
+		const { key: to } = await this.createKey({
 			name: opts.name,
 			signers: opts.signers,
 			quorum: opts.quorum,

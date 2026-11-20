@@ -94,6 +94,17 @@
 			it below, and make a new key for this repo.
 		</p>
 	{/if}
+	{#if data.existed}
+		<p
+			role="status"
+			class="m-0 rounded-2xl bg-accent-400/8 px-5 py-4 text-sm text-fg-2 ring-1 ring-accent-400/30 ring-inset"
+		>
+			<span class="font-semibold text-fg"
+				>Release key <span class="font-mono">{key.name}</span> already exists.</span
+			>
+			It has the same name, signers and threshold, so Gear opened it instead of making another.
+		</p>
+	{/if}
 	{#if data.rotated && !key.revoked}
 		<RotateNext {key} from={data.rotated} app={data.app} />
 	{/if}

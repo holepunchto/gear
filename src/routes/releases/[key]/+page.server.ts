@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals, params, depends, url }) => 
 			}
 		: null;
 
-	return { seat: releases.seatKey, ...details, rotated };
+	return { seat: releases.seatKey, ...details, rotated, existed: url.searchParams.has('existed') };
 };
 
 export const actions: Actions = {

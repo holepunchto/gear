@@ -19,9 +19,9 @@ export const actions: Actions = {
 		const labels = form.getAll('label').map(String);
 		const releases = await getReleases(locals.db);
 
-		let key: string;
+		let made: { key: string; existed: boolean };
 		try {
-			key = await releases.createKey({
+			made = await releases.createKey({
 				name: String(form.get('name') ?? ''),
 				repo: String(form.get('repo') ?? ''),
 				signers: keys.map((key, i) => ({ key, label: labels[i] ?? '' })),
@@ -31,6 +31,9 @@ export const actions: Actions = {
 		} catch (err) {
 			return failure('create', err);
 		}
+		const { key } = made;
+		// The same key is already here, maybe for another repo: open it and say so.
+		if (made.existed) throw redirect(303, `/releases/${key}?existed`);
 		// Made from a repo's Releases tab: back there, to say it was made.
 		if (form.has('back')) {
 			throw redirect(
