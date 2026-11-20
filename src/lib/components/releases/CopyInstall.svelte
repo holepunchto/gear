@@ -1,20 +1,27 @@
 <script lang="ts">
 	import { installCommands } from '$lib/releases';
 
-	// Copy a release's npm install or git clone command in one click.
+	// Copy a release's npm install, git clone or pear install command in one
+	// click. All of them read the release key.
 	let {
 		name,
 		source,
-		tag
-	}: { name: string; source: { key: string; length: number }; tag: string } = $props();
+		tag,
+		pear = false
+	}: {
+		name: string;
+		source: { key: string; length: number };
+		tag: string;
+		pear?: boolean;
+	} = $props();
 
-	const commands = $derived(installCommands(name, source, tag));
+	const commands = $derived(installCommands(name, source, tag, pear));
 
-	let copied = $state<'npm' | 'git' | null>(null);
+	let copied = $state<'npm' | 'git' | 'pear' | null>(null);
 
-	async function copy(what: 'npm' | 'git') {
+	async function copy(what: 'npm' | 'git' | 'pear') {
 		try {
-			await navigator.clipboard.writeText(commands[what]);
+			await navigator.clipboard.writeText(commands[what] ?? '');
 			copied = what;
 			setTimeout(() => (copied = null), 1500);
 		} catch {}
@@ -38,4 +45,14 @@
 	>
 		{copied === 'git' ? 'Copied' : 'Copy git clone'}
 	</button>
+	{#if commands.pear}
+		<button
+			type="button"
+			onclick={() => copy('pear')}
+			title={commands.pear}
+			class="inline-flex h-11 cursor-pointer items-center rounded-lg bg-accent-400/14 px-2.5 text-xs font-semibold text-accent-300 transition-colors hover:bg-accent-400/22 sm:h-8"
+		>
+			{copied === 'pear' ? 'Copied' : 'Copy pear install'}
+		</button>
+	{/if}
 </span>

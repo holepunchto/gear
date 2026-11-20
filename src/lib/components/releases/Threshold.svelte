@@ -57,8 +57,7 @@
 		>
 		<span>
 			Signers and threshold are locked in: together they <b class="font-medium text-fg">are</b>
-			the key. To change them later you make a new key, and the current signers sign a last release pointing
-			to it.
+			the key. To change them later you rotate to a new key.
 		</span>
 	</p>
 </section>

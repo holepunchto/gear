@@ -6,7 +6,9 @@
 	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import MoveAway from '$lib/components/releases/MoveAway.svelte';
-	import Rotated from '$lib/components/releases/Rotated.svelte';
+	import Revoked from '$lib/components/releases/Revoked.svelte';
+	import Retired from '$lib/components/releases/Retired.svelte';
+	import RotateNext from '$lib/components/releases/RotateNext.svelte';
 	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
 	import {
 		ago,
@@ -16,8 +18,8 @@
 		shortKey,
 		signerInitials,
 		signerName,
-		type Release,
-		releaseOrdinal
+		type Pending,
+		type Release
 	} from '$lib/releases';
 
 	let { data }: PageProps = $props();
@@ -25,29 +27,21 @@
 	onMount(liveReleases);
 
 	const key = $derived(data.key);
-	const current = $derived(key.pending[0] ?? null);
+	const current = $derived(key.revoked ? null : (key.pending[0] ?? null));
+	let showRevoked = $state(false);
 
-	function rotation(to: string, name: string | null, previous: number) {
-		return [
-			{ k: 'Entry', v: `Rotation · the last entry, #${previous}` },
-			{ k: 'Hands over to', v: to },
-			{ k: 'New key name', v: name ?? 'not known on this device' },
-			{ k: 'After it', v: `${key.name} takes no more releases` }
-		];
-	}
-
-	function payload(r: Release, previous: number) {
+	function payload(r: Release, p: Pending) {
 		return [
 			{ k: 'Tag', v: r.tag },
 			{ k: 'Commit', v: r.commit },
-			{ k: 'Tree hash', v: r.tree },
-			{ k: 'Repo at length', v: `${key.repo?.name ?? shortKey(r.repo.key)} @ ${r.repo.length}` },
+			{ k: 'Tree', v: r.tree },
+			{ k: 'Repo up to length', v: `${key.repo?.name ?? 'the repo'} @ ${p.length}` },
 			{
-				k: 'Previous release',
+				k: 'Already signed',
 				v:
-					previous === 0
-						? 'none, this is the first'
-						: `#${previous - 1} · ${data.history[0]?.name ?? ''}`
+					p.base === 0
+						? 'nothing, this is the first release'
+						: `up to length ${p.base}${data.history[0] ? ` · ${data.history[0].name}` : ''}`
 			}
 		];
 	}
@@ -73,10 +67,10 @@
 					class="m-0 font-display text-[48px] leading-none font-semibold tracking-[-0.04em] break-all text-fg sm:text-[64px]"
 				>
 					{current
-						? current.rotate
-							? 'Rotation'
-							: proposalName(current, 'Proposal')
-						: (key.latest?.name ?? key.name)}
+						? proposalName(current, 'Proposal')
+						: key.revoked
+							? key.name
+							: (key.latest?.name ?? key.name)}
 				</h1>
 				{#if current}
 					<span
@@ -86,11 +80,17 @@
 						></span>
 						Collecting signatures
 					</span>
-				{:else if key.rotatedTo}
+				{:else if key.revoked}
+					<span
+						class="inline-flex items-center rounded-full bg-red-500/14 px-3 py-[5px] text-xs font-semibold text-red-300"
+					>
+						Revoked: don't trust
+					</span>
+				{:else if key.format === 'old'}
 					<span
 						class="inline-flex items-center rounded-full bg-white/6 px-3 py-[5px] text-xs font-semibold text-fg-2"
 					>
-						Retired
+						Old release format
 					</span>
 				{:else if key.latest}
 					<ReleaseSeal quorum={key.quorum} signers={key.signers.length} />
@@ -99,18 +99,12 @@
 			<span class="text-fg-2">
 				{#if current}
 					Proposed by <b class="font-semibold text-fg">{current.mine ? 'you' : 'a co-signer'}</b>
-					· {ago(current.added)} · will be the {releaseOrdinal(current.previous)}
-					{#if current.rotate}
-						· hands it over to <span class="font-mono text-fg"
-							>{current.rotate.name ?? shortKey(current.rotate.to)}</span
-						>
-					{/if}
-				{:else if key.rotatedTo}
-					<span class="font-mono text-fg">{key.name}</span> · retired · {key.quorum} of {key.signers
-						.length} signed its last entry
+					· {ago(current.added)} · signs the repo up to length {current.length}
+				{:else if key.format === 'old'}
+					<span class="font-mono text-fg">{key.name}</span> · made before release keys mirrored the repo
 				{:else if key.latest}
-					<span class="font-mono text-fg">{key.name}</span> · {key.latest.index + 1}
-					{key.latest.index === 0 ? 'release' : 'releases'}
+					<span class="font-mono text-fg">{key.name}</span> · {key.released}
+					{key.released === 1 ? 'tag' : 'tags'} signed
 				{:else}
 					No releases yet · {key.quorum} of {key.signers.length} must sign
 				{/if}
@@ -150,6 +144,22 @@
 			</div>
 		{/if}
 	</section>
+
+	{#if key.revoked}
+		<Revoked {key} />
+	{:else if key.retiredTo}
+		<Retired {key} />
+	{:else if key.format === 'old'}
+		<p
+			class="m-0 rounded-2xl bg-surface px-5 py-4 text-sm leading-normal text-fg-2 ring-1 ring-line ring-inset"
+		>
+			This key was made before release keys mirrored the repo, so Gear no longer reads it. Archive
+			it below, and make a new key for this repo.
+		</p>
+	{/if}
+	{#if data.rotated && !key.revoked}
+		<RotateNext {key} from={data.rotated} app={data.app} />
+	{/if}
 
 	<section
 		aria-label="Signers"
@@ -216,25 +226,11 @@
 					>
 						What gets signed
 					</h2>
-					{#if current.rotate}
+					{#if current.release}
 						<dl
 							class="m-0 grid grid-cols-[minmax(0,120px)_minmax(0,1fr)] px-5 pt-2 pb-3 sm:grid-cols-[160px_minmax(0,1fr)]"
 						>
-							{#each rotation(current.rotate.to, current.rotate.name, current.previous) as p (p.k)}
-								<dt class="border-b border-white/4 py-[11px] text-fg-2">{p.k}</dt>
-								<dd
-									class="m-0 truncate border-b border-white/4 py-[11px] font-mono text-[13px] text-fg"
-									title={p.v}
-								>
-									{p.v}
-								</dd>
-							{/each}
-						</dl>
-					{:else if current.release}
-						<dl
-							class="m-0 grid grid-cols-[minmax(0,120px)_minmax(0,1fr)] px-5 pt-2 pb-3 sm:grid-cols-[160px_minmax(0,1fr)]"
-						>
-							{#each payload(current.release, current.previous) as p (p.k)}
+							{#each payload(current.release, current) as p (p.k)}
 								<dt class="border-b border-white/4 py-[11px] text-fg-2">{p.k}</dt>
 								<dd
 									class="m-0 truncate border-b border-white/4 py-[11px] font-mono text-[13px] text-fg"
@@ -253,14 +249,22 @@
 				</section>
 
 				<CollectSignatures {key} {current} response={data.responses[current.id] ?? null} />
-			{:else if key.rotatedTo}
-				<Rotated {key} />
-			{:else if key.role !== 'follower' && !key.archived}
+			{:else if key.role !== 'follower' && !key.archived && !key.revoked && key.format === 'mirror'}
 				<ProposeForm {key} candidates={data.candidates} />
 			{/if}
 			<MoveAway {key} />
 		</div>
 
-		<ReleaseLog {key} {current} history={data.history} changes={data.changes} />
+		{#if !key.revoked || showRevoked}
+			<ReleaseLog {key} {current} history={data.history} changes={data.changes} />
+		{:else if key.length}
+			<button
+				type="button"
+				onclick={() => (showRevoked = true)}
+				class="inline-flex h-11 cursor-pointer items-center justify-center rounded-[10px] px-4 text-sm font-medium text-fg-2 ring-1 ring-line-strong ring-inset hover:text-fg sm:h-9"
+			>
+				Show what it signed anyway
+			</button>
+		{/if}
 	</div>
 </main>

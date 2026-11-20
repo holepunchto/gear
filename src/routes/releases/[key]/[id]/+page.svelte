@@ -8,7 +8,6 @@
 		ago,
 		avatar,
 		liveReleases,
-		shortKey,
 		signerInitials,
 		signerName,
 		type Inspection
@@ -33,12 +32,14 @@
 	const key = $derived(data.key);
 	const proposal = $derived(data.proposal);
 	const release = $derived(inspection?.ok ? inspection.release : proposal.release);
-	// Set for a rotation: the key this one hands its release log over to.
-	const rotate = $derived(inspection?.ok ? inspection.rotate : null);
-	const rotating = $derived(rotate !== null || Boolean(proposal.rotate));
-	const title = $derived(rotating ? 'rotation' : (release?.name ?? 'release'));
+	// Every tag signing adds to the key: this release and any tagged since the
+	// last one.
+	const others = $derived(
+		inspection?.ok ? inspection.tags.filter((t) => t.tag !== release?.tag).map((t) => t.tag) : []
+	);
+	const title = $derived(release?.name ?? 'release');
 	const response = $derived(typeof form?.response === 'string' ? form.response : data.response);
-	const committed = $derived(key.length > proposal.previous);
+	const committed = $derived(key.length >= proposal.length);
 	const allPass = $derived(inspection?.checks.every((c) => c.ok) ?? false);
 </script>
 
@@ -73,7 +74,7 @@
 			<h1
 				class="m-0 font-display text-[54px] leading-none font-semibold tracking-[-0.04em] break-all text-fg"
 			>
-				{rotating ? 'Rotation' : (release?.name ?? '…')}
+				{release?.name ?? '…'}
 			</h1>
 			<span class="text-[13px] text-fg-2">
 				{proposal.mine ? 'You proposed this' : 'A co-signer asked you'} · {ago(proposal.added)}
@@ -103,7 +104,7 @@
 
 		<span class="text-center text-[13px] font-medium text-apricot-300">
 			{#if committed}
-				{rotating ? 'This rotation is' : 'This release is'} already in the log.
+				This release is already signed.
 			{:else if proposal.mine}
 				{proposal.signed.length} of {key.quorum} signatures in.
 			{:else if proposal.signedByMe}
@@ -180,51 +181,7 @@
 			{/if}
 		</section>
 
-		{#if rotate}
-			<section
-				aria-label="What this rotation does"
-				class="flex flex-col gap-3 rounded-2xl bg-surface px-4 py-3.5 text-[13px] ring-1 ring-accent-300/25 ring-inset"
-			>
-				<p class="m-0 leading-normal text-fg">
-					Signing hands the <span class="font-mono">{key.name}</span> release log over to a new key.
-					Once it commits, <span class="font-mono">{key.name}</span> takes no more releases, and anyone
-					holding it is pointed at the new key.
-				</p>
-				<dl class="m-0 grid grid-cols-[96px_minmax(0,1fr)]">
-					<dt class="py-1.5 text-fg-2">New key</dt>
-					<dd class="m-0 truncate py-1.5 font-mono text-fg" title={rotate.to}>
-						{rotate.name ?? shortKey(rotate.to)}
-					</dd>
-					<dt class="py-1.5 text-fg-2">Key</dt>
-					<dd class="m-0 truncate py-1.5 font-mono text-fg" title={rotate.to}>{rotate.to}</dd>
-					<dt class="py-1.5 text-fg-2">Must sign</dt>
-					<dd class="m-0 py-1.5 text-fg">
-						{rotate.signers ? `${rotate.quorum} of ${rotate.signers.length}` : 'not known here'}
-					</dd>
-				</dl>
-				{#if rotate.signers}
-					<ul class="m-0 flex list-none flex-col gap-1.5 p-0">
-						{#each rotate.signers as s, i (s.key)}
-							<li class="flex items-center gap-2.5">
-								<span
-									class="flex h-7 w-7 flex-none items-center justify-center rounded-full text-[10px] font-semibold {avatar(
-										i
-									)}">{signerInitials(s)}</span
-								>
-								<span class="truncate text-fg">{signerName(s)}</span>
-								<span class="ml-auto font-mono text-[11px] text-fg-3">{shortKey(s.key)}</span>
-							</li>
-						{/each}
-					</ul>
-				{:else}
-					<p class="m-0 leading-normal text-apricot-300">
-						Gear can't open the new key from here: it has no entries yet. Check with whoever
-						proposed this that <span class="font-mono">{shortKey(rotate.to)}</span> is the key you agreed
-						on.
-					</p>
-				{/if}
-			</section>
-		{:else if release}
+		{#if release}
 			<dl
 				class="m-0 grid grid-cols-[96px_minmax(0,1fr)] rounded-2xl bg-surface px-4 py-2 text-[13px] ring-1 ring-line ring-inset"
 			>
@@ -234,8 +191,14 @@
 				<dd class="m-0 truncate py-2 font-mono text-fg" title={release.commit}>{release.commit}</dd>
 				<dt class="py-2 text-fg-2">Tree</dt>
 				<dd class="m-0 truncate py-2 font-mono text-fg" title={release.tree}>{release.tree}</dd>
-				<dt class="py-2 text-fg-2">Repo length</dt>
-				<dd class="m-0 truncate py-2 font-mono text-fg">{release.repo.length}</dd>
+				<dt class="py-2 text-fg-2">Repo up to</dt>
+				<dd class="m-0 truncate py-2 font-mono text-fg">length {proposal.length}</dd>
+				{#if others.length}
+					<dt class="py-2 text-fg-2">Also signs</dt>
+					<dd class="m-0 truncate py-2 font-mono text-fg" title={others.join(', ')}>
+						{others.join(', ')}
+					</dd>
+				{/if}
 			</dl>
 		{/if}
 
@@ -245,7 +208,7 @@
 				<p class="m-0 text-xs text-fg-3">
 					{proposal.mine
 						? 'Your signature is already on your proposal.'
-						: `Paste it to whoever proposed the ${rotating ? 'rotation' : 'release'}, so they can commit it.`}
+						: 'Paste it to whoever proposed the release, so they can commit it.'}
 				</p>
 				<CopyField value={response} label="Your signature" />
 			</section>
@@ -289,7 +252,7 @@
 				{:else if inspection?.ok && !allPass}
 					Sign anyway
 				{:else}
-					Sign {rotating ? 'rotation' : (release?.name ?? '')}
+					Sign {release?.name ?? ''}
 				{/if}
 			</button>
 			{#if inspection?.ok && !allPass}

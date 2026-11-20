@@ -12,7 +12,8 @@
 	import FollowKey from '$lib/components/releases/FollowKey.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import MoveAway from '$lib/components/releases/MoveAway.svelte';
-	import Rotated from '$lib/components/releases/Rotated.svelte';
+	import Revoked from '$lib/components/releases/Revoked.svelte';
+	import Retired from '$lib/components/releases/Retired.svelte';
 	import {
 		liveReleases,
 		proposalName,
@@ -106,7 +107,7 @@
 	<div class="flex flex-col gap-8">
 		{#each data.keys as d (d.key.key)}
 			{@const key = d.key}
-			{@const current = key.pending[0] ?? null}
+			{@const current = key.revoked ? null : (key.pending[0] ?? null)}
 			<article class="flex flex-col gap-4" aria-label="{key.name} releases">
 				<header
 					class="flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-2xl bg-surface p-[18px] ring-1 ring-line ring-inset"
@@ -121,7 +122,13 @@
 						<SeatDots n={key.signers.length} filled={key.quorum} />
 						{key.quorum} of {key.signers.length} must sign
 					</span>
-					{#if key.role === 'follower'}
+					{#if key.revoked}
+						<span
+							class="rounded-full bg-red-500/14 px-[7px] py-px text-[10px] font-semibold tracking-[0.08em] text-red-300 uppercase"
+						>
+							Revoked
+						</span>
+					{:else if key.role === 'follower'}
 						<span
 							class="rounded-full bg-white/6 px-[7px] py-px text-[10px] font-semibold tracking-[0.08em] text-fg-2 uppercase"
 						>
@@ -142,6 +149,11 @@
 
 				<div class="flex flex-wrap items-start gap-6">
 					<div class="flex min-w-0 flex-[999_1_560px] flex-col gap-4">
+						{#if key.revoked}
+							<Revoked {key} />
+						{:else if key.retiredTo}
+							<Retired {key} />
+						{/if}
 						{#if current}
 							<div
 								class="flex flex-wrap items-baseline justify-between gap-2 rounded-2xl bg-surface px-5 py-4 ring-1 ring-line ring-inset"
@@ -159,14 +171,14 @@
 								</span>
 							</div>
 							<CollectSignatures {key} {current} response={d.responses[current.id] ?? null} />
-						{:else if key.rotatedTo}
-							<Rotated {key} />
-						{:else if key.role !== 'follower'}
+						{:else if key.role !== 'follower' && !key.revoked}
 							<ProposeForm {key} candidates={d.candidates} />
 						{/if}
 						<MoveAway {key} />
 					</div>
-					<ReleaseLog {key} {current} history={d.history} changes={d.changes} />
+					{#if !key.revoked}
+						<ReleaseLog {key} {current} history={d.history} changes={d.changes} />
+					{/if}
 				</div>
 			</article>
 		{/each}

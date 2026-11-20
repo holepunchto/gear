@@ -5,6 +5,7 @@
 		multisig,
 		proposalName,
 		shortKey,
+		tagHref,
 		type Changes,
 		type KeySummary,
 		type Pending,
@@ -19,7 +20,8 @@
 	}: {
 		key: KeySummary;
 		current: Pending | null;
-		history: (Release & { index: number })[];
+		// Every signed tag, newest first.
+		history: Release[];
 		// The latest release's changes in brief.
 		changes?: (Changes & { count: number }) | null;
 	} = $props();
@@ -35,24 +37,10 @@
 		</h2>
 		<span class="font-mono text-xs text-fg-3">{shortKey(key.key)}</span>
 	</div>
-	{#if key.rotatedTo}
-		{@const to = key.rotatedTo}
-		<svelte:element
-			this={to.known ? 'a' : 'div'}
-			href={to.known ? `/releases/${to.to}` : undefined}
-			class="-mx-2 flex gap-3.5 rounded-lg px-2 pt-1 text-fg no-underline transition-colors hover:bg-surface-2"
-		>
-			<div class="flex w-3 flex-none flex-col items-center" aria-hidden="true">
-				<span class="h-3 w-3 rounded-full bg-bg shadow-[inset_0_0_0_2px_#5dddad]"></span>
-				<span class="w-0.5 flex-1 bg-neutral-800"></span>
-			</div>
-			<div class="flex min-w-0 flex-1 items-baseline gap-2.5 pb-3.5">
-				<span class="w-7 font-mono text-xs text-fg-3">{key.length}</span>
-				<span class="truncate font-display text-[15px] font-semibold text-accent-300">
-					Rotated to {to.name ?? shortKey(to.to)}{to.known ? ' →' : ''}
-				</span>
-			</div>
-		</svelte:element>
+	{#if key.length}
+		<p class="m-0 mb-2 text-xs leading-normal text-fg-3">
+			Every tag in the repo as signed, up to length {key.length}.
+		</p>
 	{/if}
 	{#if current}
 		<a
@@ -67,7 +55,6 @@
 				<span class="w-0.5 flex-1 bg-neutral-800"></span>
 			</div>
 			<div class="flex flex-1 items-baseline gap-2.5 pb-3.5">
-				<span class="w-7 font-mono text-xs text-fg-3">{current.previous + 1}</span>
 				<span class="font-display text-[15px] font-semibold text-apricot-300">
 					{proposalName(current, '…')}
 				</span>
@@ -77,32 +64,33 @@
 			</div>
 		</a>
 	{/if}
-	{#each history as r (r.index)}
+	{#each history as r (r.tag)}
 		<a
-			href="/releases/{key.key}/{r.index}"
-			aria-label="{r.name}, release {r.index + 1}"
+			href={tagHref(key.key, r.tag)}
+			aria-label="{r.name}, signed"
 			class="-mx-2 flex gap-3.5 rounded-lg px-2 pt-1 text-fg no-underline transition-colors hover:bg-surface-2"
 		>
 			<div class="flex w-3 flex-none flex-col items-center" aria-hidden="true">
 				<span
-					class="h-3 w-3 rounded-full bg-seal-400 {multisig(key.signers.length)
+					class="h-3 w-3 rounded-full {key.revoked
+						? 'bg-neutral-600'
+						: 'bg-seal-400'} {!key.revoked && multisig(key.signers.length)
 						? 'shadow-[0_0_8px_rgb(139_92_246/0.7)]'
 						: ''}"
 				></span>
 				<span class="w-0.5 flex-1 bg-neutral-800"></span>
 			</div>
 			<div class="flex flex-1 items-baseline gap-2.5 pb-3.5">
-				<span class="w-7 font-mono text-xs text-fg-3">{r.index + 1}</span>
 				<span class="font-display text-[15px] font-semibold text-fg">{r.name}</span>
 				<span class="ml-auto font-mono text-xs text-fg-3" title={r.commit}>
 					{r.commit.slice(0, 7)}
 				</span>
 			</div>
 		</a>
-		{#if changes && r.index === key.latest?.index}
+		{#if changes && r.tag === key.latest?.tag}
 			<div class="mb-2 ml-[26px] flex min-w-0 flex-col gap-1 rounded-lg bg-surface-2 px-3 py-2">
 				<a
-					href="/releases/{key.key}/{r.index}"
+					href={tagHref(key.key, r.tag)}
 					class="text-xs text-fg-2 no-underline hover:text-accent-300"
 				>
 					{changesSummary(changes, changes.count)}
@@ -114,7 +102,9 @@
 		{/if}
 	{:else}
 		{#if !current}
-			<p class="m-0 text-sm text-fg-3">Nothing signed yet.</p>
+			<p class="m-0 text-sm text-fg-3">
+				{key.arriving ? 'The signed repo is still arriving.' : 'Nothing signed yet.'}
+			</p>
 		{/if}
 	{/each}
 </aside>
