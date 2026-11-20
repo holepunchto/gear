@@ -24,11 +24,12 @@
 	const active = $derived(data.keys.filter((k) => !k.archived));
 	const archived = $derived(data.keys.filter((k) => k.archived));
 
-	// Proposals from co-signers this device hasn't signed yet.
+	// Proposals from co-signers this device hasn't signed yet, on keys it
+	// still releases from.
 	const waiting = $derived(
-		data.keys.flatMap((k) =>
-			k.pending.filter((p) => !p.mine && !p.signedByMe).map((p) => ({ key: k, p }))
-		)
+		data.keys
+			.filter((k) => !k.archived && !k.revoked)
+			.flatMap((k) => k.pending.filter((p) => !p.mine && !p.signedByMe).map((p) => ({ key: k, p })))
 	);
 
 	function pendingLine(k: (typeof data.keys)[number]) {

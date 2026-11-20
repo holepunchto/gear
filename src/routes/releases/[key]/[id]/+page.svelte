@@ -183,7 +183,7 @@
 				>
 					Release key {key.name}
 				</a>
-				{#if !published}
+				{#if !published && !proposal.publishing}
 					<form method="POST" action="?/withdraw" use:enhance={submitting('withdraw')}>
 						<button
 							type="submit"

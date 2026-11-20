@@ -1,6 +1,6 @@
 // @ts-nocheck
 import test from 'brittle';
-import { flowSteps, shouldPublish } from './release-flow.js';
+import { flowSteps, publishStatus, shouldPublish } from './release-flow.js';
 
 const ready = { quorum: 2, signed: ['a', 'b'], length: 10, keyLength: 4 };
 
@@ -22,6 +22,13 @@ test('does not publish twice, or again after a failure', function (t) {
 test('does not publish what the key already holds', function (t) {
 	t.absent(shouldPublish({ ...ready, keyLength: 10 }));
 	t.absent(shouldPublish({ ...ready, keyLength: 12 }));
+});
+
+test('says publishing only while a publish runs', function (t) {
+	t.is(publishStatus({ autoPublish: true }), 'ready to publish');
+	t.is(publishStatus({ publishing: true }), 'publishing');
+	t.is(publishStatus({ error: 'Commit failed' }), 'publishing failed');
+	t.is(publishStatus({ publishing: true, error: 'Commit failed' }), 'publishing');
 });
 
 const me = { key: 'me', me: true };

@@ -1,7 +1,7 @@
 import { invalidate } from '$app/navigation';
 import { initials } from '$lib/initials';
 import { relativeTime } from '$lib/time';
-import { flowSteps } from '$lib/release-flow.js';
+import { flowSteps, publishStatus } from '$lib/release-flow.js';
 import type {
 	Changes,
 	KeySummary,
@@ -69,13 +69,7 @@ export function releaseProgress(key: KeySummary, p: Pending) {
 		version: '',
 		sign: 'waiting on your signature',
 		signatures: `waiting on ${waiting.map(signerName).join(', ')}`,
-		publish: p.publishing
-			? 'publishing'
-			: p.error
-				? 'publishing failed'
-				: p.autoPublish
-					? 'signed, publishing'
-					: 'ready to publish',
+		publish: publishStatus(p),
 		done: 'released'
 	}[steps[current].id];
 	return { step: current + 1, steps: steps.length, text };
