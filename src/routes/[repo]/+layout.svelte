@@ -407,7 +407,11 @@
 				type="button"
 				hidden={!!repo.error}
 				onclick={() => (cloneOpen = !cloneOpen)}
-				class="inline-flex h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-accent-400 sm:h-10 px-4 text-sm font-semibold text-accent-900 shadow-[inset_0_0_0_1px_rgb(201_245_223/0.4),0_8px_28px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300 sm:flex-none"
+				class="inline-flex h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold transition-colors sm:h-10 sm:flex-none {repo.release?.tag
+					? multisig(repo.release.signers)
+						? 'bg-seal-400 text-seal-900 shadow-[inset_0_0_0_1px_rgb(237_233_254/0.5),0_8px_28px_rgb(139_92_246/0.5)] hover:bg-seal-300'
+						: 'bg-seal-400 text-seal-900 shadow-[inset_0_0_0_1px_rgb(237_233_254/0.4)] hover:bg-seal-300'
+					: 'bg-accent-400 text-accent-900 shadow-[inset_0_0_0_1px_rgb(201_245_223/0.4),0_8px_28px_rgb(35_204_148/0.35)] hover:bg-accent-300'}"
 				aria-expanded={cloneOpen}
 				aria-haspopup="dialog"
 			>
@@ -427,9 +431,7 @@
 				Clone
 				{#if repo.release?.tag}
 					<span
-						class="rounded-md px-1.5 py-px font-mono text-xs {multisig(repo.release.signers)
-							? 'bg-seal-900 text-seal-100 shadow-[0_0_12px_rgb(139_92_246/0.6)]'
-							: 'text-seal-900 ring-1 ring-seal-900/60 ring-inset'}"
+						class="rounded-md bg-seal-900 px-1.5 py-px font-mono text-xs text-seal-100"
 					>
 						{repo.release.tag}
 					</span>
