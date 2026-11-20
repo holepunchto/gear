@@ -389,14 +389,24 @@
 							/>
 							<div class="flex min-w-0 flex-1 flex-col gap-1">
 								<div class="flex min-w-0 items-center gap-2">
-									<!-- Stretched link — before: overlay makes the whole card navigate;
-										the other controls sit above it via relative z-10. -->
-									<a
-										href="/{repo.name}"
-										class="truncate font-display text-[17px] font-semibold tracking-[-0.01em] text-fg no-underline before:absolute before:inset-0 before:rounded-2xl"
-									>
-										{repo.name}
-									</a>
+									{#if repo.name === ''}
+										<!-- A record with no name, left by cloning a link without
+											/<name>. There is no repo page to go to. -->
+										<span
+											class="truncate font-display text-[17px] font-semibold tracking-[-0.01em] text-fg-2"
+										>
+											Unnamed · <span class="font-mono text-sm">{repo.key.slice(0, 8)}…</span>
+										</span>
+									{:else}
+										<!-- Stretched link — before: overlay makes the whole card navigate;
+											the other controls sit above it via relative z-10. -->
+										<a
+											href="/{repo.name}"
+											class="truncate font-display text-[17px] font-semibold tracking-[-0.01em] text-fg no-underline before:absolute before:inset-0 before:rounded-2xl"
+										>
+											{repo.name}
+										</a>
+									{/if}
 									{#if repo.writable}
 										<span
 											class="shrink-0 rounded-full bg-accent-400/12 px-[7px] py-px text-[10px] font-semibold tracking-[0.08em] text-accent-300 uppercase"
@@ -406,10 +416,16 @@
 										</span>
 									{/if}
 								</div>
-								<span class="truncate font-mono text-xs text-fg-3" title={repo.url}>
-									{shortUrl(repo.url)}
-								</span>
-								{#if data.badges[repo.key]}
+								{#if repo.name === ''}
+									<span class="text-xs text-fg-3">
+										Not a repo: a clone of a link with no repo name saved this. Delete it.
+									</span>
+								{:else}
+									<span class="truncate font-mono text-xs text-fg-3" title={repo.url}>
+										{shortUrl(repo.url)}
+									</span>
+								{/if}
+								{#if data.badges[repo.key]?.version || data.badges[repo.key]?.pending}
 									<ReleaseLine release={data.badges[repo.key]} />
 								{/if}
 							</div>
