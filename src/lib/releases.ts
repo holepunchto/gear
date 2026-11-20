@@ -1,7 +1,14 @@
 import { invalidate } from '$app/navigation';
 import { initials } from '$lib/initials';
 import { relativeTime } from '$lib/time';
-import type { Changes, Pending, RepoRelease, Signer } from '$lib/server/release-service';
+import { flowSteps } from '$lib/release-flow.js';
+import type {
+	Changes,
+	KeySummary,
+	Pending,
+	RepoRelease,
+	Signer
+} from '$lib/server/release-service';
 
 export type {
 	AppInfo,
@@ -45,6 +52,33 @@ export function signerInitials(s: Signer) {
 // What a pending proposal is called: the tag it releases.
 export function proposalName(p: Pending, fallback = 'A release') {
 	return p.release?.name ?? fallback;
+}
+
+// Where a pending release is in its flow: its step, of how many, and what
+// it waits on.
+export function releaseProgress(key: KeySummary, p: Pending) {
+	const { steps, current } = flowSteps({
+		quorum: key.quorum,
+		signers: key.signers,
+		signed: p.signed,
+		length: p.length,
+		keyLength: key.length
+	});
+	const waiting = key.signers.filter((s) => !s.me && !p.signed.includes(s.key));
+	const text = {
+		version: '',
+		sign: 'waiting on your signature',
+		signatures: `waiting on ${waiting.map(signerName).join(', ')}`,
+		publish: p.publishing
+			? 'publishing'
+			: p.error
+				? 'publishing failed'
+				: p.autoPublish
+					? 'signed, publishing'
+					: 'ready to publish',
+		done: 'released'
+	}[steps[current].id];
+	return { step: current + 1, steps: steps.length, text };
 }
 
 // A key with more than one signer: its releases get the full seal.

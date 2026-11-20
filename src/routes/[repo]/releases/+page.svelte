@@ -6,9 +6,10 @@
 	import SignerList from '$lib/components/releases/SignerList.svelte';
 	import SignAs from '$lib/components/releases/SignAs.svelte';
 	import Threshold from '$lib/components/releases/Threshold.svelte';
-	import CollectSignatures from '$lib/components/releases/CollectSignatures.svelte';
 	import ProposeForm from '$lib/components/releases/ProposeForm.svelte';
-	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
+	import ReleaseInProgress from '$lib/components/releases/ReleaseInProgress.svelte';
+	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
+	import CopyInstall from '$lib/components/releases/CopyInstall.svelte';
 	import FollowKey from '$lib/components/releases/FollowKey.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import MoveAway from '$lib/components/releases/MoveAway.svelte';
@@ -16,9 +17,10 @@
 	import Retired from '$lib/components/releases/Retired.svelte';
 	import {
 		liveReleases,
-		proposalName,
+		multisig,
 		shortKey,
 		signerName,
+		tagHref,
 		type DraftSigner
 	} from '$lib/releases';
 
@@ -126,9 +128,9 @@
 								Release key <span class="font-mono">{key.name}</span> created
 							</span>
 							<span class="text-sm text-fg-2">
-								Next, tag a version below and propose it.
-								{#if key.signers.length > 1}
-									Send the share link to your co-signers so they can sign.
+								Next, release a version below.
+								{#if key.quorum > 1}
+									Gear takes you through collecting your co-signers' signatures.
 								{:else}
 									You sign it alone, so it is released as soon as you sign.
 								{/if}
@@ -178,42 +180,63 @@
 					>
 						Key page <span class="font-mono text-fg-3">{shortKey(key.key)}</span> →
 					</a>
-					<KeyShare keyText={key.key} share={key.share} />
+					{#if key.latest}
+						<KeyShare keyText={key.key} share={key.share} />
+					{/if}
 				</header>
 
-				<div class="flex flex-wrap items-start gap-6">
-					<div class="flex min-w-0 flex-[999_1_560px] flex-col gap-4">
-						{#if key.revoked}
-							<Revoked {key} />
-						{:else if key.retiredTo}
-							<Retired {key} />
-						{/if}
-						{#if current}
-							<div
-								class="flex flex-wrap items-baseline justify-between gap-2 rounded-2xl bg-surface px-5 py-4 ring-1 ring-line ring-inset"
+				{#if key.revoked}
+					<Revoked {key} />
+				{:else if key.retiredTo}
+					<Retired {key} />
+				{/if}
+				{#if key.latest && !key.revoked}
+					<section
+						aria-label="Latest release"
+						class="flex flex-col gap-3 rounded-2xl p-[18px] ring-1 ring-inset {multisig(
+							key.signers.length
+						)
+							? 'bg-seal-500/12 shadow-glow-seal ring-seal-400/45'
+							: 'bg-seal-500/5 ring-seal-400/20'}"
+					>
+						<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+							<span class="text-[13px] text-fg-2">Latest release</span>
+							<a
+								href={tagHref(key.key, key.latest.tag)}
+								class="font-display text-lg font-semibold text-seal-200 no-underline hover:underline"
 							>
-								<span class="text-fg-2">
-									<b class="font-display text-lg font-semibold text-apricot-300">
-										{proposalName(current)}
-									</b>
-									is collecting signatures ·
-									<a href="/releases/{key.key}/{current.id}">review</a>
-								</span>
-								<span class="text-[13px]">
-									<b class="font-display text-lg font-semibold">{current.signed.length}</b>
-									<span class="text-fg-3">of {key.quorum} needed</span>
-								</span>
-							</div>
-							<CollectSignatures {key} {current} response={d.responses[current.id] ?? null} />
-						{:else if key.role !== 'follower' && !key.revoked}
-							<ProposeForm {key} candidates={d.candidates} />
-						{/if}
-						<MoveAway {key} />
-					</div>
-					{#if !key.revoked}
-						<ReleaseLog {key} {current} history={d.history} changes={d.changes} />
-					{/if}
-				</div>
+								{key.latest.name}
+							</a>
+							<ReleaseSeal quorum={key.quorum} signers={key.signers.length} />
+							<a
+								href="/releases/{key.key}"
+								class="tap-44 ml-auto text-[13px] text-fg-3 no-underline hover:text-accent-300"
+							>
+								Release log →
+							</a>
+						</div>
+						<CopyInstall
+							name={data.repo.name}
+							source={{ key: key.key, length: key.length }}
+							tag={key.latest.tag}
+							pear={d.app?.pear ?? false}
+						/>
+					</section>
+				{:else if !key.revoked}
+					<p class="m-0 text-[13px] text-fg-3">
+						{key.arriving
+							? 'The signed repo is still arriving.'
+							: key.role === 'follower'
+								? 'Nothing is released on this key yet.'
+								: 'Share links appear after your first release.'}
+					</p>
+				{/if}
+				{#if current}
+					<ReleaseInProgress {key} {current} />
+				{:else if key.role !== 'follower' && !key.revoked}
+					<ProposeForm {key} candidates={d.candidates} />
+				{/if}
+				<MoveAway {key} />
 			</article>
 		{/each}
 	</div>

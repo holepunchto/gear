@@ -55,33 +55,6 @@ export const actions: Actions = {
 		});
 	},
 
-	sign: async ({ request, locals, params }) => {
-		const form = await request.formData();
-		const releases = await getReleases(locals.db);
-		return attempt('sign', async () => ({
-			response: await releases.sign(params.key, String(form.get('id')), password(form))
-		}));
-	},
-
-	respond: async ({ request, locals, params }) => {
-		const form = await request.formData();
-		const releases = await getReleases(locals.db);
-		return attempt('respond', async () => {
-			await releases.addResponse(
-				params.key,
-				String(form.get('id')),
-				String(form.get('response') ?? '')
-			);
-			return { ok: true };
-		});
-	},
-
-	commit: async ({ request, locals, params }) => {
-		const form = await request.formData();
-		const releases = await getReleases(locals.db);
-		return attempt('commit', () => releases.commit(params.key, String(form.get('id'))));
-	},
-
 	rotate: async ({ request, locals, params }) => {
 		const form = await request.formData();
 		const keys = form.getAll('signer').map(String);
@@ -119,13 +92,6 @@ export const actions: Actions = {
 		const releases = await getReleases(locals.db);
 		await releases.unarchive(params.key);
 		return { unarchive: { ok: true } };
-	},
-
-	withdraw: async ({ request, locals, params }) => {
-		const form = await request.formData();
-		const releases = await getReleases(locals.db);
-		await releases.withdraw(params.key, String(form.get('id')));
-		return { withdraw: { ok: true } };
 	}
 };
 

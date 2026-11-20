@@ -430,22 +430,15 @@ class Releases {
 				key: summary,
 				history: [],
 				candidates: null,
-				responses: {},
 				changes: null,
 				app: null
 			};
 		}
-		const responses = Object.fromEntries(
-			await Promise.all(
-				summary.pending.map(async (p) => [p.id, await this.myResponse(key, p.id)] as const)
-			)
-		);
 		const changes = summary.latest ? await this.changes(key, summary.latest.tag) : null;
 		return {
 			key: summary,
 			history: await this.history(key),
 			candidates: summary.revoked ? null : await this.candidates(summary),
-			responses,
 			// The latest release's changes in brief: the count and the first few.
 			changes: changes && {
 				...changes,

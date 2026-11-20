@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { PageProps } from './$types';
-	import CollectSignatures from '$lib/components/releases/CollectSignatures.svelte';
 	import ProposeForm from '$lib/components/releases/ProposeForm.svelte';
 	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
@@ -10,6 +9,7 @@
 	import Retired from '$lib/components/releases/Retired.svelte';
 	import RotateNext from '$lib/components/releases/RotateNext.svelte';
 	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
+	import ReleaseInProgress from '$lib/components/releases/ReleaseInProgress.svelte';
 	import {
 		ago,
 		avatar,
@@ -17,9 +17,7 @@
 		proposalName,
 		shortKey,
 		signerInitials,
-		signerName,
-		type Pending,
-		type Release
+		signerName
 	} from '$lib/releases';
 
 	let { data }: PageProps = $props();
@@ -29,22 +27,6 @@
 	const key = $derived(data.key);
 	const current = $derived(key.revoked ? null : (key.pending[0] ?? null));
 	let showRevoked = $state(false);
-
-	function payload(r: Release, p: Pending) {
-		return [
-			{ k: 'Tag', v: r.tag },
-			{ k: 'Commit', v: r.commit },
-			{ k: 'Tree', v: r.tree },
-			{ k: 'Repo up to length', v: `${key.repo?.name ?? 'the repo'} @ ${p.length}` },
-			{
-				k: 'Already signed',
-				v:
-					p.base === 0
-						? 'nothing, this is the first release'
-						: `up to length ${p.base}${data.history[0] ? ` · ${data.history[0].name}` : ''}`
-			}
-		];
-	}
 </script>
 
 <svelte:head>
@@ -115,7 +97,11 @@
 					· <span class="text-fg">Archived</span>
 				{/if}
 			</span>
-			<KeyShare keyText={key.key} share={key.share} />
+			{#if key.latest}
+				<KeyShare keyText={key.key} share={key.share} />
+			{:else if key.format === 'mirror' && !key.revoked && key.role !== 'follower'}
+				<span class="text-[13px] text-fg-3">Share links appear after your first release.</span>
+			{/if}
 		</div>
 
 		{#if current}
@@ -217,38 +203,7 @@
 	<div class="flex flex-wrap items-start gap-6">
 		<div class="flex min-w-0 flex-[999_1_600px] flex-col gap-6">
 			{#if current}
-				<section
-					aria-label="What is being signed"
-					class="overflow-hidden rounded-[18px] bg-surface ring-1 ring-line ring-inset"
-				>
-					<h2
-						class="m-0 bg-surface-2 px-5 py-3.5 font-sans text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase"
-					>
-						What gets signed
-					</h2>
-					{#if current.release}
-						<dl
-							class="m-0 grid grid-cols-[minmax(0,120px)_minmax(0,1fr)] px-5 pt-2 pb-3 sm:grid-cols-[160px_minmax(0,1fr)]"
-						>
-							{#each payload(current.release, current) as p (p.k)}
-								<dt class="border-b border-white/4 py-[11px] text-fg-2">{p.k}</dt>
-								<dd
-									class="m-0 truncate border-b border-white/4 py-[11px] font-mono text-[13px] text-fg"
-									title={p.v}
-								>
-									{p.v}
-								</dd>
-							{/each}
-						</dl>
-					{:else}
-						<p class="m-0 px-5 py-4 text-sm text-fg-2">
-							Not checked on this device yet.
-							<a href="/releases/{key.key}/{current.id}">Inspect the proposal</a> to see it.
-						</p>
-					{/if}
-				</section>
-
-				<CollectSignatures {key} {current} response={data.responses[current.id] ?? null} />
+				<ReleaseInProgress {key} {current} />
 			{:else if key.role !== 'follower' && !key.archived && !key.revoked && key.format === 'mirror'}
 				<ProposeForm {key} candidates={data.candidates} />
 			{/if}
