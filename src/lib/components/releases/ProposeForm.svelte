@@ -8,7 +8,7 @@
 	// older one from behind a fold, or on a repo this device owns, make a new
 	// tag and propose it in one go, then open its flow. On a key this device
 	// signs alone it is signed and published in the same go. Posts to the
-	// actions of /releases/<key>/new, which redirect to the flow page.
+	// actions of the repo's Releases tab, which redirect to the release.
 	let { key, candidates }: { key: KeySummary; candidates: Candidates | null } = $props();
 
 	let tag = $state(untrack(() => candidates?.tags[0] ?? ''));
@@ -54,11 +54,7 @@
 		'inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-[10px] bg-accent-400 px-5 text-sm font-semibold text-accent-900 transition-colors hover:bg-accent-300 disabled:cursor-default disabled:opacity-60';
 </script>
 
-<section
-	aria-label="Release a new version"
-	class="flex flex-col gap-3 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
->
-	<h2 class="m-0 text-xl font-semibold text-fg">Release a new version</h2>
+<div class="flex flex-col gap-3">
 	{#if pear && candidates}
 		<label class="flex flex-col gap-1.5 text-xs text-fg-2">
 			<span>
@@ -92,6 +88,7 @@
 				class="flex flex-col gap-2 sm:flex-row"
 				use:enhance={submitting('propose')}
 			>
+				<input type="hidden" name="key" value={key.key} />
 				{#if pear}<input type="hidden" name="password" value={password} />{/if}
 				<label class="sr-only" for="tag-{key.key}">Tag</label>
 				<select id="tag-{key.key}" name="tag" bind:value={tag} class="{field} flex-1 px-2.5">
@@ -127,6 +124,7 @@
 				class="flex flex-col gap-2 border-t border-white/4 pt-3"
 				use:enhance={submitting('proposeNew')}
 			>
+				<input type="hidden" name="key" value={key.key} />
 				{#if pear}<input type="hidden" name="password" value={password} />{/if}
 				<span class="text-sm font-semibold text-fg">
 					{candidates.tags.length > 0 ? 'Or tag a branch' : 'Tag a branch'}
@@ -189,6 +187,7 @@
 				class="flex flex-col gap-2"
 				use:enhance={submitting('propose')}
 			>
+				<input type="hidden" name="key" value={key.key} />
 				{#if pear}<input type="hidden" name="password" value={password} />{/if}
 				<p class="m-0 text-xs text-apricot-300">
 					These are older than {candidates.latest?.name ?? 'the latest release'}, the latest
@@ -215,4 +214,4 @@
 	{#if error}
 		<p class="m-0 text-sm text-red-400" role="alert">{error}</p>
 	{/if}
-</section>
+</div>

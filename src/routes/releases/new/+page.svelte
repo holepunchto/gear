@@ -10,10 +10,9 @@
 
 	let { data, form }: PageProps = $props();
 
-	// The form starts from the load and is the user's from then on. Arriving
-	// from a repo fills the source step, so it opens already done.
-	let name = $state(untrack(() => (data.repo ? `${data.repo}/stable` : '')));
-	let repo = $state(untrack(() => data.repo ?? data.repos[0] ?? ''));
+	// The form starts from the load and is the user's from then on.
+	let name = $state('');
+	let repo = $state(untrack(() => data.repos[0] ?? ''));
 	let signers = $state<DraftSigner[]>([{ key: untrack(() => data.seat), label: '', me: true }]);
 	let quorum = $state(1);
 	let creating = $state(false);
@@ -70,9 +69,6 @@
 			};
 		}}
 	>
-		{#if data.repo}
-			<input type="hidden" name="back" value="repo" />
-		{/if}
 		<ol aria-label="Steps" class="m-0 hidden flex-[0_1_220px] list-none flex-col gap-1 p-0 lg:flex">
 			{#each steps as s, i (s.label)}
 				<li
