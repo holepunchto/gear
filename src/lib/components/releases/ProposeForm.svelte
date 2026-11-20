@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import type { ActionResult } from '@sveltejs/kit';
 	import type { Candidates, KeySummary } from '$lib/releases';
 
-	// Propose a tag newer than the latest release, an older one from behind a
-	// fold, or on a repo this device owns, make a new tag and propose it in one
-	// go. Posts to the key page's actions.
+	// Release a new version: propose a tag newer than the latest release, an
+	// older one from behind a fold, or on a repo this device owns, make a new
+	// tag and propose it in one go, then open its flow. On a key this device
+	// signs alone it is signed and published in the same go. Posts to the key
+	// page's actions.
 	let { key, candidates }: { key: KeySummary; candidates: Candidates | null } = $props();
 
 	let tag = $state(untrack(() => candidates?.tags[0] ?? ''));
@@ -17,7 +20,11 @@
 	let error = $state<string | null>(null);
 	// Your seat is a pear key: proposing signs with it, given its password.
 	const pear = $derived(key.signAs !== null && key.signers.some((s) => s.me));
+	// Only your signature is needed: proposing releases it.
+	const alone = $derived(key.quorum === 1 && key.signers.some((s) => s.me));
 	let password = $state('');
+	// Releasing alone with a pear key needs its password first.
+	const locked = $derived(alone && pear && !password);
 
 	$effect(() => {
 		if (candidates && !candidates.tags.includes(tag)) tag = candidates.tags[0] ?? '';
@@ -35,6 +42,8 @@
 					error = (result.data?.propose as { error?: string } | undefined)?.error ?? 'Failed';
 				} else if (result.type === 'error') {
 					error = result.error?.message ?? 'Failed';
+				} else if (result.type === 'success' && typeof result.data?.id === 'string') {
+					await goto(`/releases/${key.key}/${result.data.id}`, { invalidateAll: true });
 				} else {
 					await update();
 				}
@@ -49,15 +58,15 @@
 </script>
 
 <section
-	aria-label="Propose a release"
+	aria-label="Release a new version"
 	class="flex flex-col gap-3 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
 >
-	<h2 class="m-0 text-xl font-semibold text-fg">Propose a release</h2>
+	<h2 class="m-0 text-xl font-semibold text-fg">Release a new version</h2>
 	{#if pear && candidates}
 		<label class="flex flex-col gap-1.5 text-xs text-fg-2">
 			<span>
 				Password for your pear key <span class="font-mono text-fg">{key.signAs}</span>, to sign what
-				you propose. Leave it empty to sign later.
+				you propose.{alone ? '' : ' Leave it empty to sign later.'}
 			</span>
 			<input
 				type="password"
@@ -76,8 +85,9 @@
 		{#if candidates.tags.length > 0}
 			<p class="m-0 text-sm text-fg-2">
 				Pick a tag from <a href="/{candidates.repo}/tags" class="font-mono">{candidates.repo}</a>.
-				Gear fills in its commit, tree and the repo length, mirrors the proposal to your blind
-				peers, and signs it for you if you're a signer.
+				{alone
+					? 'You are the only signer needed, so Gear signs it and publishes it in one go.'
+					: "Gear fills in its commit, tree and the repo length, signs it for you if you're a signer, and walks you through collecting the other signatures."}
 			</p>
 			<form
 				method="POST"
@@ -92,8 +102,14 @@
 						<option value={t}>{t}</option>
 					{/each}
 				</select>
-				<button type="submit" disabled={busy !== null} class={primary}>
-					{busy === 'propose' ? 'Proposing…' : 'Propose release'}
+				<button type="submit" disabled={busy !== null || locked} class={primary}>
+					{busy === 'propose'
+						? alone
+							? 'Releasing…'
+							: 'Proposing…'
+						: alone
+							? `Sign & release ${tag}`
+							: `Propose ${tag}`}
 				</button>
 			</form>
 		{:else if candidates.latest}
@@ -116,9 +132,7 @@
 			>
 				{#if pear}<input type="hidden" name="password" value={password} />{/if}
 				<span class="text-sm font-semibold text-fg">
-					{candidates.tags.length > 0
-						? 'Or tag a branch and propose it'
-						: 'Tag a branch and propose it'}
+					{candidates.tags.length > 0 ? 'Or tag a branch' : 'Tag a branch'}
 				</span>
 				<div class="flex flex-col gap-2 sm:flex-row">
 					<label class="sr-only" for="new-tag-{key.key}">New tag</label>
@@ -143,8 +157,18 @@
 							<option value={b}>{b}{b === candidates.head ? ' · default' : ''}</option>
 						{/each}
 					</select>
-					<button type="submit" disabled={busy !== null || !name.trim() || !branch} class={primary}>
-						{busy === 'proposeNew' ? 'Proposing…' : 'Tag & propose'}
+					<button
+						type="submit"
+						disabled={busy !== null || locked || !name.trim() || !branch}
+						class={primary}
+					>
+						{busy === 'proposeNew'
+							? alone
+								? 'Releasing…'
+								: 'Proposing…'
+							: alone
+								? 'Tag, sign & release'
+								: 'Tag & propose'}
 					</button>
 				</div>
 			</form>
@@ -182,10 +206,10 @@
 					</select>
 					<button
 						type="submit"
-						disabled={busy !== null}
+						disabled={busy !== null || locked}
 						class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-[10px] bg-surface-4 px-4 text-sm font-semibold text-fg ring-1 ring-line-strong ring-inset hover:bg-surface-3 disabled:opacity-60"
 					>
-						Propose older release
+						{alone ? 'Sign & release older' : 'Propose older release'}
 					</button>
 				</div>
 			</form>
