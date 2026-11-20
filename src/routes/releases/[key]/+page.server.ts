@@ -1,8 +1,8 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { attempt, getReleases, ReleaseError } from '$lib/server/release-service';
+import { attempt, failure, getReleases, ReleaseError } from '$lib/server/release-service';
 
-export const load: PageServerLoad = async ({ locals, params, depends }) => {
+export const load: PageServerLoad = async ({ locals, params, depends, url }) => {
 	depends('releases');
 	const releases = await getReleases(locals.db);
 
@@ -11,7 +11,21 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		throw err;
 	});
 
-	return { seat: releases.seatKey, ...details };
+	// Just rotated here from the key in ?rotated=: the page says what to do
+	// about anyone still on it.
+	const from = url.searchParams.get('rotated');
+	const rotated = from
+		? {
+				key: from,
+				compromised: url.searchParams.has('compromised'),
+				name: await releases.getKey(from).then(
+					(k) => k.name,
+					() => null
+				)
+			}
+		: null;
+
+	return { seat: releases.seatKey, ...details, rotated };
 };
 
 export const actions: Actions = {
@@ -68,13 +82,26 @@ export const actions: Actions = {
 		const keys = form.getAll('signer').map(String);
 		const labels = form.getAll('label').map(String);
 		const releases = await getReleases(locals.db);
-		return attempt('rotate', async () => ({
-			id: await releases.proposeRotate(params.key, {
+
+		let to: string;
+		try {
+			to = await releases.rotate(params.key, {
 				name: String(form.get('name') ?? ''),
 				signers: keys.map((key, i) => ({ key, label: labels[i] ?? '' })),
-				quorum: Number(form.get('quorum'))
-			})
-		}));
+				quorum: Number(form.get('quorum')),
+				compromised: form.has('compromised')
+			});
+		} catch (err) {
+			return failure('rotate', err);
+		}
+		const compromised = form.has('compromised') ? '&compromised' : '';
+		throw redirect(303, `/releases/${to}?rotated=${params.key}${compromised}`);
+	},
+
+	revoke: async ({ locals, params }) => {
+		const releases = await getReleases(locals.db);
+		await releases.revoke(params.key);
+		return { revoke: { ok: true } };
 	},
 
 	archive: async ({ locals, params }) => {

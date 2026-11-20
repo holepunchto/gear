@@ -7,10 +7,10 @@ export const load: PageServerLoad = async ({ locals, parent, depends }) => {
 	const { repo } = await parent();
 	const releases = await getReleases(locals.db);
 	const keys = await releases.forRepo(repo.key);
-	// A key that was rotated goes after the key it points to.
+	// Retired and revoked keys go after the ones releases come from.
 	const active = keys
-		.filter((k) => !k.archived)
-		.sort((a, b) => Number(a.rotatedTo !== null) - Number(b.rotatedTo !== null));
+		.filter((k) => !k.archived && k.format === 'mirror')
+		.sort((a, b) => rank(a) - rank(b));
 	return {
 		seat: releases.seatKey,
 		pearKeys: await releases.pearKeys(),
@@ -49,3 +49,7 @@ export const actions: Actions = {
 		throw redirect(303, `/releases/${key}`);
 	}
 };
+
+function rank(k: { revoked: boolean; retiredTo: string | null }) {
+	return k.revoked ? 2 : k.retiredTo ? 1 : 0;
+}

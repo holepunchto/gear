@@ -4,31 +4,33 @@ import b4a from 'b4a';
 import ReleaseKey from './releases/index.js';
 import ReleaseStore from './releases/store.js';
 import type { GipDB } from './gip';
-import { openRepo, getTagTarget, getTagRefs, getBranchRefs, getCommitHistory } from './repo';
+import {
+	openRepo,
+	openDrive,
+	getTagTarget,
+	getTagRefs,
+	getBranchRefs,
+	getCommitHistory
+} from './repo';
 import { parseCommitMessage, type ParsedCommit } from './commit-parse';
 import { createTag, TagError } from './tags.js';
-import { newerTags } from './newer-tags.js';
+import { newerTags, compareVersions } from './newer-tags.js';
 import { listPearKeys, pearDir, signWithPearKey } from './pear-keys.js';
 import { events } from './events';
 import { log, logError } from './log.js';
 
-// Release keys this device owns or signs for, on top of the plain-JS module
-// and the local store. Errors a user can act on are ReleaseError; anything
-// else is a bug or the network and surfaces as is.
+// Release keys this device owns, signs for or follows, on top of the plain-JS
+// module and the local store. A release key is a multisig mirror of a repo's
+// gip core: its signed releases are the tags in it. Errors a user can act on
+// are ReleaseError; anything else is a bug or the network and surfaces as is.
 
 const TIMEOUT = 30_000;
 const NAMESPACE = 'gear/releases/';
 const NAME = /^[a-z0-9][a-z0-9._/-]{0,63}$/i;
 const MAX_SIGNERS = 16;
 const MAX_PASTE = 4096;
-// A release key to follow: the repo's clone link with the key as ?release=.
-// Older links were release+pear://<key>/<name>, still accepted.
+const MAX_PACKAGE_JSON = 256 * 1024;
 const SHARE = 'git+pear://';
-const LEGACY_SHARE = 'release+pear://';
-// How many rotations a lookup follows to a repo's newest key.
-const MAX_HOPS = 8;
-// Record types, as in ./releases/messages.js.
-const ROTATE = 1;
 // Gear marks the signatures it hands out, so whoever pastes one learns the
 // signer is a Gear seat. A pear CLI response comes unmarked.
 const GEAR_RESPONSE = 'gear:';
@@ -63,34 +65,32 @@ export async function attempt<T>(action: string, fn: () => Promise<T>) {
 	}
 }
 
+// A signed tag: what Gear calls a release.
 export type Release = {
 	name: string;
 	tag: string;
 	commit: string;
 	tree: string;
-	repo: { key: string; length: number };
+	timestamp: number;
 };
 
-// `gear` says the seat is known to sign in Gear: it's this device's, or a
-// Gear co-signer's signature came from it. Any other may be a pear key.
 // A `pear multisig` key in ~/.pear: its name and public key.
 export type PearKey = { name: string; key: string };
 
+// `gear` says the seat is known to sign in Gear: it's this device's, or a
+// Gear co-signer's signature came from it. Any other may be a pear key.
 export type Signer = { key: string; label: string | null; me: boolean; gear: boolean };
-
-// A rotation hands a key's release log over to `to`. `name` is what this
-// device calls the new key, when it knows it.
-export type Rotate = { to: string; name: string | null };
 
 export type Pending = {
 	id: string;
 	proposal: string;
 	request: string;
-	previous: number;
+	// The repo length it signs, and the key's length when it was proposed.
+	length: number;
+	base: number;
 	mine: boolean;
 	added: number;
 	release: Release | null;
-	rotate: Rotate | null;
 	signed: string[];
 	signedByMe: boolean;
 };
@@ -108,27 +108,35 @@ export type KeySummary = {
 	signAs: string | null;
 	// Hidden from the repo, the badges and Your releases; still seeded.
 	archived: boolean;
+	// Not to be trusted, on this device: never used for releases.
+	revoked: boolean;
+	// Replaced by this key, and making one last release that points installed
+	// copies at it before it is revoked.
+	retiredTo: string | null;
+	// 'old' is a key from before release keys mirrored the repo. It isn't
+	// opened, only listed and archived.
+	format: 'mirror' | 'old';
 	share: string;
 	quorum: number;
 	signers: Signer[];
 	repo: { name: string; key: string } | null;
 	length: number;
-	latest: (Release & { index: number }) | null;
-	// Set once a rotation is committed: the key is retired and takes no more
-	// proposals. `known` says whether this device has the new key.
-	rotatedTo: (Rotate & { known: boolean }) | null;
+	// The newest signed tag and how many tags are signed. `arriving` while the
+	// signed repo isn't all on this device yet.
+	latest: Release | null;
+	released: number;
+	arriving: boolean;
 	pending: Pending[];
 };
 
 // A repo's release as every surface shows it: the latest version and what
-// is pending, from this device's point of view.
+// is pending, from this device's point of view. `source` is the release key
+// and the length it is signed to, which is what installs pin.
 export type RepoRelease = {
 	key: string;
 	name: string;
 	role: Role;
 	version: string | null;
-	index: number | null;
-	// The latest release's tag and the repo core and length it was cut from.
 	tag: string | null;
 	source: { key: string; length: number } | null;
 	quorum: number;
@@ -138,8 +146,7 @@ export type RepoRelease = {
 
 // What the propose form offers: the unreleased tags newer than the latest
 // release, newest first, the older ones apart, and on a repo this device
-// owns, the branches a new tag can name. `latest` is the latest release on
-// this key or the keys it was rotated from.
+// owns, the branches a new tag can name.
 export type Candidates = {
 	repo: string;
 	latest: { name: string; tag: string } | null;
@@ -152,28 +159,29 @@ export type Candidates = {
 
 export type Check = { label: string; ok: boolean; detail: string };
 
-// The commits a release adds over the one before it, newest first, from the
-// repo in the library. `status` says where the walk ended: at the previous
-// release's commit, at `base` where the previous release forked off this
-// history, at the cap, at the root without meeting it (history was
+// The commits a release adds over the signed tag before it, newest first,
+// from the repo in the library. `status` says where the walk ended: at the
+// previous release's commit, at `base` where the previous release forked off
+// this history, at the cap, at the root without meeting it (history was
 // rewritten), at the root of a first release, or nowhere because a commit
 // isn't in this copy yet.
 export type Changes = {
 	repo: string;
 	base: string | null;
-	since: { index: number; name: string; commit: string } | null;
+	since: { name: string; tag: string; commit: string } | null;
 	commits: { oid: string; author: string | null; message: ParsedCommit; timestamp: number }[];
 	more: string | null;
 	status: 'reached' | 'forked' | 'capped' | 'unrelated' | 'first' | 'missing';
 };
 
-// What a rotation hands over to: the new key's signers and threshold, when
-// this device can open it.
-export type Successor = Rotate & { signers: Signer[] | null; quorum: number | null };
-
 export type Inspection =
-	| { ok: true; release: Release | null; rotate: Successor | null; checks: Check[] }
+	| { ok: true; release: Release | null; tags: Release[]; checks: Check[] }
 	| { ok: false; error: string; checks: Check[] };
+
+// What a repo's package.json says about installing it: whether it is a Pear
+// app (`make` and `release` scripts), whether installed copies follow an
+// `upgrade` link, and that link.
+export type AppInfo = { pear: boolean; app: boolean; upgrade: string | null };
 
 type KeyRecord = {
 	key: string;
@@ -190,16 +198,37 @@ type KeyRecord = {
 	// This device signs with this pear key instead of its Gear key.
 	signAs?: PearKey;
 	added: number;
+	// Set on every key made since release keys mirror the repo.
+	mirror?: boolean;
 	archived?: boolean;
+	revoked?: boolean;
+	retiredTo?: string | null;
+};
+
+type ProposalRecord = {
+	key: string;
+	id: string;
+	proposal: string;
+	length: number;
+	base: number;
+	mine: boolean;
+	added: number;
+	tag: string | null;
+	release: Release | null;
 };
 
 type Core = {
 	key: Uint8Array;
 	length: number;
+	contiguousLength: number;
 	has(index: number): Promise<boolean>;
+	treeHash(length: number): Promise<Uint8Array>;
 	download(range: { start: number; end: number }): unknown;
 	on(event: 'append', fn: () => void): void;
 };
+
+type RawTag = { name: string; oid: string; commit: string; tree: string; timestamp: number };
+type SignedRepo = { head: { branch: string; commit: string } | null; tags: RawTag[] };
 
 type Key = {
 	core: Core;
@@ -207,14 +236,16 @@ type Key = {
 	signers: string[];
 	quorum: number;
 	ready(): Promise<void>;
-	follow(opts?: { timeout?: number }): Promise<RawEntry>;
-	get(index: number): Promise<RawEntry>;
-	rotatedTo(): Promise<Uint8Array | null>;
-	propose(release: object): Promise<string>;
-	proposeRotate(to: Uint8Array): Promise<string>;
-	inspect(proposal: string): Promise<{ record: RawEntry }>;
-	sign(proposal: string, keyPair: unknown): Promise<string>;
+	follow(opts?: { timeout?: number }): Promise<SignedRepo>;
+	repo(): Promise<SignedRepo>;
+	propose(repoKey: Uint8Array, tag: string): Promise<string>;
+	inspect(
+		proposal: string,
+		opts?: { tag?: string | null }
+	): Promise<{ repo: Uint8Array; length: number; base: number; tags: RawTag[] }>;
+	sign(proposal: string, keyPair: unknown, opts?: { tag?: string | null }): Promise<string>;
 	commit(proposal: string, responses: string[]): Promise<number>;
+	close(): Promise<void>;
 };
 
 type KeyOpts = {
@@ -226,25 +257,7 @@ type KeyOpts = {
 	timeout?: number;
 };
 
-const Module = ReleaseKey as unknown as new (
-	store: unknown,
-	swarm: unknown,
-	opts: KeyOpts
-) => Key & {
-	close(): Promise<void>;
-};
-
-type RawRelease = {
-	type: 0;
-	name: string;
-	tag: string;
-	commit: Uint8Array;
-	tree: Uint8Array;
-	repo: { key: Uint8Array; length: number };
-	previous: number;
-};
-
-type RawEntry = RawRelease | { type: typeof ROTATE; previous: number; to: Uint8Array };
+const Module = ReleaseKey as unknown as new (store: unknown, swarm: unknown, opts: KeyOpts) => Key;
 
 type Store = InstanceType<typeof ReleaseStore>;
 
@@ -252,8 +265,8 @@ class Releases {
 	private db: GipDB;
 	private store: Store;
 	private keys = new Map<string, Promise<Key>>();
-	// Keys a followed key rotated to that are being followed now.
-	private successors = new Set<string>();
+	// Each key's signed tags, read once per length.
+	private signed = new Map<string, { length: number; tags: Promise<Release[]> }>();
 	private seat: { publicKey: Uint8Array; secretKey: Uint8Array } | null = null;
 
 	constructor(db: GipDB) {
@@ -294,7 +307,7 @@ class Releases {
 		await this.store.ready();
 		this.seat = await this.store.seat();
 		const records = (await this.store.listKeys()) as KeyRecord[];
-		for (const record of records) await this.key(record);
+		for (const record of records) if (record.mirror) await this.key(record);
 		log(`releases ready (${records.length} keys)`);
 	}
 
@@ -310,37 +323,7 @@ class Releases {
 					quorum: record.quorum
 				});
 		this.keys.set(record.key, opening);
-		// A failed open reaches whoever awaits `opening`; this branch only skips
-		// the watch.
-		opening.then((rk) => this.watchRotation(record, rk)).catch(() => {});
 		return opening;
-	}
-
-	// A followed key that rotates is followed to its new key too, once the new
-	// key opens as a release key.
-	private watchRotation(record: KeyRecord, rk: Key) {
-		if (!record.follower) return;
-		const check = () =>
-			this.followRotation(record, rk).catch((err) => logError('following a rotated key', err));
-		check();
-		rk.core.on('append', check);
-	}
-
-	private async followRotation(record: KeyRecord, rk: Key) {
-		const to = await rk.rotatedTo();
-		if (!to) return;
-		const key = z32.encode(to) as string;
-		if (this.successors.has(key) || (await this.store.getKey(key))) return;
-
-		this.successors.add(key);
-		try {
-			// No timeout: the new key may have no release yet, and following
-			// waits for its first one.
-			await this.followKey(to, record.name, 0);
-			log(`followed ${record.name} to its new key ${short(key)}`);
-		} finally {
-			this.successors.delete(key);
-		}
 	}
 
 	private async start(opts: KeyOpts) {
@@ -351,7 +334,8 @@ class Releases {
 		});
 		await rk.ready();
 
-		// Release logs are tiny; keep every entry local so lists never wait.
+		// Keep the signed repo local, so reading it never waits and this device
+		// seeds it.
 		const key = z32.encode(rk.core.key) as string;
 		rk.core.download({ start: 0, end: -1 });
 		rk.core.on('append', () => events.emit('release', { key }));
@@ -374,7 +358,7 @@ class Releases {
 		return Promise.all((await this.records()).map((r) => this.summary(r)));
 	}
 
-	// The keys that aren't archived.
+	// The keys releases come from: not archived, not revoked, not old.
 	async activeKeys(): Promise<KeySummary[]> {
 		const records = (await this.store.activeKeys()) as KeyRecord[];
 		records.sort((a, b) => a.added - b.added);
@@ -391,74 +375,95 @@ class Releases {
 		return this.summary(await this.record(key));
 	}
 
-	// Keys for a repo, archived ones too, by the repo they name or, when they
-	// name none (a key followed before its repo was added), by their latest
-	// release.
+	// Keys for a repo, archived and revoked ones too.
 	async forRepo(repoKey: string): Promise<KeySummary[]> {
-		const keys = await this.listKeys();
-		return keys.filter((k) => (k.repo?.key ?? k.latest?.repo.key) === repoKey);
+		return (await this.listKeys()).filter((k) => k.repo?.key === repoKey);
 	}
 
-	// Newest first. Entries that haven't arrived yet are left out.
+	// Every signed tag, newest first. Empty while the signed repo is still
+	// arriving: reading it then would wait on peers.
+	private async signedTags(record: KeyRecord): Promise<Release[]> {
+		const rk = await this.key(record);
+		if (rk.core.contiguousLength < rk.length) return [];
+		const cached = this.signed.get(record.key);
+		if (cached?.length === rk.length) return cached.tags;
+		const tags = rk.repo().then(
+			(repo) => sortReleases(repo.tags.map(view)),
+			(err) => {
+				this.signed.delete(record.key);
+				throw err;
+			}
+		);
+		this.signed.set(record.key, { length: rk.length, tags });
+		return tags;
+	}
+
 	async history(key: string, limit = 50) {
-		const rk = await this.key(await this.record(key));
-		const out: (Release & { index: number })[] = [];
-		for (let i = rk.length - 1; i >= 0 && out.length < limit; i--) {
-			const entry = await this.read(rk, i);
-			if (entry) out.push(entry);
-		}
-		return out;
+		const record = await this.mirror(key);
+		return (await this.signedTags(record)).slice(0, limit);
 	}
 
 	// Everything a key's page shows, for the key page and the repo's Releases tab.
 	async details(key: string) {
 		const summary = await this.getKey(key);
+		if (summary.format === 'old') {
+			return {
+				key: summary,
+				history: [],
+				candidates: null,
+				responses: {},
+				changes: null,
+				app: null
+			};
+		}
 		const responses = Object.fromEntries(
 			await Promise.all(
 				summary.pending.map(async (p) => [p.id, await this.myResponse(key, p.id)] as const)
 			)
 		);
-		const changes = summary.latest ? await this.changes(key, summary.latest.index) : null;
+		const changes = summary.latest ? await this.changes(key, summary.latest.tag) : null;
 		return {
 			key: summary,
 			history: await this.history(key),
-			candidates: await this.candidates(summary),
+			candidates: summary.revoked ? null : await this.candidates(summary),
 			responses,
 			// The latest release's changes in brief: the count and the first few.
 			changes: changes && {
 				...changes,
 				count: changes.commits.length,
 				commits: changes.commits.slice(0, 3)
-			}
+			},
+			app: summary.repo ? await this.app(summary.repo.name) : null
 		};
 	}
 
-	async release(key: string, index: number) {
-		const rk = await this.key(await this.record(key));
-		if (index >= rk.length) throw new ReleaseError('No such release');
-		const entry = await this.read(rk, index);
-		if (entry) return entry;
-		if (await this.entry(rk, index)) {
-			throw new ReleaseError('This entry hands the release log over to a new key');
+	// The signed tag `tag` and the ones either side of it, newest first.
+	async release(key: string, tag: string) {
+		const record = await this.mirror(key);
+		const tags = await this.signedTags(record);
+		const i = tags.findIndex((t) => t.tag === tag);
+		if (i === -1) {
+			const rk = await this.key(record);
+			throw new ReleaseError(
+				rk.core.contiguousLength < rk.length
+					? 'This release has not arrived yet'
+					: `${tag} is not signed on this key`
+			);
 		}
-		throw new ReleaseError('This release has not arrived yet');
+		return { release: tags[i], newer: tags[i - 1] ?? null, older: tags[i + 1] ?? null };
 	}
 
 	// Walks first-parent history from the release's commit until it meets the
-	// previous release's history, or for `cap` commits. Null when the repo
-	// isn't in the library.
-	async changes(key: string, index: number, cap = 100): Promise<Changes | null> {
-		const record = await this.record(key);
-		const rk = await this.key(record);
-		const release = await this.read(rk, index);
-		if (!release) return null;
-
-		const repo = await this.libraryRepo(record, release.repo.key);
+	// signed tag before it, or for `cap` commits. Null when the repo isn't in
+	// the library.
+	async changes(key: string, tag: string, cap = 100): Promise<Changes | null> {
+		const record = await this.mirror(key);
+		const { release, older: previous } = await this.release(key, tag);
+		const repo = await this.libraryRepo(record);
 		if (!repo) return null;
 
 		// Stop where this release's history meets the previous one's: at its
 		// commit, or where it forked off when it was tagged off the line.
-		const previous = index > 0 ? await this.read(rk, index - 1) : null;
 		const before = previous ? await getCommitHistory(repo.remote, previous.commit, cap + 1) : [];
 		const stop = new Set(before.map((c) => c.oid));
 
@@ -478,7 +483,7 @@ class Releases {
 		return {
 			repo: repo.name,
 			base: status === 'forked' ? met : null,
-			since: previous && { index: previous.index, name: previous.name, commit: previous.commit },
+			since: previous && { name: previous.name, tag: previous.tag, commit: previous.commit },
 			commits: commits.map((c) => ({
 				oid: c.oid,
 				author: c.author,
@@ -490,25 +495,25 @@ class Releases {
 		};
 	}
 
-	// The library repo with this core key: the key's own repo when it matches,
-	// otherwise a scan of the library.
-	private async libraryRepo(record: KeyRecord, repoKey: string) {
-		const name = record.repo?.key === repoKey ? record.repo.name : await this.findRepo(repoKey);
-		if (!name) return null;
-		const remote = (await openRepo(this.db, name)) as { core: { key: Uint8Array } } | null;
-		if (!remote || z32.encode(remote.core.key) !== repoKey) return null;
-		return { name, remote };
+	// The key's repo in the library, when it is still there under that key.
+	private async libraryRepo(record: KeyRecord) {
+		if (!record.repo) return null;
+		const remote = (await openRepo(this.db, record.repo.name)) as {
+			core: { key: Uint8Array; length: number; writable: boolean };
+			getHead(): Promise<string | null>;
+		} | null;
+		if (!remote || z32.encode(remote.core.key) !== record.repo.key) return null;
+		return { name: record.repo.name, remote };
 	}
 
 	private async candidates(summary: KeySummary): Promise<Candidates | null> {
-		if (!summary.repo) return null;
-		const remote = (await openRepo(this.db, summary.repo.name)) as {
-			core: { writable: boolean };
-			getHead(): Promise<string | null>;
-		} | null;
-		if (!remote) return null;
+		const record = await this.record(summary.key);
+		const repo = await this.libraryRepo(record);
+		if (!repo) return null;
+		const { remote } = repo;
 
-		const { tags: released, latest } = await this.released(summary.key);
+		const released = new Set((await this.signedTags(record)).map((t) => t.tag));
+		const latest = summary.latest;
 		const [tags, branches, head] = await Promise.all([
 			getTagRefs(remote),
 			getBranchRefs(remote),
@@ -529,7 +534,7 @@ class Releases {
 		);
 
 		return {
-			repo: summary.repo.name,
+			repo: repo.name,
 			latest: latest && { name: latest.name, tag: latest.tag },
 			tags: unreleased.filter((t) => newer.has(t.name)).map((t) => t.name),
 			older: unreleased.filter((t) => !newer.has(t.name)).map((t) => t.name),
@@ -539,87 +544,38 @@ class Releases {
 		};
 	}
 
-	// Every tag released on this key or the keys it was rotated from, with
-	// where, and the latest of those releases. Release logs are tiny and kept
-	// local, so this reads them all.
-	private async released(key: string) {
-		const tags = new Map<string, { key: string; name: string; index: number }>();
-		let latest: (Release & { index: number }) | null = null;
-		for (const record of await this.chain(key)) {
-			const rk = await this.key(record);
-			for (let i = rk.length - 1; i >= 0; i--) {
-				const entry = await this.read(rk, i);
-				if (!entry) continue;
-				latest ??= entry;
-				if (!tags.has(entry.tag))
-					tags.set(entry.tag, { key: record.key, name: record.name, index: i });
-			}
+	// Reads package.json at the repo's HEAD. Null when there is none or it
+	// isn't JSON.
+	async app(repoName: string): Promise<AppInfo | null> {
+		const remote = await openRepo(this.db, repoName);
+		const head = remote && (await (remote as { getHead(): Promise<string | null> }).getHead());
+		if (!head) return null;
+		const drive = await openDrive(remote, head);
+		const entry = drive && (await drive.entry('/package.json'));
+		if (!entry || entry.value.blob.byteLength > MAX_PACKAGE_JSON) return null;
+		let pkg: { upgrade?: unknown; scripts?: Record<string, unknown> };
+		try {
+			pkg = JSON.parse(b4a.toString(await drive.get('/package.json')));
+		} catch {
+			return null;
 		}
-		return { tags, latest };
-	}
-
-	// This key, then the key that rotated to it and so on back, at most
-	// MAX_HOPS, among the keys this device has.
-	private async chain(key: string) {
-		const records = await this.records();
-		const out = [await this.record(key)];
-		for (let hops = 0; hops < MAX_HOPS; hops++) {
-			const to = out[out.length - 1].key;
-			let from: KeyRecord | null = null;
-			for (const r of records) {
-				if (out.some((o) => o.key === r.key)) continue;
-				const next = await (await this.key(r)).rotatedTo();
-				if (next && z32.encode(next) === to) {
-					from = r;
-					break;
-				}
-			}
-			if (!from) break;
-			out.push(from);
-		}
-		return out;
+		if (!pkg || typeof pkg !== 'object') return null;
+		const pear = Boolean(pkg.scripts?.make && pkg.scripts?.release);
+		const upgrade = typeof pkg.upgrade === 'string' ? pkg.upgrade : null;
+		return { pear, app: pear || upgrade !== null, upgrade };
 	}
 
 	private async summary(record: KeyRecord): Promise<KeySummary> {
-		const rk = await this.key(record);
-		const last = rk.length > 0 ? await this.entry(rk, rk.length - 1) : null;
-		const rotated = last?.type === ROTATE ? (z32.encode(last.to) as string) : null;
-		const successor = rotated ? await this.store.getKey(rotated) : null;
-		// A rotation is always the last entry, so the latest release is the one
-		// before it.
-		const latest = rk.length - (rotated ? 2 : 1);
-		const latestRelease = latest >= 0 ? await this.read(rk, latest) : null;
 		const me = this.seatFor(record);
-		const proposals = await this.store.listProposals(record.key);
-
-		const pending = await Promise.all(
-			proposals
-				.filter((p) => p.previous >= rk.length)
-				.map(async (p) => {
-					const signed = (await this.store.listResponses(record.key, p.id)).map((r) => r.signer);
-					return {
-						id: p.id,
-						proposal: p.proposal,
-						request: ReleaseKey.request(p.proposal),
-						previous: p.previous,
-						mine: p.mine,
-						added: p.added,
-						release: p.release,
-						rotate: p.rotate ?? null,
-						signed,
-						signedByMe: signed.includes(me)
-					};
-				})
-		);
-
-		return {
+		const base = {
 			key: record.key,
 			name: record.name,
 			owner: record.owner,
-			role: record.follower ? 'follower' : record.owner ? 'owner' : 'signer',
+			role: (record.follower ? 'follower' : record.owner ? 'owner' : 'signer') as Role,
 			signAs: record.signAs?.name ?? null,
 			archived: record.archived ?? false,
-			share: shareLink(record, latestRelease),
+			revoked: record.revoked ?? false,
+			retiredTo: record.retiredTo ?? null,
 			quorum: record.quorum,
 			signers: record.signers.map((key) => ({
 				key,
@@ -627,27 +583,65 @@ class Releases {
 				me: key === me,
 				gear: key === me || (record.gear?.includes(key) ?? false)
 			})),
-			repo: record.repo,
+			repo: record.repo
+		};
+		if (!record.mirror) {
+			return {
+				...base,
+				format: 'old',
+				share: record.key,
+				length: 0,
+				latest: null,
+				released: 0,
+				arriving: false,
+				pending: []
+			};
+		}
+
+		const rk = await this.key(record);
+		const tags = await this.signedTags(record).catch((err) => {
+			logError(`reading the signed repo of ${short(record.key)}`, err);
+			return [];
+		});
+		const proposals = (await this.store.listProposals(record.key)) as ProposalRecord[];
+
+		const pending = await Promise.all(
+			proposals
+				.filter((p) => p.length > rk.length)
+				.map(async (p) => {
+					const signed = (await this.store.listResponses(record.key, p.id)).map((r) => r.signer);
+					return {
+						id: p.id,
+						proposal: p.proposal,
+						request: ReleaseKey.request(p.proposal),
+						length: p.length,
+						base: p.base,
+						mine: p.mine,
+						added: p.added,
+						release: p.release,
+						signed,
+						signedByMe: signed.includes(me)
+					};
+				})
+		);
+
+		return {
+			...base,
+			format: 'mirror',
+			share: shareLink(record),
 			length: rk.length,
-			latest: latestRelease,
-			rotatedTo: rotated
-				? { to: rotated, name: successor?.name ?? null, known: successor !== null }
-				: null,
+			latest: tags[0] ?? null,
+			released: tags.length,
+			arriving: rk.core.contiguousLength < rk.length,
 			pending: pending.sort((a, b) => b.added - a.added)
 		};
 	}
 
-	// The entry at `index`, or null when it hasn't arrived yet.
-	private async entry(rk: Key, index: number) {
-		if (!(await rk.core.has(index))) return null;
-		return rk.get(index);
-	}
-
-	// The release at `index`, or null when it hasn't arrived or is a rotation.
-	private async read(rk: Key, index: number) {
-		const entry = await this.entry(rk, index);
-		if (!entry || entry.type === ROTATE) return null;
-		return { index, ...view(entry) };
+	// A key in the mirror format, or a ReleaseError.
+	private async mirror(key: string) {
+		const record = await this.record(key);
+		if (!record.mirror) throw new ReleaseError('This key is in the old release format');
+		return record;
 	}
 
 	async createKey(opts: {
@@ -697,6 +691,12 @@ class Releases {
 			(r) =>
 				r.namespace === namespace && r.quorum === opts.quorum && r.signers.join() === signers.join()
 		);
+		if (known && !known.mirror) {
+			throw new ReleaseError(
+				'A key in the old release format has these signers; pick another name'
+			);
+		}
+		if (known?.revoked) throw new ReleaseError('That key was revoked; pick another name');
 		if (known) {
 			await this.store.unarchive(known.key);
 			return known.key;
@@ -720,55 +720,51 @@ class Releases {
 			owner: true,
 			labels,
 			signAs,
-			added: Date.now()
+			added: Date.now(),
+			mirror: true
 		};
 		await this.store.putKey(record);
 		events.emit('release', { key });
 		return key;
 	}
 
-	// `password` signs the proposal when this device signs the key with a
-	// pear key.
+	// Proposes signing the repo up to where `tag` first appears. `password`
+	// signs the proposal when this device signs the key with a pear key.
 	async propose(key: string, tag: string, password?: string) {
-		const record = await this.record(key);
+		const record = await this.canPropose(key, tag);
+		const repo = await this.libraryRepo(record);
+		if (!repo) throw new ReleaseError(`${record.repo!.name} is no longer in your library`);
+		const target = await getTagTarget(repo.remote, tag);
+		if (!target) throw new ReleaseError(`No tag ${tag} in ${repo.name}`);
+
 		const rk = await this.key(record);
-		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
-
-		const remote = (await openRepo(this.db, record.repo.name)) as {
-			core: { key: Uint8Array; length: number };
-		} | null;
-		if (!remote || z32.encode(remote.core.key) !== record.repo.key) {
-			throw new ReleaseError(`${record.repo.name} is no longer in your library`);
+		const base = rk.length;
+		let proposal: string;
+		try {
+			proposal = await rk.propose(repo.remote.core.key, tag);
+		} catch (err) {
+			throw new ReleaseError((err as Error).message);
 		}
+		const { id, length } = ReleaseKey.describe(proposal);
 
-		await this.canPropose(key, tag);
-
-		const target = await getTagTarget(remote, tag);
-		if (!target) throw new ReleaseError(`No tag ${tag} in ${record.repo.name}`);
-
-		const release = {
-			name: tag.replace(/^v(?=\d)/, ''),
-			tag,
-			commit: b4a.from(target.commit, 'hex'),
-			tree: b4a.from(target.tree, 'hex'),
-			repo: { key: remote.core.key, length: remote.core.length },
-			artifacts: []
-		};
-
-		const proposal = await rk.propose(release);
-		const { source, length } = ReleaseKey.describe(proposal);
-		const id = z32.encode(source) as string;
-
+		const added = await getTagRefs(repo.remote).then((tags) => tags.find((t) => t.name === tag));
 		await this.store.putProposal({
 			key,
 			id,
 			proposal,
-			previous: length - 1,
+			length,
+			base,
 			mine: true,
 			added: Date.now(),
-			release: view({ ...release, type: 0, previous: length - 1 }),
-			rotate: null
-		});
+			tag,
+			release: {
+				name: versionName(tag),
+				tag,
+				commit: target.commit,
+				tree: target.tree,
+				timestamp: added?.commit?.timestamp ?? 0
+			}
+		} satisfies ProposalRecord);
 
 		await this.signOwn(record, id, password);
 
@@ -778,14 +774,11 @@ class Releases {
 
 	// Make the tag on a repo this device owns, then propose it.
 	async proposeNewTag(key: string, tag: string, target: string, password?: string) {
-		const record = await this.record(key);
-		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
-		await this.canPropose(key, tag);
-
-		const remote = await openRepo(this.db, record.repo.name);
-		if (!remote) throw new ReleaseError(`${record.repo.name} is no longer in your library`);
+		const record = await this.canPropose(key, tag);
+		const repo = await this.libraryRepo(record);
+		if (!repo) throw new ReleaseError(`${record.repo!.name} is no longer in your library`);
 		try {
-			await createTag(remote, tag, target);
+			await createTag(repo.remote, tag, target);
 		} catch (err) {
 			if (err instanceof TagError) throw new ReleaseError(err.message);
 			throw err;
@@ -811,70 +804,27 @@ class Releases {
 		}
 	}
 
-	// Make a key with new signers, then propose handing this key's release
-	// log over to it. Once that commits, this key takes no more proposals.
-	async proposeRotate(
-		key: string,
-		opts: { name: string; signers: { key: string; label: string }[]; quorum: number }
-	) {
-		const record = await this.record(key);
-		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
-		await this.canPropose(key);
-
-		const to = await this.createKey({ ...opts, repo: record.repo.name });
-		if (to === key) {
-			throw new ReleaseError('That is this same key. Change the signers or how many must agree');
-		}
-
-		const rk = await this.key(record);
-		const proposal = await rk.proposeRotate(z32.decode(to));
-		const { source, length } = ReleaseKey.describe(proposal);
-		const id = z32.encode(source) as string;
-
-		await this.store.putProposal({
-			key,
-			id,
-			proposal,
-			previous: length - 1,
-			mine: true,
-			added: Date.now(),
-			release: null,
-			rotate: { to, name: opts.name.trim() }
-		});
-
-		await this.signOwn(record, id);
-
-		events.emit('release', { key });
-		return id;
-	}
-
-	// Refuse a proposal on a key that is followed, archived or rotated, a tag
-	// that is already released, or a second proposal of ours while one is
-	// still collecting.
-	private async canPropose(key: string, tag?: string) {
-		const record = await this.record(key);
+	// Refuse a proposal on a key that is followed, archived, revoked or old,
+	// without a repo, of a tag that is already signed, or a second proposal of
+	// ours while one is still collecting.
+	private async canPropose(key: string, tag: string) {
+		const record = await this.mirror(key);
 		if (record.follower) throw new ReleaseError('You follow this key; only its signers release');
+		if (record.revoked) throw new ReleaseError('This key was revoked; release from its new key');
 		if (record.archived) throw new ReleaseError('This key is archived; unarchive it to release');
+		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
+
 		const rk = await this.key(record);
-		if (await rk.rotatedTo()) {
-			throw new ReleaseError('This key was rotated; release from the key it points to');
-		}
-		const open = (await this.store.listProposals(key)).find(
-			(p) => p.mine && p.previous >= rk.length
+		const open = ((await this.store.listProposals(key)) as ProposalRecord[]).find(
+			(p) => p.mine && p.length > rk.length
 		);
 		if (open) {
-			const what = open.rotate ? 'A rotation' : (open.release?.name ?? 'A release');
-			throw new ReleaseError(`${what} is still collecting signatures`);
+			throw new ReleaseError(`${open.release?.name ?? 'A release'} is still collecting signatures`);
 		}
-		if (tag === undefined) return;
-
-		const released = (await this.released(key)).tags.get(tag);
-		if (!released) return;
-		throw new ReleaseError(
-			released.key === key
-				? `${tag} is already release #${released.index}`
-				: `${tag} was already released on ${released.name}`
-		);
+		if ((await this.signedTags(record)).some((t) => t.tag === tag)) {
+			throw new ReleaseError(`${tag} is already signed on this key`);
+		}
+		return record;
 	}
 
 	// A proposal pasted in by a co-signer. Opens the key if this device hasn't
@@ -897,18 +847,20 @@ class Releases {
 			// It may be for a pear key of yours: hand back what the CLI signs.
 			throw new ReleaseError(
 				'Your Gear signing key is not one of the signers on this release key',
-				{
-					request: ReleaseKey.request(proposal)
-				}
+				{ request: ReleaseKey.request(proposal) }
 			);
 		}
 
 		const key = z32.encode(described.key) as string;
-		const id = z32.encode(described.source) as string;
+		const { id } = described;
 
 		const known = (await this.store.getKey(key)) as KeyRecord | null;
+		if (known && !known.mirror) throw new ReleaseError('This key is in the old release format');
+		if (known?.revoked) throw new ReleaseError('This key was revoked on this device');
 		if (known && pear && !known.signAs) await this.store.putKey({ ...known, signAs: pear });
 		if (!known) {
+			const repoKey = z32.encode(described.source) as string;
+			const repo = await this.findRepo(repoKey);
 			const record: KeyRecord = {
 				key,
 				name: described.namespace.startsWith(NAMESPACE)
@@ -917,11 +869,12 @@ class Releases {
 				namespace: described.namespace,
 				signers,
 				quorum: described.quorum,
-				repo: null,
+				repo: repo ? { name: repo, key: repoKey } : null,
 				owner: false,
 				labels: {},
 				signAs: pear,
-				added: Date.now()
+				added: Date.now(),
+				mirror: true
 			};
 			await this.store.putKey(record);
 			await this.key(record);
@@ -932,37 +885,31 @@ class Releases {
 				key,
 				id,
 				proposal,
-				previous: described.length - 1,
+				length: described.length,
+				base: 0,
 				mine: false,
 				added: Date.now(),
-				release: null,
-				rotate: null
-			});
+				tag: null,
+				release: null
+			} satisfies ProposalRecord);
 			events.emit('release', { key });
 		}
 
 		return { key, id };
 	}
 
-	// A key pasted in to follow: a bare z32 key or a share string. Reads the
-	// latest release to learn the repo and keeps the key with the follower
-	// role. A key this device already has is returned as is.
+	// A key pasted in to follow: its git+pear:// link or a bare z32 key. A
+	// key this device already has is returned as is.
 	async follow(text: string) {
 		const parsed = parseShare(text);
 		if (!parsed) throw new ReleaseError('That is not a release key');
-		return this.followKey(parsed.key, parsed.name);
-	}
-
-	// `timeout` 0 waits for the key's first entry however long it takes.
-	private async followKey(keyBytes: Uint8Array, name: string | null, timeout?: number) {
-		const key = z32.encode(keyBytes) as string;
+		const key = z32.encode(parsed.key) as string;
 		if (await this.store.getKey(key)) return key;
 
-		const opening = this.start({ key: keyBytes });
+		const opening = this.start({ key: parsed.key });
 		const rk = await opening;
-		let latest: RawEntry;
 		try {
-			latest = await rk.follow({ timeout });
+			await rk.follow();
 		} catch (err) {
 			await rk.close();
 			const message =
@@ -972,37 +919,48 @@ class Releases {
 			throw new ReleaseError(message);
 		}
 
-		// A key that has rotated ends in the rotation; its latest release is the
-		// entry before.
-		const release =
-			latest.type === ROTATE
-				? rk.length > 1
-					? ((await rk.get(rk.length - 2)) as RawRelease)
-					: null
-				: latest;
-		const repoKey = release && (z32.encode(release.repo.key) as string);
-		const repo = repoKey && (await this.findRepo(repoKey));
+		const repo = await this.matchRepo(rk);
 		const record: KeyRecord = {
 			key,
-			name: name ?? short(key),
+			name: parsed.name ?? repo?.name ?? short(key),
 			namespace: '',
 			signers: rk.signers,
 			quorum: rk.quorum,
-			repo: repo && repoKey ? { name: repo, key: repoKey } : null,
+			repo,
 			owner: false,
 			follower: true,
 			labels: {},
-			added: Date.now()
+			added: Date.now(),
+			mirror: true
 		};
 		await this.store.putKey(record);
 		this.keys.set(key, opening);
-		this.watchRotation(record, rk);
 		events.emit('release', { key });
 		return key;
 	}
 
+	// The library repo a release key mirrors: the one whose tree at the key's
+	// length is the key's. Only repos that are long enough and hold that block
+	// are compared.
+	private async matchRepo(rk: Key) {
+		const length = rk.length;
+		if (length === 0) return null;
+		const signed = await within(rk.core.treeHash(length), TIMEOUT);
+		if (!signed) return null;
+		for (const name of (await this.db.getRepoNames()) as string[]) {
+			const entry = (await this.db.getCore(name, { server: false, client: false })) as {
+				core: Core;
+			} | null;
+			if (!entry || entry.core.length < length || !(await entry.core.has(length - 1))) continue;
+			if (b4a.equals(await entry.core.treeHash(length), signed)) {
+				return { name, key: z32.encode(entry.core.key) as string };
+			}
+		}
+		return null;
+	}
+
 	async getProposal(key: string, id: string) {
-		const p = await this.store.getProposal(key, id);
+		const p = (await this.store.getProposal(key, id)) as ProposalRecord | null;
 		if (!p) throw new ReleaseError('Unknown proposal');
 		const signed = (await this.store.listResponses(key, id)).map((r) => r.signer);
 		const me = this.seatFor(await this.record(key));
@@ -1015,148 +973,71 @@ class Releases {
 	}
 
 	async inspect(key: string, id: string): Promise<Inspection> {
-		const record = await this.record(key);
+		const record = await this.mirror(key);
 		const rk = await this.key(record);
 		const p = await this.getProposal(key, id);
+		if (record.revoked) {
+			return { ok: false, error: 'This key was revoked on this device', checks: [] };
+		}
 
-		let raw: RawEntry;
+		let inspected: Awaited<ReturnType<Key['inspect']>>;
 		try {
-			raw = (await rk.inspect(p.proposal)).record;
+			inspected = await rk.inspect(p.proposal, { tag: p.tag });
 		} catch (err) {
 			return { ok: false, error: (err as Error).message, checks: [] };
 		}
 
-		const stored = await this.store.getProposal(key, id);
-		if (raw.type === ROTATE) return this.inspectRotate(key, id, stored, raw);
+		const tags = sortReleases(inspected.tags.map(view));
+		const release = (p.tag ? tags.find((t) => t.tag === p.tag) : tags[0]) ?? null;
+		const stored = (await this.store.getProposal(key, id)) as ProposalRecord | null;
+		if (stored && !stored.release) {
+			await this.store.putProposal({
+				...stored,
+				base: inspected.base,
+				tag: release?.tag ?? null,
+				release
+			});
+		}
 
-		const release = view(raw);
-		if (stored && !stored.release) await this.store.putProposal({ ...stored, release });
+		const repoKey = z32.encode(inspected.repo) as string;
+		if (!record.repo) {
+			const name = await this.findRepo(repoKey);
+			if (name) await this.store.putKey({ ...record, repo: { name, key: repoKey } });
+		}
 
+		const others = tags.filter((t) => t !== release).map((t) => t.tag);
 		const checks: Check[] = [
-			{ label: 'Appends to this release key', ok: true, detail: short(key) },
+			{ label: 'Signs this release key', ok: true, detail: short(key) },
+			{
+				label: `The repo at length ${inspected.length} matches the request`,
+				ok: true,
+				detail: short(repoKey)
+			},
 			{
 				label:
-					raw.previous === 0 ? 'First release on this key' : `Follows release #${raw.previous - 1}`,
+					inspected.base === 0
+						? 'First release on this key'
+						: `Extends the ${inspected.base} blocks already signed`,
 				ok: true,
-				detail: `entry #${raw.previous}`
-			},
-			{ label: 'Proposal matches its source', ok: true, detail: short(id) },
-			...(await this.repoChecks(record, release))
-		];
-
-		return { ok: true, release, rotate: null, checks };
-	}
-
-	// A rotation is the key's last entry. The signer sees what it hands over
-	// to: the new key's signers and threshold when this device can open it.
-	private async inspectRotate(
-		key: string,
-		id: string,
-		stored: Awaited<ReturnType<Store['getProposal']>>,
-		raw: { previous: number; to: Uint8Array }
-	): Promise<Inspection> {
-		const to = z32.encode(raw.to) as string;
-		const next = await this.successor(raw.to);
-		const rotate: Successor = {
-			to,
-			name: next?.name ?? stored?.rotate?.name ?? null,
-			signers: next?.signers ?? null,
-			quorum: next?.quorum ?? null
-		};
-		if (stored && !stored.rotate) {
-			await this.store.putProposal({ ...stored, rotate: { to, name: rotate.name } });
-		}
-
-		const checks: Check[] = [
-			{ label: 'Appends to this release key', ok: true, detail: short(key) },
-			{
-				label: 'Last entry: no more releases on this key after it',
-				ok: true,
-				detail: `entry #${raw.previous}`
-			},
-			{ label: 'Proposal matches its source', ok: true, detail: short(id) },
-			{
-				label: next?.signers
-					? `New key: ${next.quorum} of ${next.signers.length} must sign`
-					: "New key's signers can't be seen from here yet",
-				ok: Boolean(next?.signers),
-				detail: short(to)
+				detail: `${inspected.base} → ${inspected.length}`
 			}
 		];
-		return { ok: true, release: null, rotate, checks };
-	}
-
-	// The signers and threshold of a key, from this device's records or, when
-	// it doesn't know the key, by opening it. A key with no entries yet can't
-	// be opened by key alone.
-	private async successor(to: Uint8Array) {
-		const key = z32.encode(to) as string;
-		const record = (await this.store.getKey(key)) as KeyRecord | null;
-		const me = record ? this.seatFor(record) : this.seatKey;
-		const signers = (keys: string[], labels: Record<string, string> = {}, gear: string[] = []) =>
-			keys.map((s) => ({
-				key: s,
-				label: labels[s] ?? null,
-				me: s === me,
-				gear: s === me || gear.includes(s)
-			}));
-		if (record) {
-			return {
-				name: record.name,
-				signers: signers(record.signers, record.labels, record.gear),
-				quorum: record.quorum
-			};
-		}
-
-		const rk = new Module(this.corestore, this.db.swarm, { key: to, timeout: 5000 });
-		try {
-			await rk.follow();
-			return { name: null, signers: signers(rk.signers), quorum: rk.quorum };
-		} catch {
-			return null;
-		} finally {
-			await rk.close();
-		}
-	}
-
-	private async repoChecks(record: KeyRecord, release: Release): Promise<Check[]> {
-		const name = await this.findRepo(release.repo.key);
-		if (!name) {
-			return [
-				{
-					label: 'Repo is in your library',
-					ok: false,
-					detail: 'add it to check the commit'
-				}
-			];
-		}
-
-		if (!record.repo) await this.store.putKey({ ...record, repo: { name, key: release.repo.key } });
-
-		const remote = (await openRepo(this.db, name)) as {
-			core: { length: number };
-			update(): Promise<void>;
-		};
-		await within(remote.update(), TIMEOUT);
-
-		const target = await within(getTagTarget(remote, release.tag), TIMEOUT);
-		return [
-			{
-				label: 'Repo has reached the proposed length',
-				ok: remote.core.length >= release.repo.length,
-				detail: `${name} @ ${release.repo.length}`
-			},
-			{
-				label: `Tag ${release.tag} points at the commit`,
-				ok: target?.commit === release.commit,
+		if (release) {
+			checks.push({
+				label: `Tag ${release.tag} is in the repo there`,
+				ok: true,
 				detail: release.commit.slice(0, 7)
-			},
-			{
-				label: 'Tree hash matches the commit',
-				ok: target?.tree === release.tree,
-				detail: release.tree.slice(0, 7)
-			}
-		];
+			});
+		}
+		if (others.length) {
+			checks.push({
+				label: `Also signs ${others.join(', ')}`,
+				ok: true,
+				detail: `${others.length} more ${others.length === 1 ? 'tag' : 'tags'}`
+			});
+		}
+
+		return { ok: true, release, tags, checks };
 	}
 
 	private async findRepo(key: string) {
@@ -1171,15 +1052,16 @@ class Releases {
 
 	// With a pear key, `password` decrypts it for this one signature.
 	async sign(key: string, id: string, password?: string) {
-		const record = await this.record(key);
+		const record = await this.mirror(key);
+		if (record.revoked) throw new ReleaseError('This key was revoked on this device');
 		const rk = await this.key(record);
 		const p = await this.getProposal(key, id);
 
 		let response: string;
 		try {
 			response = record.signAs
-				? await this.signWithPear(rk, record.signAs, p.proposal, password)
-				: await rk.sign(p.proposal, this.seat);
+				? await this.signWithPear(rk, record.signAs, p, password)
+				: await rk.sign(p.proposal, this.seat, { tag: p.tag });
 		} catch (err) {
 			if (err instanceof ReleaseError) throw err;
 			throw new ReleaseError((err as Error).message);
@@ -1193,10 +1075,15 @@ class Releases {
 	// Inspects like ReleaseKey.sign, then signs the raw request with the pear
 	// key the way `pear multisig sign` does. The key file is read here and
 	// nowhere else.
-	private async signWithPear(rk: Key, pear: PearKey, proposal: string, password?: string) {
+	private async signWithPear(
+		rk: Key,
+		pear: PearKey,
+		p: { proposal: string; tag: string | null },
+		password?: string
+	) {
 		if (!password) throw new ReleaseError(`Enter the password for your pear key ${pear.name}`);
-		await rk.inspect(proposal);
-		const request = z32.decode(ReleaseKey.request(proposal)) as Uint8Array;
+		await rk.inspect(p.proposal, { tag: p.tag });
+		const request = z32.decode(ReleaseKey.request(p.proposal)) as Uint8Array;
 		let response: string;
 		try {
 			response = z32.encode(await signWithPearKey(pearDir(), pear.name, request, password));
@@ -1210,7 +1097,7 @@ class Releases {
 			}
 			throw err;
 		}
-		ReleaseKey.verify(proposal, response);
+		ReleaseKey.verify(p.proposal, response);
 		return response;
 	}
 
@@ -1251,10 +1138,10 @@ class Releases {
 	}
 
 	// Commit waits for two full copies of the new release before it returns,
-	// with no bound of its own. Past the timeout the entry is already appended
-	// here and the mirrors keep catching up.
+	// with no bound of its own. Past the timeout the blocks are already
+	// appended here and the mirrors keep catching up.
 	async commit(key: string, id: string) {
-		const record = await this.record(key);
+		const record = await this.mirror(key);
 		const rk = await this.key(record);
 		const p = await this.getProposal(key, id);
 
@@ -1273,10 +1160,47 @@ class Releases {
 			throw new ReleaseError((err as Error).message);
 		}
 
-		if (done === null && rk.length <= p.previous) throw new ReleaseError('Commit timed out');
+		if (done === null && rk.length < p.length) throw new ReleaseError('Commit timed out');
 		await this.store.deleteProposal(key, id);
 		events.emit('release', { key });
 		return { length: rk.length, mirrored: done !== null };
+	}
+
+	// Rotating replaces a key that can't be trusted any more: a new, empty key
+	// with the signers picked, whose first release is a normal proposal. The
+	// old key is revoked on this device, unless it isn't compromised and the
+	// repo is an app: then it is retired, and can make one last release whose
+	// package.json `upgrade` points installed copies at the new key.
+	async rotate(
+		key: string,
+		opts: {
+			name: string;
+			signers: { key: string; label: string }[];
+			quorum: number;
+			compromised: boolean;
+		}
+	) {
+		const record = await this.mirror(key);
+		if (record.follower) throw new ReleaseError('You follow this key; only its signers rotate it');
+		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
+
+		const to = await this.createKey({
+			name: opts.name,
+			signers: opts.signers,
+			quorum: opts.quorum,
+			repo: record.repo.name,
+			signAs: record.signAs?.name
+		});
+		if (to === key) {
+			throw new ReleaseError('That is this same key. Change the signers or how many must agree');
+		}
+		if (!opts.compromised && (await this.app(record.repo.name))?.app) {
+			await this.store.retire(key, to);
+			events.emit('release', { key });
+		} else {
+			await this.revoke(key);
+		}
+		return to;
 	}
 
 	// Local only: the key stays open and seeded, so co-signers and followers
@@ -1293,6 +1217,13 @@ class Releases {
 		events.emit('release', { key });
 	}
 
+	// Local and one-way: this device stops trusting the key.
+	async revoke(key: string) {
+		await this.record(key);
+		await this.store.revoke(key);
+		events.emit('release', { key });
+	}
+
 	async withdraw(key: string, id: string) {
 		await this.store.deleteProposal(key, id);
 		events.emit('release', { key });
@@ -1300,29 +1231,25 @@ class Releases {
 }
 
 export function repoReleases(keys: KeySummary[]) {
-	const byKey = new Map(keys.map((k) => [k.key, k]));
 	const out: Record<string, RepoRelease> = {};
-	for (const first of keys) {
-		const repo = first.repo?.key ?? first.latest?.repo.key ?? first.pending[0]?.release?.repo.key;
+	for (const k of keys) {
+		if (k.format !== 'mirror' || k.revoked || k.archived || k.retiredTo) continue;
+		const repo = k.repo?.key;
 		if (!repo || out[repo]) continue;
-		const k = newest(first, byKey);
 		const p = k.pending[0];
 		out[repo] = {
 			key: k.key,
 			name: k.name,
 			role: k.role,
 			version: k.latest?.name ?? null,
-			index: k.latest?.index ?? null,
 			tag: k.latest?.tag ?? null,
-			source: k.latest?.repo ?? null,
+			source: k.latest ? { key: k.key, length: k.length } : null,
 			quorum: k.quorum,
 			signers: k.signers.length,
 			pending: p
 				? {
 						id: p.id,
-						name: p.rotate
-							? `Rotation to ${p.rotate.name ?? short(p.rotate.to)}`
-							: (p.release?.name ?? null),
+						name: p.release?.name ?? null,
 						missing: Math.max(0, k.quorum - p.signed.length),
 						waitingOnMe: !p.signedByMe && k.signers.some((s) => s.me)
 					}
@@ -1332,24 +1259,28 @@ export function repoReleases(keys: KeySummary[]) {
 	return out;
 }
 
-// Follows rotations to the newest key in `byKey`, at most MAX_HOPS.
-function newest(k: KeySummary, byKey: Map<string, KeySummary>) {
-	for (let hops = 0; hops < MAX_HOPS && k.rotatedTo; hops++) {
-		const next = byKey.get(k.rotatedTo.to);
-		if (!next) break;
-		k = next;
-	}
-	return k;
+// Newest first: by semver, then tag time, then name.
+function sortReleases(releases: Release[]) {
+	return releases.sort(
+		(a, b) =>
+			compareVersions(b.tag, a.tag) ||
+			b.timestamp - a.timestamp ||
+			(a.tag < b.tag ? 1 : a.tag > b.tag ? -1 : 0)
+	);
 }
 
-function view(raw: RawRelease): Release {
+function view(t: RawTag): Release {
 	return {
-		name: raw.name,
-		tag: raw.tag,
-		commit: b4a.toString(raw.commit, 'hex'),
-		tree: b4a.toString(raw.tree, 'hex'),
-		repo: { key: z32.encode(raw.repo.key), length: raw.repo.length }
+		name: versionName(t.name),
+		tag: t.name,
+		commit: t.commit,
+		tree: t.tree,
+		timestamp: t.timestamp
 	};
+}
+
+function versionName(tag: string) {
+	return tag.replace(/^v(?=\d)/, '');
 }
 
 function normalizeKey(text: string) {
@@ -1361,36 +1292,26 @@ function normalizeKey(text: string) {
 	}
 }
 
-// git+pear://0.<length>.<repo key>/<repo>?release=<key>, pinned to the
-// latest release's repo length. The repo link is what clones; the git+pear
-// helper only reads ?storage= and leaves ?release= alone. Without a repo to
-// name yet, the plain key.
-function shareLink(record: KeyRecord, latest: Release | null) {
-	const repo = latest?.repo ?? (record.repo && { key: record.repo.key, length: null });
-	if (!repo) return record.key;
+// git+pear://<release key>/<repo>: it clones the repo as signed.
+function shareLink(record: KeyRecord) {
 	const name = record.repo?.name ?? record.name.split('/')[0];
-	const pin = repo.length === null ? '' : `0.${repo.length}.`;
-	return `${SHARE}${pin}${repo.key}/${name}?release=${record.key}`;
+	return `${SHARE}${record.key}/${name}`;
 }
 
-// A share link, a bare key or a legacy release+pear:// link. A share link
-// names the repo, so its follower record goes by the repo's name.
+// A git+pear:// link, pinned or not, or a bare key. A link names the repo,
+// so its follower record goes by the repo's name.
 function parseShare(text: string) {
 	const trimmed = text.trim();
 	if (trimmed.length > MAX_PASTE) return null;
 	if (trimmed.startsWith(SHARE)) {
-		const match = /^[^?#]*\/([^/?#]*)\?(?:[^#]*&)?release=([^&#]*)/.exec(trimmed);
-		const key = match && normalizeKey(match[2]);
+		const match = /^git\+pear:\/\/(?:\d+\.\d+\.)?([^/?#]+)(?:\/([^/?#]*))?/.exec(trimmed);
+		const key = match && normalizeKey(match[1]);
 		if (!key) return null;
-		const name = match[1];
+		const name = match[2] ?? '';
 		return { key: z32.decode(key) as Uint8Array, name: NAME.test(name) ? name : null };
 	}
-	const rest = trimmed.startsWith(LEGACY_SHARE) ? trimmed.slice(LEGACY_SHARE.length) : trimmed;
-	const slash = rest.indexOf('/');
-	const key = normalizeKey(slash === -1 ? rest : rest.slice(0, slash));
-	if (!key) return null;
-	const name = slash === -1 ? '' : rest.slice(slash + 1);
-	return { key: z32.decode(key) as Uint8Array, name: NAME.test(name) ? name : null };
+	const key = normalizeKey(trimmed);
+	return key ? { key: z32.decode(key) as Uint8Array, name: null } : null;
 }
 
 function short(key: string) {
