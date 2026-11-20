@@ -2,6 +2,7 @@
 	import ChangeList from './ChangeList.svelte';
 	import {
 		changesSummary,
+		proposalName,
 		shortKey,
 		type Changes,
 		type KeySummary,
@@ -33,10 +34,29 @@
 		</h2>
 		<span class="font-mono text-xs text-fg-3">{shortKey(key.key)}</span>
 	</div>
+	{#if key.rotatedTo}
+		{@const to = key.rotatedTo}
+		<svelte:element
+			this={to.known ? 'a' : 'div'}
+			href={to.known ? `/releases/${to.to}` : undefined}
+			class="-mx-2 flex gap-3.5 rounded-lg px-2 pt-1 text-fg no-underline transition-colors hover:bg-surface-2"
+		>
+			<div class="flex w-3 flex-none flex-col items-center" aria-hidden="true">
+				<span class="h-3 w-3 rounded-full bg-bg shadow-[inset_0_0_0_2px_#5dddad]"></span>
+				<span class="w-0.5 flex-1 bg-neutral-800"></span>
+			</div>
+			<div class="flex min-w-0 flex-1 items-baseline gap-2.5 pb-3.5">
+				<span class="w-7 font-mono text-xs text-fg-3">#{key.length - 1}</span>
+				<span class="truncate font-display text-[15px] font-semibold text-accent-300">
+					Rotated to {to.name ?? shortKey(to.to)}{to.known ? ' →' : ''}
+				</span>
+			</div>
+		</svelte:element>
+	{/if}
 	{#if current}
 		<a
 			href="/releases/{key.key}/{current.id}"
-			aria-label="{current.release?.name ?? 'Proposal'}, pending"
+			aria-label="{proposalName(current, 'Proposal')}, pending"
 			class="-mx-2 flex gap-3.5 rounded-lg px-2 pt-1 text-fg no-underline transition-colors hover:bg-surface-2"
 		>
 			<div class="flex w-3 flex-none flex-col items-center" aria-hidden="true">
@@ -48,7 +68,7 @@
 			<div class="flex flex-1 items-baseline gap-2.5 pb-3.5">
 				<span class="w-7 font-mono text-xs text-fg-3">#{current.previous}</span>
 				<span class="font-display text-[15px] font-semibold text-apricot-300">
-					{current.release?.name ?? '…'}
+					{proposalName(current, '…')}
 				</span>
 				<span class="ml-auto text-xs text-fg-3">
 					{current.signed.length} / {key.quorum} · pending

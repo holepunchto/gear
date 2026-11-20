@@ -1,7 +1,7 @@
 import { invalidate } from '$app/navigation';
 import { initials } from '$lib/initials';
 import { relativeTime } from '$lib/time';
-import type { Changes, RepoRelease, Signer } from '$lib/server/release-service';
+import type { Changes, Pending, RepoRelease, Signer } from '$lib/server/release-service';
 
 export type {
 	Candidates,
@@ -12,7 +12,9 @@ export type {
 	Pending,
 	Release,
 	RepoRelease,
+	Rotate,
 	Signer,
+	Successor,
 	TagOption
 } from '$lib/server/release-service';
 
@@ -39,6 +41,12 @@ export function signerName(s: Signer) {
 export function signerInitials(s: Signer) {
 	if (s.label) return initials(s.label);
 	return s.me ? 'You' : s.key.slice(0, 2).toUpperCase();
+}
+
+// What a pending proposal is called: its release, or the key it rotates to.
+export function proposalName(p: Pending, fallback = 'A release') {
+	if (p.rotate) return `Rotation to ${p.rotate.name ?? shortKey(p.rotate.to)}`;
+	return p.release?.name ?? fallback;
 }
 
 // Where a repo's release badge links: the sign view when it waits on you,

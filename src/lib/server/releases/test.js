@@ -10,7 +10,7 @@ import c from 'compact-encoding';
 import sodium from 'sodium-native';
 import { generateKeys, sign } from 'hypercore-sign-lib';
 import ReleaseKey from './index.js';
-import { Proposal } from './messages.js';
+import { Proposal, ROTATE } from './messages.js';
 
 test('2 of 3 signers release, anyone commits', async function (t) {
 	const { dc, kd, am } = await create(t);
@@ -160,6 +160,106 @@ test('a response is verified against its proposal offline', async function (t) {
 	t.exception(() => ReleaseKey.verify(proposal, z32.encode(forged)), /signature is invalid/);
 });
 
+test('a 1 of 1 key rotates to a 2 of 3 key', async function (t) {
+	const seat = crypto.keyPair();
+	const old = await create(t, [seat], { quorum: 1 });
+	await publish(old.dc.key, '1.0.0', [seat]);
+
+	const seats = [seat, crypto.keyPair(), crypto.keyPair()];
+	const next = await create(t, seats, { net: old.net });
+
+	const rotate = await old.dc.key.proposeRotate(next.dc.key.key);
+	const { record } = await old.dc.key.inspect(rotate);
+	t.is(record.type, ROTATE);
+	t.is(record.previous, 1);
+	t.ok(b4a.equals(record.to, next.dc.key.key));
+
+	t.is(await old.dc.key.commit(rotate, [await old.dc.key.sign(rotate, seat)]), 2);
+	t.ok(b4a.equals(await old.dc.key.rotatedTo(), next.dc.key.key));
+	t.is((await old.dc.key.get(0)).name, '1.0.0');
+
+	const p = await next.kd.key.propose(release('2.0.0'));
+	t.is(
+		await next.kd.key.commit(p, [
+			await next.kd.key.sign(p, seats[1]),
+			await next.am.key.sign(p, seats[2])
+		]),
+		1
+	);
+});
+
+test('an empty key rotates', async function (t) {
+	const seat = crypto.keyPair();
+	const old = await create(t, [seat], { quorum: 1 });
+	const to = crypto.randomBytes(32);
+
+	const rotate = await old.dc.key.proposeRotate(to);
+	t.is(await old.dc.key.commit(rotate, [await old.dc.key.sign(rotate, seat)]), 1);
+	t.ok(b4a.equals(await old.dc.key.rotatedTo(), to));
+});
+
+test('a rotated key takes no more releases', async function (t) {
+	const { dc, kd } = await create(t);
+
+	const stale = await dc.key.propose(release('1.0.0'));
+	const staleResponses = [await dc.key.sign(stale, dc.seat), await kd.key.sign(stale, kd.seat)];
+
+	const rotate = await kd.key.proposeRotate(crypto.randomBytes(32));
+	await kd.key.commit(rotate, [
+		await dc.key.sign(rotate, dc.seat),
+		await kd.key.sign(rotate, kd.seat)
+	]);
+	await dc.key.core.update({ wait: true });
+
+	await t.exception(dc.key.propose(release('1.1.0')), /rotated/);
+	await t.exception(dc.key.proposeRotate(crypto.randomBytes(32)), /rotated/);
+	await t.exception(dc.key.inspect(stale), /rotated/);
+	await t.exception(dc.key.commit(stale, staleResponses), /rotated/);
+	t.is(dc.key.length, 1);
+});
+
+test('inspect refuses a rotation that names the wrong previous entry', async function (t) {
+	const { dc, kd } = await create(t);
+
+	// What a misbehaving proposer could stage: the record claims entry #5.
+	const bad = await dc.key._propose({ type: ROTATE, previous: 5, to: crypto.randomBytes(32) });
+	await t.exception(kd.key.inspect(bad), /does not follow the latest release/);
+	await t.exception(kd.key.sign(bad, kd.seat), /does not follow the latest release/);
+
+	const self = await dc.key.proposeRotate(dc.key.key);
+	await t.exception(kd.key.inspect(self), /same key/);
+});
+
+test('a follower walks to the key a release key rotated to', async function (t) {
+	const old = await create(t);
+	await publish(old.dc.key, '1.0.0', [old.dc.seat, old.kd.seat], old.kd.key);
+
+	const f = await peer(t, old.bootstrap);
+	const followed = new ReleaseKey(f.store, f.swarm, { key: old.dc.key.key });
+	t.teardown(() => followed.close(), { order: -1 });
+	t.is((await followed.follow()).name, '1.0.0');
+	t.is(await followed.rotatedTo(), null);
+
+	const seats = [crypto.keyPair(), crypto.keyPair()];
+	const next = await create(t, seats, { net: old.net });
+	const rotate = await old.dc.key.proposeRotate(next.dc.key.key);
+	await old.dc.key.commit(rotate, [
+		await old.dc.key.sign(rotate, old.dc.seat),
+		await old.kd.key.sign(rotate, old.kd.seat)
+	]);
+	await publish(next.dc.key, '2.0.0', seats, next.kd.key);
+
+	while (followed.length < 2) await followed.core.update({ wait: true });
+	const to = await followed.rotatedTo();
+	t.ok(b4a.equals(to, next.dc.key.key));
+
+	const successor = new ReleaseKey(f.store, f.swarm, { key: to });
+	t.teardown(() => successor.close(), { order: -1 });
+	t.is((await successor.follow()).name, '2.0.0');
+	t.is(successor.quorum, 2);
+	t.alike(successor.signers, next.dc.key.signers);
+});
+
 test('a pear multisig key signs next to a gear seat', async function (t) {
 	const pear = await generateKeys(password('hunter2'));
 	const { dc, kd } = await create(t, [crypto.keyPair(), { publicKey: pear.publicKey }]);
@@ -175,7 +275,36 @@ test('a pear multisig key signs next to a gear seat', async function (t) {
 	t.is((await dc.key.get(0)).name, '1.0.0');
 });
 
-async function create(t, seats = [crypto.keyPair(), crypto.keyPair(), crypto.keyPair()]) {
+async function create(
+	t,
+	seats = [crypto.keyPair(), crypto.keyPair(), crypto.keyPair()],
+	{ quorum = 2, net = null } = {}
+) {
+	const { bootstrap, blind } = net ?? (await network(t));
+
+	const opts = {
+		signers: seats.map((s) => s.publicKey),
+		namespace: 'gip-transport/stable',
+		quorum,
+		blind
+	};
+
+	const [dc, kd = dc, am = kd] = await Promise.all(
+		seats.map(async (seat) => {
+			const p = await peer(t, bootstrap);
+			const key = new ReleaseKey(p.store, p.swarm, opts);
+			await key.ready();
+			t.teardown(() => key.close(), { order: -1 });
+			return { key, seat };
+		})
+	);
+
+	t.ok(b4a.equals(dc.key.key, am.key.key));
+	return { dc, kd, am, bootstrap, net: { bootstrap, blind } };
+}
+
+// A testnet with two seeders standing in for blind peers.
+async function network(t) {
 	const { bootstrap } = await createTestnet(3, { teardown: t.teardown });
 
 	const seeders = [await peer(t, bootstrap), await peer(t, bootstrap)];
@@ -188,26 +317,7 @@ async function create(t, seats = [crypto.keyPair(), crypto.keyPair(), crypto.key
 			}
 		}
 	};
-
-	const opts = {
-		signers: seats.map((s) => s.publicKey),
-		namespace: 'gip-transport/stable',
-		quorum: 2,
-		blind
-	};
-
-	const [dc, kd, am = kd] = await Promise.all(
-		seats.map(async (seat) => {
-			const p = await peer(t, bootstrap);
-			const key = new ReleaseKey(p.store, p.swarm, opts);
-			await key.ready();
-			t.teardown(() => key.close(), { order: -1 });
-			return { key, seat };
-		})
-	);
-
-	t.ok(b4a.equals(dc.key.key, am.key.key));
-	return { dc, kd, am, bootstrap };
+	return { bootstrap, blind };
 }
 
 async function peer(t, bootstrap) {
@@ -226,6 +336,16 @@ function password(text) {
 	const pwd = sodium.sodium_malloc(b4a.byteLength(text));
 	b4a.write(pwd, text);
 	return pwd;
+}
+
+// Proposes and commits a release, signed by `seats` in order.
+async function publish(key, name, seats, other = key) {
+	const proposal = await key.propose(release(name));
+	const responses = [];
+	for (const [i, seat] of seats.entries()) {
+		responses.push(await (i === 0 ? key : other).sign(proposal, seat));
+	}
+	return key.commit(proposal, responses);
 }
 
 function release(name) {

@@ -62,6 +62,20 @@ export const actions: Actions = {
 		return attempt('commit', () => releases.commit(params.key, String(form.get('id'))));
 	},
 
+	rotate: async ({ request, locals, params }) => {
+		const form = await request.formData();
+		const keys = form.getAll('signer').map(String);
+		const labels = form.getAll('label').map(String);
+		const releases = await getReleases(locals.db);
+		return attempt('rotate', async () => ({
+			id: await releases.proposeRotate(params.key, {
+				name: String(form.get('name') ?? ''),
+				signers: keys.map((key, i) => ({ key, label: labels[i] ?? '' })),
+				quorum: Number(form.get('quorum'))
+			})
+		}));
+	},
+
 	archive: async ({ locals, params }) => {
 		const releases = await getReleases(locals.db);
 		await releases.archive(params.key);

@@ -11,7 +11,14 @@
 	import FollowKey from '$lib/components/releases/FollowKey.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import MoveAway from '$lib/components/releases/MoveAway.svelte';
-	import { liveReleases, shortKey, signerName, type DraftSigner } from '$lib/releases';
+	import Rotated from '$lib/components/releases/Rotated.svelte';
+	import {
+		liveReleases,
+		proposalName,
+		shortKey,
+		signerName,
+		type DraftSigner
+	} from '$lib/releases';
 
 	let { data, form }: PageProps = $props();
 
@@ -138,7 +145,7 @@
 							>
 								<span class="text-fg-2">
 									<b class="font-display text-lg font-semibold text-apricot-300">
-										{current.release?.name ?? 'A release'}
+										{proposalName(current)}
 									</b>
 									is collecting signatures ·
 									<a href="/releases/{key.key}/{current.id}">review</a>
@@ -149,6 +156,8 @@
 								</span>
 							</div>
 							<CollectSignatures {key} {current} response={d.responses[current.id] ?? null} />
+						{:else if key.rotatedTo}
+							<Rotated {key} />
 						{:else if key.role !== 'follower'}
 							<ProposeForm {key} candidates={d.candidates} />
 						{/if}

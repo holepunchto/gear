@@ -5,7 +5,14 @@
 	import SeatRing from '$lib/components/releases/SeatRing.svelte';
 	import FollowKey from '$lib/components/releases/FollowKey.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
-	import { avatar, liveReleases, shortKey, signerInitials, signerName } from '$lib/releases';
+	import {
+		avatar,
+		liveReleases,
+		proposalName,
+		shortKey,
+		signerInitials,
+		signerName
+	} from '$lib/releases';
 
 	let { data, form }: PageProps = $props();
 	let receiving = $state(false);
@@ -26,7 +33,7 @@
 	function pendingLine(k: (typeof data.keys)[number]) {
 		const p = k.pending[0];
 		if (!p) return '';
-		const name = p.release?.name ?? 'A release';
+		const name = proposalName(p);
 		if (!p.signedByMe && k.signers.some((s) => s.me)) return `${name} proposed · waiting on you`;
 		// Signatures on someone else's proposal are collected on their device.
 		if (!p.mine) return `${name} proposed · you signed`;
@@ -109,7 +116,7 @@
 				>
 			</span>
 			<span class="min-w-[220px] flex-1">
-				<b class="font-semibold">{key.name} {p.release?.name ?? ''}</b>
+				<b class="font-semibold">{key.name} · {proposalName(p, '')}</b>
 				<span class="text-[#c9b7a4]">needs your signature</span>
 			</span>
 			<span class="font-mono text-xs text-apricot-300">
@@ -222,7 +229,11 @@
 										{k.latest?.name ?? '—'}
 									</span>
 									<span class="text-xs text-fg-3">
-										{k.latest ? `#${k.latest.index}` : 'no releases yet'}
+										{k.rotatedTo
+											? `rotated to ${k.rotatedTo.name ?? shortKey(k.rotatedTo.to)}`
+											: k.latest
+												? `#${k.latest.index}`
+												: 'no releases yet'}
 									</span>
 								</div>
 							</div>

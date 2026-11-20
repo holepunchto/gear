@@ -7,7 +7,10 @@ export const load: PageServerLoad = async ({ locals, parent, depends }) => {
 	const { repo } = await parent();
 	const releases = await getReleases(locals.db);
 	const keys = await releases.forRepo(repo.key);
-	const active = keys.filter((k) => !k.archived);
+	// A key that was rotated goes after the key it points to.
+	const active = keys
+		.filter((k) => !k.archived)
+		.sort((a, b) => Number(a.rotatedTo !== null) - Number(b.rotatedTo !== null));
 	return {
 		seat: releases.seatKey,
 		keys: await Promise.all(active.map((k) => releases.details(k.key))),
