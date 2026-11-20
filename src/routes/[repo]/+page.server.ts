@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { openRepo } from '$lib/server/repo';
+import { dismissPendingAdd } from '$lib/server/pending';
 
 // /[repo] — bounce to the default ref, or render the empty-repo state
 // from +page.svelte if nothing has been pushed yet.
@@ -17,6 +18,12 @@ export const load: PageServerLoad = async ({ params, parent, url }) => {
 const REPO_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export const actions: Actions = {
+	// Forget a failed add so the name is free to try again.
+	dismiss: async ({ params }) => {
+		dismissPendingAdd(params.repo);
+		throw redirect(303, '/');
+	},
+
 	delete: async ({ params, locals }) => {
 		const ok = await locals.db.deleteRemote(params.repo);
 		if (!ok) return fail(404, { delete: { error: 'Repository not found' } });

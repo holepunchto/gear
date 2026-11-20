@@ -3,12 +3,46 @@ import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import { openRepo, getCommitCount, getBranchRefs, getTagRefs } from '$lib/server/repo';
 import type { ParsedCommit } from '$lib/server/commit-parse';
+import { getPendingAdd } from '$lib/server/pending';
+import { events } from '$lib/server/events';
 
 export const load: LayoutServerLoad = async ({ params, locals, url, depends }) => {
 	const name = params.repo;
 	// Tag this load so the client can ask for a re-run when an 'append'
 	// event tells us someone pushed new blocks.
 	depends('repo:' + name);
+
+	// Still being added: no record and no git data yet, only the core filling
+	// up. The page shows that and swaps to the repo when the add lands.
+	const add = getPendingAdd(name);
+	if (add) {
+		await events.ensureRepoAttached(locals.db, name, add.key);
+		const stats = events.getRepoStats(name);
+		const key = Id.encode(add.key);
+		const length = stats?.length ?? 0;
+		return {
+			repo: {
+				name,
+				key,
+				length,
+				contiguousLength: stats?.contiguousLength ?? 0,
+				held: stats?.held ?? 0,
+				buckets: stats?.buckets ?? null,
+				peers: stats?.peers ?? 0,
+				writable: false,
+				url: `git+pear://0.${length}.${key}/${name}`,
+				syncing: true,
+				error: add.error,
+				head: null,
+				ref: null,
+				refCommit: null,
+				commitCount: { count: 0, capped: false },
+				branches: [],
+				tags: []
+			}
+		};
+	}
+
 	const remote = await openRepo(locals.db, name);
 	if (!remote) throw error(404, 'Repository not found');
 
@@ -75,6 +109,8 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 			key,
 			length,
 			contiguousLength: remote.core.contiguousLength,
+			held: remote.core.contiguousLength,
+			buckets: null,
 			peers: remote.core.peers.length,
 			writable: remote.core.writable,
 			url: `git+pear://0.${length}.${key}/${name}`,
@@ -83,7 +119,9 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 			refCommit,
 			commitCount,
 			branches,
-			tags
+			tags,
+			syncing: false,
+			error: null
 		}
 	};
 };

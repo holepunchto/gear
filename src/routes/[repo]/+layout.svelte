@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { onMount, untrack } from 'svelte';
 	import type { Snippet } from 'svelte';
-	import { goto, invalidate } from '$app/navigation';
+	import { goto, invalidate, invalidateAll } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import ReplicationPanel from '$lib/components/ReplicationPanel.svelte';
 	import LiveActivity, { type Activity } from '$lib/components/LiveActivity.svelte';
@@ -65,6 +65,8 @@
 	let liveLength = $state(data.repo.length);
 	let livePeers = $state(data.repo.peers);
 	let liveContiguous = $state(untrack(() => data.repo.contiguousLength));
+	let liveHeld = $state(untrack(() => data.repo.held));
+	let liveBuckets = $state.raw(untrack(() => data.repo.buckets));
 	let pushFlash = $state(false);
 
 	$effect(() => {
@@ -72,6 +74,8 @@
 		liveLength = data.repo.length;
 		livePeers = data.repo.peers;
 		liveContiguous = data.repo.contiguousLength;
+		liveHeld = data.repo.held;
+		liveBuckets = data.repo.buckets;
 	});
 
 	// What happened while this page was open: appends and peer changes from
@@ -90,12 +94,27 @@
 	onMount(() => {
 		const name = untrack(() => data.repo.name);
 		const es = new EventSource(`/api/events/${encodeURIComponent(name)}`);
+		// While a repo is being added, arrival is logged from the held count
+		// every 500 blocks or so, not from appends.
+		let loggedHeld = untrack(() => data.repo.held);
 
 		es.addEventListener('repo', (e) => {
 			try {
 				const s = JSON.parse((e as MessageEvent).data);
 				if (typeof s.length === 'number') liveLength = s.length;
 				if (typeof s.contiguousLength === 'number') liveContiguous = s.contiguousLength;
+				if (typeof s.held === 'number') liveHeld = s.held;
+				if (s.buckets !== undefined) liveBuckets = s.buckets;
+				if (data.repo.syncing && typeof s.held === 'number') {
+					const n = s.held - loggedHeld;
+					if (n >= 500 || (n > 0 && s.held === s.length)) {
+						loggedHeld = s.held;
+						lastAppend = { added: n, at: Date.now() };
+						record(
+							`+${n} blocks · ${s.held.toLocaleString()} of ${s.length.toLocaleString()} held`
+						);
+					}
+				}
 				if (typeof s.peers === 'number' && s.peers !== livePeers) {
 					const n = s.peers - livePeers;
 					if (n > 0) record(`${n === 1 ? 'A peer' : `${n} peers`} joined · ${s.peers} now`);
@@ -116,6 +135,14 @@
 					to: number;
 					added: number;
 				};
+				// Mid-add, an append only reveals how long the remote core is;
+				// no block has arrived yet.
+				if (data.repo.syncing) {
+					const on = livePeers > 0 ? ` on ${livePeers} peer${livePeers === 1 ? '' : 's'}` : '';
+					record(`Found ${d.to.toLocaleString()} blocks${on}`);
+					invalidate('repo:' + name).catch(() => {});
+					return;
+				}
 				const range = { from: d.from, to: d.to };
 				lastAppend = { added: d.added, at: Date.now() };
 				record(`+${d.added} block${d.added === 1 ? '' : 's'}`);
@@ -127,6 +154,15 @@
 			pushFlash = true;
 			setTimeout(() => (pushFlash = false), 1500);
 			invalidate('repo:' + name).catch(() => {});
+		});
+
+		// A repo still being added swaps to the real view once it lands, or to
+		// the error when the add fails.
+		es.addEventListener('ready', () => {
+			if (data.repo.syncing) invalidateAll();
+		});
+		es.addEventListener('failed', () => {
+			if (data.repo.syncing && !data.repo.error) invalidateAll();
 		});
 
 		const clock = setInterval(() => (now = Date.now()), 1000);
@@ -328,6 +364,7 @@
 		<div class="relative flex w-full items-center gap-2.5 sm:w-auto" bind:this={cloneEl}>
 			<button
 				type="button"
+				hidden={repo.syncing}
 				onclick={() => {
 					showForkForm = !showForkForm;
 					if (showForkForm && !forkName) forkName = `${repo.name}-fork`;
@@ -355,6 +392,7 @@
 			</button>
 			<button
 				type="button"
+				hidden={!!repo.error}
 				onclick={() => (cloneOpen = !cloneOpen)}
 				class="inline-flex h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-accent-400 sm:h-10 px-4 text-sm font-semibold text-accent-900 shadow-[inset_0_0_0_1px_rgb(201_245_223/0.4),0_8px_28px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300 sm:flex-none"
 				aria-expanded={cloneOpen}
@@ -497,17 +535,25 @@
 		</form>
 	{/if}
 
-	<ReplicationPanel
-		length={liveLength}
-		contiguous={liveContiguous}
-		peers={livePeers}
-		writable={repo.writable}
-		fresh={freshBlocks}
-		last={lastAppend}
-		{now}
-	/>
+	{#if !repo.error}
+		<ReplicationPanel
+			length={liveLength}
+			contiguous={liveContiguous}
+			held={liveHeld}
+			buckets={liveBuckets}
+			peers={livePeers}
+			writable={repo.writable}
+			fresh={freshBlocks}
+			last={lastAppend}
+			{now}
+		/>
+	{/if}
 
-	<nav aria-label="Repository" class="-mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+	<nav
+		aria-label="Repository"
+		hidden={repo.syncing}
+		class="-mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+	>
 		<div class="inline-flex gap-0.5 rounded-xl bg-surface p-1 ring-1 ring-line ring-inset">
 			{#each tabs as tab}
 				{@const active = tab.match(page.url.pathname)}
@@ -530,7 +576,39 @@
 
 	<div class="flex flex-wrap items-start gap-6">
 		<div class="min-w-0 flex-[999_1_640px]">
-			{@render children()}
+			{#if repo.error}
+				<div class="rounded-2xl bg-surface px-6 py-16 text-center ring-1 ring-line ring-inset">
+					<h3 class="m-0 text-lg font-semibold text-fg">Couldn't add {repo.name}</h3>
+					<p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-red-400">{repo.error}</p>
+					<form
+						method="POST"
+						action="/{repo.name}?/dismiss"
+						class="mt-5 flex justify-center gap-2.5"
+					>
+						<a
+							href="/"
+							class="inline-flex h-10 items-center rounded-[10px] px-3.5 text-sm font-medium text-fg-2 no-underline ring-1 ring-line-strong ring-inset hover:text-fg"
+						>
+							Back to Library
+						</a>
+						<button
+							type="submit"
+							class="inline-flex h-10 cursor-pointer items-center rounded-[10px] bg-surface-3 px-3.5 text-sm font-medium text-fg ring-1 ring-line-strong ring-inset hover:bg-surface-4"
+						>
+							Dismiss
+						</button>
+					</form>
+				</div>
+			{:else if repo.syncing}
+				<div class="rounded-2xl bg-surface px-6 py-16 text-center ring-1 ring-line ring-inset">
+					<h3 class="m-0 text-lg font-semibold text-fg">Adding {repo.name}</h3>
+					<p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-fg-2">
+						Blocks are arriving from peers. Files and commits show up here once every block is held.
+					</p>
+				</div>
+			{:else}
+				{@render children()}
+			{/if}
 		</div>
 		<aside class="hidden min-w-0 flex-[1_1_300px] flex-col gap-4 lg:flex">
 			<LiveActivity items={activity} {now} />
