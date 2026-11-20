@@ -28,13 +28,29 @@ const LEGACY_SHARE = 'release+pear://';
 const MAX_HOPS = 8;
 // Record types, as in ./releases/messages.js.
 const ROTATE = 1;
+// Gear marks the signatures it hands out, so whoever pastes one learns the
+// signer is a Gear seat. A pear CLI response comes unmarked.
+const GEAR_RESPONSE = 'gear:';
 
-export class ReleaseError extends Error {}
+// `data` rides along with the message to the form: a raw signing request
+// for the pear CLI when Gear can't sign.
+type ErrorData = { request?: string };
+
+export class ReleaseError extends Error {
+	data: ErrorData;
+
+	constructor(message: string, data: ErrorData = {}) {
+		super(message);
+		this.data = data;
+	}
+}
 
 // A ReleaseError becomes a 400 for the form action `action`; anything else
 // is rethrown.
 export function failure(action: string, err: unknown) {
-	if (err instanceof ReleaseError) return fail(400, { [action]: { error: err.message } });
+	if (err instanceof ReleaseError) {
+		return fail(400, { [action]: { ...err.data, error: err.message } });
+	}
 	throw err;
 }
 
@@ -54,7 +70,9 @@ export type Release = {
 	repo: { key: string; length: number };
 };
 
-export type Signer = { key: string; label: string | null; me: boolean };
+// `gear` says the seat is known to sign in Gear: it's this device's, or a
+// Gear co-signer's signature came from it. Any other may be a pear key.
+export type Signer = { key: string; label: string | null; me: boolean; gear: boolean };
 
 // A rotation hands a key's release log over to `to`. `name` is what this
 // device calls the new key, when it knows it.
@@ -160,6 +178,8 @@ type KeyRecord = {
 	owner: boolean;
 	follower?: boolean;
 	labels: Record<string, string>;
+	// Signers whose signatures came from Gear.
+	gear?: string[];
 	added: number;
 	archived?: boolean;
 };
@@ -583,7 +603,8 @@ class Releases {
 			signers: record.signers.map((key) => ({
 				key,
 				label: record.labels[key] ?? null,
-				me: key === me
+				me: key === me,
+				gear: key === me || (record.gear?.includes(key) ?? false)
 			})),
 			repo: record.repo,
 			length: rk.length,
@@ -825,7 +846,13 @@ class Releases {
 
 		const signers = described.signers.map((s) => z32.encode(s) as string);
 		if (!signers.includes(this.seatKey)) {
-			throw new ReleaseError('Your signing key is not one of the signers on this release key');
+			// It may be for a pear key of yours: hand back what the CLI signs.
+			throw new ReleaseError(
+				'Your Gear signing key is not one of the signers on this release key',
+				{
+					request: ReleaseKey.request(proposal)
+				}
+			);
 		}
 
 		const key = z32.encode(described.key) as string;
@@ -1009,12 +1036,17 @@ class Releases {
 		const key = z32.encode(to) as string;
 		const record = (await this.store.getKey(key)) as KeyRecord | null;
 		const me = this.seatKey;
-		const signers = (keys: string[], labels: Record<string, string> = {}) =>
-			keys.map((s) => ({ key: s, label: labels[s] ?? null, me: s === me }));
+		const signers = (keys: string[], labels: Record<string, string> = {}, gear: string[] = []) =>
+			keys.map((s) => ({
+				key: s,
+				label: labels[s] ?? null,
+				me: s === me,
+				gear: s === me || gear.includes(s)
+			}));
 		if (record) {
 			return {
 				name: record.name,
-				signers: signers(record.signers, record.labels),
+				signers: signers(record.signers, record.labels, record.gear),
 				quorum: record.quorum
 			};
 		}
@@ -1093,12 +1125,14 @@ class Releases {
 
 		await this.store.putResponse(key, id, { signer: this.seatKey, response });
 		events.emit('release', { key });
-		return response;
+		return GEAR_RESPONSE + response;
 	}
 
 	async addResponse(key: string, id: string, text: string) {
 		const p = await this.getProposal(key, id);
-		const response = text.trim();
+		const trimmed = text.trim();
+		const gear = trimmed.startsWith(GEAR_RESPONSE);
+		const response = gear ? trimmed.slice(GEAR_RESPONSE.length) : trimmed;
 
 		let signer: Uint8Array;
 		try {
@@ -1113,13 +1147,20 @@ class Releases {
 			);
 		}
 
-		await this.store.putResponse(key, id, { signer: z32.encode(signer), response });
+		const seat = z32.encode(signer) as string;
+		await this.store.putResponse(key, id, { signer: seat, response });
+		const record = await this.record(key);
+		if (gear && !record.gear?.includes(seat)) {
+			await this.store.putKey({ ...record, gear: [...(record.gear ?? []), seat] });
+		}
 		events.emit('release', { key });
 	}
 
+	// This device's signature, marked as Gear's for the proposer.
 	async myResponse(key: string, id: string) {
 		const responses = await this.store.listResponses(key, id);
-		return responses.find((r) => r.signer === this.seatKey)?.response ?? null;
+		const mine = responses.find((r) => r.signer === this.seatKey);
+		return mine ? GEAR_RESPONSE + mine.response : null;
 	}
 
 	// Commit waits for two full copies of the new release before it returns,

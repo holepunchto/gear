@@ -261,6 +261,18 @@ signature" takes it, and `verify` and `commit` accept it. A test signs a
 proposal with hypercore-sign-lib and commits it in a 2-of-2 key next to a
 Gear seat.
 
+Gear keeps the two apart. A pending proposal's send area has a copy "For Gear
+co-signers" (the proposal) and one "For the pear CLI" (the full
+`pear multisig sign <request> <name>` command, with the key name editable),
+because `pear multisig sign` fails with "Invalid signing request" on a
+proposal. The pear one is open, naming the signers it may be for, while any
+signer still to sign isn't a known Gear seat. A seat is known when it is this
+device's or when its signature came from Gear: Gear hands out its signatures
+as `gear:<response>`, and a pasted one teaches the proposer that seat is
+Gear's. A pear CLI response comes unmarked. Pasting a proposal for a key
+your Gear seat isn't on gives you the pear command for it instead of only
+refusing.
+
 The CLI signs whatever request it is shown. It doesn't replicate the staging
 core or check the record the way `inspect` does, so a pear signer should
 inspect the proposal in Gear first, or trust the proposer.
