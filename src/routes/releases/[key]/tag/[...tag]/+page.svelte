@@ -103,6 +103,7 @@
 					source={{ key: key.key, length: key.length }}
 					tag={r.tag}
 					pear={data.pear}
+					multi={multisig(key.signers.length)}
 				/>
 			{/if}
 			<KeyShare keyText={key.key} share={key.share} />
