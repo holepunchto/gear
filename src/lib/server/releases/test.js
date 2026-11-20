@@ -8,55 +8,141 @@ import b4a from 'b4a';
 import z32 from 'z32';
 import c from 'compact-encoding';
 import sodium from 'sodium-native';
+import { Remote } from 'gip-remote';
 import { generateKeys, sign } from 'hypercore-sign-lib';
 import fs from 'fs';
 import path from 'path';
 import ReleaseKey from './index.js';
 import { listPearKeys, signWithPearKey } from '../pear-keys.js';
-import { Proposal, ROTATE } from './messages.js';
+import { Proposal } from './messages.js';
+import { rootAt } from './repo.js';
 
-test('2 of 3 signers release, anyone commits', async function (t) {
-	const { dc, kd, am } = await create(t);
+test('2 of 3 signers mirror the repo up to a tag, anyone commits', async function (t) {
+	const { dc, kd, am, repo } = await create(t);
+	const at = await repo.release('1.0.0');
+	await repo.commit('after the tag');
 
-	const proposal = await dc.key.propose(release('1.0.0'));
-	const { record } = await kd.key.inspect(proposal);
-	t.is(record.name, '1.0.0');
-	t.is(record.previous, 0);
+	const proposal = await dc.key.propose(repo.key, 'v1.0.0');
+	t.is(ReleaseKey.describe(proposal).length, at, 'signs the length the tag first appears at');
+
+	const inspected = await kd.key.inspect(proposal, { tag: 'v1.0.0' });
+	t.alike(
+		inspected.tags.map((tag) => tag.name),
+		['v1.0.0']
+	);
+	t.is(inspected.tags[0].commit, repo.tags.get('v1.0.0'));
+	t.is(inspected.base, 0);
 
 	const responses = [await dc.key.sign(proposal, dc.seat), await kd.key.sign(proposal, kd.seat)];
-	t.is(await am.key.commit(proposal, responses), 1);
+	t.is(await am.key.commit(proposal, responses), at);
+	t.ok(repo.core.length > at, 'the repo moved on past the release');
 
 	await dc.key.core.update({ wait: true });
-	t.is(dc.key.length, 1);
-	t.is((await dc.key.get(0)).tag, 'v1.0.0');
+	t.is(dc.key.length, at);
+	t.ok(b4a.equals(await dc.key.core.treeHash(at), await repo.core.treeHash(at)));
 });
 
-test('any signer proposes the next release on top of the last', async function (t) {
-	const { dc, kd, am } = await create(t);
+test('a second release extends the first', async function (t) {
+	const { dc, kd, am, repo } = await create(t);
+	const first = await repo.release('1.0.0');
+	await publish(dc, 'v1.0.0', [dc, am], repo);
 
-	const first = await dc.key.propose(release('1.0.0'));
-	await dc.key.commit(first, [
-		await dc.key.sign(first, dc.seat),
-		await am.key.sign(first, am.seat)
-	]);
+	await repo.commit('more');
+	await repo.tag('v1.1.0-rc.1');
+	const second = await repo.release('1.1.0');
 
 	await kd.key.core.update({ wait: true });
-	const second = await kd.key.propose(release('1.1.0'));
-	const { record } = await am.key.inspect(second);
-	t.is(record.previous, 1);
+	const proposal = await kd.key.propose(repo.key, 'v1.1.0');
+	const inspected = await am.key.inspect(proposal);
+	t.is(inspected.base, first);
+	t.is(inspected.length, second);
+	t.alike(inspected.tags.map((tag) => tag.name).sort(), ['v1.1.0', 'v1.1.0-rc.1']);
 
-	await kd.key.commit(second, [
-		await kd.key.sign(second, kd.seat),
-		await am.key.sign(second, am.seat)
+	t.is(
+		await kd.key.commit(proposal, [
+			await kd.key.sign(proposal, kd.seat),
+			await am.key.sign(proposal, am.seat)
+		]),
+		second
+	);
+
+	const signed = await kd.key.repo();
+	t.alike(signed.tags.map((tag) => tag.name).sort(), ['v1.0.0', 'v1.1.0', 'v1.1.0-rc.1']);
+});
+
+test('a proposal overtaken by a later release is refused', async function (t) {
+	const { dc, kd, am, repo } = await create(t);
+	await repo.release('1.0.0');
+	await repo.commit('more');
+	await repo.release('1.1.0');
+
+	const stale = await dc.key.propose(repo.key, 'v1.0.0');
+	const staleResponses = [await dc.key.sign(stale, dc.seat), await kd.key.sign(stale, kd.seat)];
+	const later = await kd.key.propose(repo.key, 'v1.1.0');
+	await kd.key.commit(later, [
+		await kd.key.sign(later, kd.seat),
+		await am.key.sign(later, am.seat)
 	]);
-	t.is(kd.key.length, 2);
-	t.is((await kd.key.get(1)).name, '1.1.0');
+
+	await am.key.core.update({ wait: true });
+	await t.exception(am.key.inspect(stale), /release key is at/);
+	await t.exception(am.key.sign(stale, am.seat), /release key is at/);
+	await t.exception(dc.key.commit(stale, staleResponses), /release key is at/);
+	await t.exception(dc.key.propose(repo.key, 'v1.0.0'), /already signed/);
+});
+
+test('inspect refuses a tag the repo lacks at the length, or a foreign tree hash', async function (t) {
+	const { dc, kd, repo, owner } = await create(t);
+	await repo.release('1.0.0');
+	await repo.commit('more');
+	await repo.release('1.1.0');
+
+	const proposal = await dc.key.propose(repo.key, 'v1.0.0');
+	await t.exception(kd.key.inspect(proposal, { tag: 'v1.1.0' }), /No new tag v1.1.0/);
+	await t.exception(kd.key.sign(proposal, kd.seat, { tag: 'v1.1.0' }), /No new tag v1.1.0/);
+
+	// The same request, said to come from another repo that is long enough.
+	const other = await gipRepo(t, owner, 'other');
+	for (let i = 0; i < 6; i++) await other.release(`0.${i}.0`);
+	const envelope = c.decode(Proposal, z32.decode(proposal));
+	const swapped = z32.encode(c.encode(Proposal, { ...envelope, source: other.key }));
+	await t.exception(kd.key.inspect(swapped), /does not match the repo/);
+});
+
+test('a tag first pushed in a write that spans blocks', async function (t) {
+	const { dc, kd, repo, owner } = await create(t);
+	for (let i = 0; i < 3; i++) await repo.commit('big ' + i, { blob: 256 * 1024 });
+	const first = await repo.release('1.0.0');
+	for (let i = 3; i < 6; i++) await repo.commit('big ' + i, { blob: 256 * 1024 });
+	await repo.commit('tagged', { blob: 256 * 1024 });
+	const second = await repo.tag('v1.1.0');
+	let inside = 0;
+	for (let length = 1; length <= second; length++) {
+		if ((await rootAt(owner.store, repo.key, length, { timeout: 1000 })) !== length) inside++;
+	}
+	t.ok(inside > 0, `${inside} lengths fall inside a write`);
+
+	const proposal = await dc.key.propose(repo.key, 'v1.1.0');
+	t.is(ReleaseKey.describe(proposal).length, second);
+	t.alike((await kd.key.inspect(proposal)).tags.map((tag) => tag.name).sort(), [
+		'v1.0.0',
+		'v1.1.0'
+	]);
+	t.is(ReleaseKey.describe(await dc.key.propose(repo.key, 'v1.0.0')).length, first);
+	t.is(
+		await dc.key.commit(proposal, [
+			await dc.key.sign(proposal, dc.seat),
+			await kd.key.sign(proposal, kd.seat)
+		]),
+		second
+	);
 });
 
 test('commit below quorum is rejected', async function (t) {
-	const { dc, kd } = await create(t);
+	const { dc, kd, repo } = await create(t);
+	await repo.release('1.0.0');
 
-	const proposal = await dc.key.propose(release('1.0.0'));
+	const proposal = await dc.key.propose(repo.key, 'v1.0.0');
 	await t.exception(
 		dc.key.commit(proposal, [await kd.key.sign(proposal, kd.seat)]),
 		/Insufficient quorum/
@@ -64,36 +150,53 @@ test('commit below quorum is rejected', async function (t) {
 	t.is(dc.key.length, 0);
 });
 
-test('a proposal overtaken by another release is refused', async function (t) {
-	const { dc, kd, am } = await create(t);
+test('the release key clones as the repo it signed', async function (t) {
+	const { dc, kd, repo, bootstrap } = await create(t);
+	await repo.release('1.0.0');
+	await repo.commit('two');
+	const at = await repo.release('1.1.0');
+	await publish(dc, 'v1.1.0', [dc, kd], repo);
+	await repo.commit('unreleased');
+	await repo.tag('v2.0.0-beta');
 
-	const stale = await dc.key.propose(release('1.0.0'));
-	const winner = await kd.key.propose(release('1.0.1'));
-	await kd.key.commit(winner, [
-		await kd.key.sign(winner, kd.seat),
-		await am.key.sign(winner, am.seat)
-	]);
+	const p = await peer(t, bootstrap);
+	const remote = new Remote(p.store.session(), { name: 'signed', key: dc.key.key });
+	t.teardown(() => remote.close(), { order: -1 });
+	p.swarm.join(remote.discoveryKey, { server: false, client: true });
+	await remote.ready();
+	await remote.core.update({ wait: true });
 
-	await am.key.core.update({ wait: true });
-	await t.exception(am.key.sign(stale, am.seat), /appends at 0, release key is at 1/);
+	t.is(remote.core.length, at);
+	t.is(await remote.getHead(), 'main');
+	const refs = await remote.getAllRefs();
+	t.alike(refs.find((r) => r.ref === 'refs/heads/main')?.oid, repo.tags.get('v1.1.0'));
+	t.alike(
+		refs
+			.filter((r) => r.ref.startsWith('refs/tags/'))
+			.map((r) => r.ref)
+			.sort(),
+		['refs/tags/v1.0.0', 'refs/tags/v1.1.0']
+	);
 });
 
 test('a non-signer cannot sign', async function (t) {
-	const { dc, kd } = await create(t);
+	const { dc, kd, repo } = await create(t);
+	await repo.release('1.0.0');
 
-	const proposal = await dc.key.propose(release('1.0.0'));
+	const proposal = await dc.key.propose(repo.key, 'v1.0.0');
 	await t.exception(kd.key.sign(proposal, crypto.keyPair()), /not a declared signer/);
 });
 
 test('a signer opens the key from the proposal alone', async function (t) {
-	const { dc, kd, bootstrap } = await create(t);
+	const { dc, kd, repo, bootstrap } = await create(t);
+	await repo.release('1.0.0');
 
-	const proposal = await dc.key.propose(release('1.0.0'));
+	const proposal = await dc.key.propose(repo.key, 'v1.0.0');
 	const described = ReleaseKey.describe(proposal);
 	t.ok(b4a.equals(described.key, dc.key.key));
+	t.ok(b4a.equals(described.source, repo.key));
 	t.is(described.quorum, 2);
-	t.is(described.length, 1);
-	t.is(described.source.byteLength, 32);
+	t.is(described.id.length, 52);
 
 	const envelope = c.decode(Proposal, z32.decode(proposal));
 	const renamed = z32.encode(c.encode(Proposal, { ...envelope, namespace: 'gear/other' }));
@@ -104,55 +207,53 @@ test('a signer opens the key from the proposal alone', async function (t) {
 	t.teardown(() => key.close(), { order: -1 });
 
 	const response = await key.sign(proposal, kd.seat);
-	t.is(await dc.key.commit(proposal, [response, await dc.key.sign(proposal, dc.seat)]), 1);
-
-	await key.core.update({ wait: true });
-	t.is((await key.get(0)).name, '1.0.0');
+	t.is(
+		await dc.key.commit(proposal, [response, await dc.key.sign(proposal, dc.seat)]),
+		described.length
+	);
 });
 
 test('a follower opens the key from the key alone', async function (t) {
-	const { dc, kd, bootstrap } = await create(t);
-
-	for (const name of ['1.0.0', '1.1.0']) {
-		const proposal = await dc.key.propose(release(name));
-		await dc.key.commit(proposal, [
-			await dc.key.sign(proposal, dc.seat),
-			await kd.key.sign(proposal, kd.seat)
-		]);
-	}
+	const { dc, kd, repo, bootstrap } = await create(t);
+	await repo.release('1.0.0');
+	await publish(dc, 'v1.0.0', [dc, kd], repo);
 
 	const p = await peer(t, bootstrap);
 	const key = new ReleaseKey(p.store, p.swarm, { key: dc.key.key });
 	t.teardown(() => key.close(), { order: -1 });
 
-	const latest = await key.follow();
-	t.is(latest.name, '1.1.0');
-	t.is(key.length, 2);
-	t.is((await key.get(0)).name, '1.0.0');
+	const signed = await key.follow();
+	t.alike(
+		signed.tags.map((tag) => tag.name),
+		['v1.0.0']
+	);
+	t.is(signed.head.branch, 'main');
 	t.is(key.quorum, 2);
 	t.alike(key.signers, dc.key.signers);
 });
 
 test('following a core that is not a release key fails', async function (t) {
-	const { bootstrap } = await createTestnet(3, { teardown: t.teardown });
-	const writer = await peer(t, bootstrap);
-	const core = writer.store.get({ name: 'not-releases' });
-	await core.append(b4a.from('hello'));
-	writer.swarm.join(core.discoveryKey);
-	await writer.swarm.flush();
+	const { bootstrap, owner } = await create(t);
+
+	const plain = owner.store.get({ name: 'not-releases' });
+	await plain.append(b4a.from('hello'));
+	owner.swarm.join(plain.discoveryKey);
+	await owner.swarm.flush();
 
 	const p = await peer(t, bootstrap);
-	const key = new ReleaseKey(p.store, p.swarm, { key: core.key });
+	const key = new ReleaseKey(p.store, p.swarm, { key: plain.key });
 	t.teardown(() => key.close(), { order: -1 });
-
-	await t.exception(key.follow());
+	await t.exception(key.follow(), /Not a release key/);
 });
 
 test('a response is verified against its proposal offline', async function (t) {
-	const { dc, kd } = await create(t);
+	const { dc, kd, repo } = await create(t);
+	await repo.release('1.0.0');
+	await repo.commit('more');
+	await repo.release('1.1.0');
 
-	const proposal = await dc.key.propose(release('1.0.0'));
-	const other = await dc.key.propose(release('1.0.1'));
+	const proposal = await dc.key.propose(repo.key, 'v1.0.0');
+	const other = await dc.key.propose(repo.key, 'v1.1.0');
 	const response = await kd.key.sign(proposal, kd.seat);
 
 	t.ok(b4a.equals(ReleaseKey.verify(proposal, response), kd.seat.publicKey));
@@ -163,119 +264,19 @@ test('a response is verified against its proposal offline', async function (t) {
 	t.exception(() => ReleaseKey.verify(proposal, z32.encode(forged)), /signature is invalid/);
 });
 
-test('a 1 of 1 key rotates to a 2 of 3 key', async function (t) {
-	const seat = crypto.keyPair();
-	const old = await create(t, [seat], { quorum: 1 });
-	await publish(old.dc.key, '1.0.0', [seat]);
-
-	const seats = [seat, crypto.keyPair(), crypto.keyPair()];
-	const next = await create(t, seats, { net: old.net });
-
-	const rotate = await old.dc.key.proposeRotate(next.dc.key.key);
-	const { record } = await old.dc.key.inspect(rotate);
-	t.is(record.type, ROTATE);
-	t.is(record.previous, 1);
-	t.ok(b4a.equals(record.to, next.dc.key.key));
-
-	t.is(await old.dc.key.commit(rotate, [await old.dc.key.sign(rotate, seat)]), 2);
-	t.ok(b4a.equals(await old.dc.key.rotatedTo(), next.dc.key.key));
-	t.is((await old.dc.key.get(0)).name, '1.0.0');
-
-	const p = await next.kd.key.propose(release('2.0.0'));
-	t.is(
-		await next.kd.key.commit(p, [
-			await next.kd.key.sign(p, seats[1]),
-			await next.am.key.sign(p, seats[2])
-		]),
-		1
-	);
-});
-
-test('an empty key rotates', async function (t) {
-	const seat = crypto.keyPair();
-	const old = await create(t, [seat], { quorum: 1 });
-	const to = crypto.randomBytes(32);
-
-	const rotate = await old.dc.key.proposeRotate(to);
-	t.is(await old.dc.key.commit(rotate, [await old.dc.key.sign(rotate, seat)]), 1);
-	t.ok(b4a.equals(await old.dc.key.rotatedTo(), to));
-});
-
-test('a rotated key takes no more releases', async function (t) {
-	const { dc, kd } = await create(t);
-
-	const stale = await dc.key.propose(release('1.0.0'));
-	const staleResponses = [await dc.key.sign(stale, dc.seat), await kd.key.sign(stale, kd.seat)];
-
-	const rotate = await kd.key.proposeRotate(crypto.randomBytes(32));
-	await kd.key.commit(rotate, [
-		await dc.key.sign(rotate, dc.seat),
-		await kd.key.sign(rotate, kd.seat)
-	]);
-	await dc.key.core.update({ wait: true });
-
-	await t.exception(dc.key.propose(release('1.1.0')), /rotated/);
-	await t.exception(dc.key.proposeRotate(crypto.randomBytes(32)), /rotated/);
-	await t.exception(dc.key.inspect(stale), /rotated/);
-	await t.exception(dc.key.commit(stale, staleResponses), /rotated/);
-	t.is(dc.key.length, 1);
-});
-
-test('inspect refuses a rotation that names the wrong previous entry', async function (t) {
-	const { dc, kd } = await create(t);
-
-	// What a misbehaving proposer could stage: the record claims entry #5.
-	const bad = await dc.key._propose({ type: ROTATE, previous: 5, to: crypto.randomBytes(32) });
-	await t.exception(kd.key.inspect(bad), /does not follow the latest release/);
-	await t.exception(kd.key.sign(bad, kd.seat), /does not follow the latest release/);
-
-	const self = await dc.key.proposeRotate(dc.key.key);
-	await t.exception(kd.key.inspect(self), /same key/);
-});
-
-test('a follower walks to the key a release key rotated to', async function (t) {
-	const old = await create(t);
-	await publish(old.dc.key, '1.0.0', [old.dc.seat, old.kd.seat], old.kd.key);
-
-	const f = await peer(t, old.bootstrap);
-	const followed = new ReleaseKey(f.store, f.swarm, { key: old.dc.key.key });
-	t.teardown(() => followed.close(), { order: -1 });
-	t.is((await followed.follow()).name, '1.0.0');
-	t.is(await followed.rotatedTo(), null);
-
-	const seats = [crypto.keyPair(), crypto.keyPair()];
-	const next = await create(t, seats, { net: old.net });
-	const rotate = await old.dc.key.proposeRotate(next.dc.key.key);
-	await old.dc.key.commit(rotate, [
-		await old.dc.key.sign(rotate, old.dc.seat),
-		await old.kd.key.sign(rotate, old.kd.seat)
-	]);
-	await publish(next.dc.key, '2.0.0', seats, next.kd.key);
-
-	while (followed.length < 2) await followed.core.update({ wait: true });
-	const to = await followed.rotatedTo();
-	t.ok(b4a.equals(to, next.dc.key.key));
-
-	const successor = new ReleaseKey(f.store, f.swarm, { key: to });
-	t.teardown(() => successor.close(), { order: -1 });
-	t.is((await successor.follow()).name, '2.0.0');
-	t.is(successor.quorum, 2);
-	t.alike(successor.signers, next.dc.key.signers);
-});
-
 test('a pear multisig key signs next to a gear seat', async function (t) {
 	const pear = await generateKeys(password('hunter2'));
-	const { dc, kd } = await create(t, [crypto.keyPair(), { publicKey: pear.publicKey }]);
+	const { dc, kd, repo } = await create(t, [crypto.keyPair(), { publicKey: pear.publicKey }]);
+	const at = await repo.release('1.0.0');
 
-	const proposal = await dc.key.propose(release('1.0.0'));
+	const proposal = await dc.key.propose(repo.key, 'v1.0.0');
 
 	// What `pear multisig sign <request>` does with the request it is shown.
 	const request = z32.decode(ReleaseKey.request(proposal));
 	const response = z32.encode(await sign(request, pear.secretKey, password('hunter2')));
 
 	t.ok(b4a.equals(ReleaseKey.verify(proposal, response), pear.publicKey));
-	t.is(await kd.key.commit(proposal, [await dc.key.sign(proposal, dc.seat), response]), 1);
-	t.is((await dc.key.get(0)).name, '1.0.0');
+	t.is(await kd.key.commit(proposal, [await dc.key.sign(proposal, dc.seat), response]), at);
 });
 
 test('a pear key in its directory signs in gear', async function (t) {
@@ -288,28 +289,50 @@ test('a pear key in its directory signs in gear', async function (t) {
 	t.alike(await listPearKeys(dir), [{ name: 'gip', key: z32.encode(pear.publicKey) }]);
 	t.alike(await listPearKeys(path.join(dir, 'missing')), []);
 
-	const { dc, kd } = await create(t, [crypto.keyPair(), { publicKey: pear.publicKey }]);
-	const proposal = await dc.key.propose(release('1.0.0'));
+	const { dc, kd, repo } = await create(t, [crypto.keyPair(), { publicKey: pear.publicKey }]);
+	const at = await repo.release('1.0.0');
+	const proposal = await dc.key.propose(repo.key, 'v1.0.0');
 	const request = z32.decode(ReleaseKey.request(proposal));
 
 	await t.exception(signWithPearKey(dir, 'gip', request, 'wrong'), /decryption failed/);
 	const response = z32.encode(await signWithPearKey(dir, 'gip', request, 'hunter2'));
 
 	t.ok(b4a.equals(ReleaseKey.verify(proposal, response), pear.publicKey));
-	t.is(await kd.key.commit(proposal, [await dc.key.sign(proposal, dc.seat), response]), 1);
+	t.is(await kd.key.commit(proposal, [await dc.key.sign(proposal, dc.seat), response]), at);
 });
 
-async function create(
-	t,
-	seats = [crypto.keyPair(), crypto.keyPair(), crypto.keyPair()],
-	{ quorum = 2, net = null } = {}
-) {
-	const { bootstrap, blind } = net ?? (await network(t));
+// A testnet with two seeders standing in for blind peers, a repo owner and a
+// peer per seat, each holding the release key.
+async function create(t, seats = [crypto.keyPair(), crypto.keyPair(), crypto.keyPair()]) {
+	const { bootstrap } = await createTestnet(3, { teardown: t.teardown });
+
+	const seeders = [await peer(t, bootstrap), await peer(t, bootstrap)];
+	const blind = {
+		copies: [],
+		addCore(core) {
+			for (const s of seeders) {
+				const copy = s.store.get({ key: core.key });
+				s.swarm.join(copy.discoveryKey);
+				copy.download({ start: 0, end: -1 });
+				this.copies.push(copy);
+			}
+		},
+		// Until both seeders hold `core` up to its length.
+		async synced(core) {
+			for (const copy of this.copies) {
+				if (!b4a.equals(copy.key, core.key)) continue;
+				while (copy.contiguousLength < core.length) await new Promise((r) => setTimeout(r, 20));
+			}
+		}
+	};
+
+	const owner = { ...(await peer(t, bootstrap)), blind };
+	const repo = await gipRepo(t, owner, 'demo');
 
 	const opts = {
 		signers: seats.map((s) => s.publicKey),
-		namespace: 'gip-transport/stable',
-		quorum,
+		namespace: 'gear/releases/demo',
+		quorum: 2,
 		blind
 	};
 
@@ -324,24 +347,7 @@ async function create(
 	);
 
 	t.ok(b4a.equals(dc.key.key, am.key.key));
-	return { dc, kd, am, bootstrap, net: { bootstrap, blind } };
-}
-
-// A testnet with two seeders standing in for blind peers.
-async function network(t) {
-	const { bootstrap } = await createTestnet(3, { teardown: t.teardown });
-
-	const seeders = [await peer(t, bootstrap), await peer(t, bootstrap)];
-	const blind = {
-		addCore(core) {
-			for (const s of seeders) {
-				const copy = s.store.get({ key: core.key });
-				s.swarm.join(copy.discoveryKey);
-				copy.download({ start: 0, end: -1 });
-			}
-		}
-	};
-	return { bootstrap, blind };
+	return { dc, kd, am, repo, owner, bootstrap };
 }
 
 async function peer(t, bootstrap) {
@@ -355,6 +361,70 @@ async function peer(t, bootstrap) {
 	return { store, swarm };
 }
 
+// A writable gip repo on `owner`, announced and mirrored by the seeders. Its
+// commits are fake objects, which gip indexes all the same. `release(v)`
+// commits and tags v<v>, and returns the length the tag first appears at.
+async function gipRepo(t, owner, name) {
+	const remote = new Remote(owner.store.session(), name);
+	await remote.ready();
+	t.teardown(() => remote.close(), { order: -1 });
+	owner.swarm.join(remote.discoveryKey);
+	owner.blind.addCore(remote.core);
+
+	const TREE = 'c'.repeat(40);
+	const BLOB = 'b'.repeat(40);
+	const tree = b4a.concat([b4a.from('100644 README\0'), b4a.from(BLOB, 'hex')]);
+	const base = new Map([
+		[BLOB, object('blob', b4a.from('hello\n'))],
+		[TREE, object('tree', tree)]
+	]);
+	const tags = new Map();
+	let head = null;
+
+	// `blob` adds an incompressible file of that many bytes, so the write
+	// spans several blocks.
+	async function commit(message, { blob = 0 } = {}) {
+		const who = 'Dev <dev@example.com> 1700000000 +0000';
+		const objects = new Map(base);
+		let tree = TREE;
+		if (blob) {
+			const bytes = crypto.randomBytes(blob);
+			const blobOid = b4a.toString(crypto.hash(bytes), 'hex').slice(0, 40);
+			const entries = b4a.concat([b4a.from('100644 big\0'), b4a.from(blobOid, 'hex')]);
+			tree = b4a.toString(crypto.hash(entries), 'hex').slice(0, 40);
+			objects.set(blobOid, object('blob', bytes));
+			objects.set(tree, object('tree', entries));
+		}
+		const data = b4a.from(
+			`tree ${tree}\n${head ? `parent ${head}\n` : ''}author ${who}\ncommitter ${who}\n\n${message}\n`
+		);
+		const oid = b4a.toString(crypto.hash(data), 'hex').slice(0, 40);
+		objects.set(oid, object('commit', data));
+		await remote.push('main', oid, objects);
+		if (!head) await remote.setHead('main');
+		head = oid;
+		return oid;
+	}
+
+	async function tag(name) {
+		await remote.push('tags/' + name, head, new Map());
+		tags.set(name, head);
+		await owner.blind.synced(remote.core);
+		return remote.core.length;
+	}
+
+	async function release(version) {
+		await commit('release ' + version);
+		return tag('v' + version);
+	}
+
+	return { key: remote.key, core: remote.core, tags, commit, tag, release };
+}
+
+function object(type, data) {
+	return { type, size: data.byteLength, data };
+}
+
 // A password in secure memory, the way the pear CLI hands it over.
 function password(text) {
 	const pwd = sodium.sodium_malloc(b4a.byteLength(text));
@@ -362,23 +432,11 @@ function password(text) {
 	return pwd;
 }
 
-// Proposes and commits a release, signed by `seats` in order.
-async function publish(key, name, seats, other = key) {
-	const proposal = await key.propose(release(name));
+// Proposes and commits a release of `tag`, signed by `signers` in order.
+async function publish(proposer, tag, signers, repo) {
+	await proposer.key.core.update();
+	const proposal = await proposer.key.propose(repo.key, tag);
 	const responses = [];
-	for (const [i, seat] of seats.entries()) {
-		responses.push(await (i === 0 ? key : other).sign(proposal, seat));
-	}
-	return key.commit(proposal, responses);
-}
-
-function release(name) {
-	return {
-		name,
-		tag: 'v' + name,
-		commit: crypto.randomBytes(20),
-		tree: crypto.randomBytes(20),
-		repo: { key: crypto.randomBytes(32), length: 334 },
-		artifacts: []
-	};
+	for (const s of signers) responses.push(await s.key.sign(proposal, s.seat));
+	return proposer.key.commit(proposal, responses);
 }
