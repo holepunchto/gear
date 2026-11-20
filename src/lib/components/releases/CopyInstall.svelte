@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CopyButton from './CopyButton.svelte';
 	import { installCommands } from '$lib/releases';
 
 	// A release's npm install, git clone and pear install commands, all from
@@ -24,16 +25,6 @@
 		{ id: 'git', value: commands.git },
 		...(commands.pear ? [{ id: 'pear', value: commands.pear }] : [])
 	]);
-
-	let copied = $state<string | null>(null);
-
-	async function copy(id: string, value: string) {
-		try {
-			await navigator.clipboard.writeText(value);
-			copied = id;
-			setTimeout(() => (copied = null), 1500);
-		} catch {}
-	}
 </script>
 
 <div class="flex flex-col gap-2">
@@ -44,16 +35,7 @@
 			<code class="min-w-0 flex-1 truncate font-mono text-xs text-seal-100" title={row.value}>
 				{row.value}
 			</code>
-			<button
-				type="button"
-				onclick={() => copy(row.id, row.value)}
-				aria-label="Copy {row.id} command"
-				class="inline-flex h-9 w-16 shrink-0 cursor-pointer items-center justify-center rounded-[7px] px-2.5 text-xs font-semibold transition-colors sm:h-7 {multi
-					? 'bg-seal-400 text-seal-900 hover:bg-seal-300'
-					: 'bg-seal-400/16 text-seal-200 hover:bg-seal-400/24'}"
-			>
-				{copied === row.id ? 'Copied' : 'Copy'}
-			</button>
+			<CopyButton value={row.value} tone={multi ? 'solid' : 'seal'} title="Copy {row.id} command" />
 		</div>
 	{/each}
 	<div class="flex items-center gap-2 text-xs text-fg-3">
@@ -62,13 +44,6 @@
 			<code class="font-mono text-fg-2">allow-git=all</code> in
 			<code class="font-mono">.npmrc</code>
 		</span>
-		<button
-			type="button"
-			onclick={() => copy('npmrc', commands.npmrc)}
-			aria-label="Copy .npmrc lines"
-			class="w-16 shrink-0 cursor-pointer rounded-md px-1.5 py-1 text-center font-semibold text-seal-300 hover:bg-seal-400/14"
-		>
-			{copied === 'npmrc' ? 'Copied' : 'Copy'}
-		</button>
+		<CopyButton value={commands.npmrc} tone="seal" title="Copy .npmrc lines" />
 	</div>
 </div>

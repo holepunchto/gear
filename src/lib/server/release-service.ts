@@ -151,6 +151,8 @@ export type RepoRelease = {
 	version: string | null;
 	tag: string | null;
 	source: { key: string; length: number } | null;
+	// The key's git+pear:// link: following it gets every release.
+	share: string;
 	quorum: number;
 	signers: number;
 	pending: {
@@ -1363,6 +1365,7 @@ export function repoReleases(keys: KeySummary[]) {
 			version: k.latest?.name ?? null,
 			tag: k.latest?.tag ?? null,
 			source: k.latest ? { key: k.key, length: k.length } : null,
+			share: k.share,
 			quorum: k.quorum,
 			signers: k.signers.length,
 			pending: p

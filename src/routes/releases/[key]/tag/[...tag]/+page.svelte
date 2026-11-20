@@ -4,7 +4,6 @@
 	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
 	import Revoked from '$lib/components/releases/Revoked.svelte';
 	import ChangeList from '$lib/components/releases/ChangeList.svelte';
-	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import CopyInstall from '$lib/components/releases/CopyInstall.svelte';
 	import {
 		avatar,
@@ -106,7 +105,6 @@
 					multi={multisig(key.signers.length)}
 				/>
 			{/if}
-			<KeyShare keyText={key.key} share={key.share} />
 		</div>
 	</section>
 
