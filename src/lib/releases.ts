@@ -1,14 +1,10 @@
 import { invalidate } from '$app/navigation';
 import { initials } from '$lib/initials';
 import { relativeTime } from '$lib/time';
-import { flowSteps, publishStatus } from '$lib/release-flow.js';
-import type {
-	Changes,
-	KeySummary,
-	Pending,
-	RepoRelease,
-	Signer
-} from '$lib/server/release-service';
+import { signerName } from '$lib/release-flow.js';
+import type { Changes, Pending, RepoRelease, Signer } from '$lib/server/release-service';
+
+export { releaseProgress, shortKey, signerName } from '$lib/release-flow.js';
 
 export type {
 	AppInfo,
@@ -36,14 +32,6 @@ export function avatar(index: number) {
 	return AVATARS[index % AVATARS.length];
 }
 
-export function shortKey(key: string) {
-	return key.slice(0, 4) + '…' + key.slice(-4);
-}
-
-export function signerName(s: Signer) {
-	return s.label ?? (s.me ? 'You' : shortKey(s.key));
-}
-
 export function signerInitials(s: Signer) {
 	if (s.label) return initials(s.label);
 	return s.me ? 'You' : s.key.slice(0, 2).toUpperCase();
@@ -52,27 +40,6 @@ export function signerInitials(s: Signer) {
 // What a pending proposal is called: the tag it releases.
 export function proposalName(p: Pending, fallback = 'A release') {
 	return p.release?.name ?? fallback;
-}
-
-// Where a pending release is in its flow: its step, of how many, and what
-// it waits on.
-export function releaseProgress(key: KeySummary, p: Pending) {
-	const { steps, current } = flowSteps({
-		quorum: key.quorum,
-		signers: key.signers,
-		signed: p.signed,
-		length: p.length,
-		keyLength: key.length
-	});
-	const waiting = key.signers.filter((s) => !s.me && !p.signed.includes(s.key));
-	const text = {
-		version: '',
-		sign: 'waiting on your signature',
-		signatures: `waiting on ${waiting.map(signerName).join(', ')}`,
-		publish: publishStatus(p),
-		done: 'released'
-	}[steps[current].id];
-	return { step: current + 1, steps: steps.length, text };
 }
 
 // A key with more than one signer: its releases get the full seal.
@@ -85,24 +52,20 @@ export function tagHref(key: string, tag: string) {
 	return `/releases/${key}/tag/${encodeURI(tag)}`;
 }
 
-// Where a repo's release badge links: the sign view when it waits on you,
-// the latest release, or the key.
+// Where a repo's release badge links: the release in progress, the latest
+// release, or the key.
 export function releaseHref(r: RepoRelease) {
-	if (r.pending?.waitingOnMe) return `/releases/${r.key}/${r.pending.id}`;
+	if (r.pending) return `/releases/${r.key}/${r.pending.id}`;
 	if (r.tag !== null) return tagHref(r.key, r.tag);
 	return `/releases/${r.key}`;
 }
 
-// What a pending release is waiting on, or null.
-export function releaseWaiting(r: RepoRelease) {
-	const p = r.pending;
-	if (!p) return null;
-	const name = p.name ?? 'A release';
-	if (p.waitingOnMe) return `${name} is waiting on your signature`;
-	if (p.missing > 0) {
-		return `${name} is waiting on ${p.missing} more ${p.missing === 1 ? 'signature' : 'signatures'}`;
-	}
-	return `${name} is waiting on a commit`;
+// A release in progress in one line: its name, step and what it waits on.
+export function progressLine(
+	name: string | null,
+	progress: { step: number; steps: number; text: string }
+) {
+	return `${name ?? 'A release'} · step ${progress.step} of ${progress.steps} · ${progress.text}`;
 }
 
 // The key inside a git+pear:// link.

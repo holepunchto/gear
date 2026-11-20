@@ -1,5 +1,15 @@
 // Where a release is in its flow, from what this device knows of it.
 
+/** @param {string} key */
+export function shortKey(key) {
+	return key.slice(0, 4) + '…' + key.slice(-4);
+}
+
+/** @param {{ key: string, label: string | null, me: boolean }} s */
+export function signerName(s) {
+	return s.label ?? (s.me ? 'You' : shortKey(s.key));
+}
+
 /**
  * Publish on its own: "Publish when signed" is ticked, enough signatures are
  * here, the key isn't there yet, and no publish is running or failed. A
@@ -61,4 +71,45 @@ export function flowSteps(p) {
 
 	const open = steps.findIndex((s) => s.state === 'open');
 	return { steps, current: open === -1 ? steps.length - 1 : open };
+}
+
+/**
+ * A release in progress as every page but its flow page says it: the step
+ * it is at, its number of how many, and what it waits on. A co-signer's
+ * proposal collects its signatures on the proposer's device, so a co-signer
+ * can't name who is left.
+ * @param {{
+ *   quorum: number, length: number,
+ *   signers: { key: string, label: string | null, me: boolean }[]
+ * }} key
+ * @param {{
+ *   mine: boolean, signed: string[], length: number,
+ *   publishing?: boolean, error?: string | null
+ * }} p
+ */
+export function releaseProgress(key, p) {
+	const { steps, current } = flowSteps({
+		quorum: key.quorum,
+		signers: key.signers,
+		signed: p.signed,
+		length: p.length,
+		keyLength: key.length
+	});
+	const at = steps[current].id;
+	return { at, step: current + 1, steps: steps.length, text: waitsOn(at, key, p) };
+}
+
+/**
+ * @param {StepId} step
+ * @param {Parameters<typeof releaseProgress>[0]} key
+ * @param {Parameters<typeof releaseProgress>[1]} p
+ */
+function waitsOn(step, key, p) {
+	if (step === 'sign') return 'waiting on your signature';
+	if (step === 'publish') return publishStatus(p);
+	if (step === 'done') return 'released';
+	if (!p.mine) return 'the proposer collects the signatures';
+	const waiting = key.signers.filter((s) => !s.me && !p.signed.includes(s.key)).map(signerName);
+	const missing = key.quorum - p.signed.length;
+	return `waiting on ${missing < waiting.length ? `${missing} of ` : ''}${waiting.join(', ')}`;
 }

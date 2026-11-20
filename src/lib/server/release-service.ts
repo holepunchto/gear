@@ -17,7 +17,7 @@ import { parseCommitMessage, type ParsedCommit } from './commit-parse';
 import { createTag, TagError } from './tags.js';
 import { newerTags, compareVersions } from './newer-tags.js';
 import { namespaceFor, nameOf } from './release-names.js';
-import { shouldPublish } from '../release-flow.js';
+import { releaseProgress, shouldPublish, type StepId } from '../release-flow.js';
 import { listPearKeys, pearDir, signWithPearKey } from './pear-keys.js';
 import { events } from './events';
 import { log, logError } from './log.js';
@@ -140,9 +140,10 @@ export type KeySummary = {
 	pending: Pending[];
 };
 
-// A repo's release as every surface shows it: the latest version and what
-// is pending, from this device's point of view. `source` is the release key
-// and the length it is signed to, which is what installs pin.
+// A repo's release as every surface shows it: the latest version and the
+// release in progress, from this device's point of view. `source` is the
+// release key and the length it is signed to, which is what installs pin.
+// `waitingOnMe`: the release in progress is at your signature.
 export type RepoRelease = {
 	key: string;
 	name: string;
@@ -152,7 +153,12 @@ export type RepoRelease = {
 	source: { key: string; length: number } | null;
 	quorum: number;
 	signers: number;
-	pending: { id: string; name: string | null; missing: number; waitingOnMe: boolean } | null;
+	pending: {
+		id: string;
+		name: string | null;
+		waitingOnMe: boolean;
+		progress: { at: StepId; step: number; steps: number; text: string };
+	} | null;
 };
 
 // What the propose form offers: the unreleased tags newer than the latest
@@ -859,7 +865,7 @@ class Releases {
 			(p) => p.mine && p.length > rk.length
 		);
 		if (open) {
-			throw new ReleaseError(`${open.release?.name ?? 'A release'} is still collecting signatures`);
+			throw new ReleaseError(`${open.release?.name ?? 'A release'} is still in progress`);
 		}
 		if ((await this.signedTags(record)).some((t) => t.tag === tag)) {
 			throw new ReleaseError(`${tag} is already signed on this key`);
@@ -1349,6 +1355,7 @@ export function repoReleases(keys: KeySummary[]) {
 		const repo = k.repo?.key;
 		if (!repo || out[repo]) continue;
 		const p = k.pending[0];
+		const progress = p && releaseProgress(k, p);
 		out[repo] = {
 			key: k.key,
 			name: k.name,
@@ -1362,8 +1369,8 @@ export function repoReleases(keys: KeySummary[]) {
 				? {
 						id: p.id,
 						name: p.release?.name ?? null,
-						missing: Math.max(0, k.quorum - p.signed.length),
-						waitingOnMe: !p.signedByMe && k.signers.some((s) => s.me)
+						waitingOnMe: progress.at === 'sign',
+						progress
 					}
 				: null
 		};

@@ -9,7 +9,9 @@
 	import {
 		avatar,
 		liveReleases,
+		progressLine,
 		proposalName,
+		releaseProgress,
 		shortKey,
 		signerInitials,
 		signerName
@@ -31,16 +33,6 @@
 			.filter((k) => !k.archived && !k.revoked)
 			.flatMap((k) => k.pending.filter((p) => !p.mine && !p.signedByMe).map((p) => ({ key: k, p })))
 	);
-
-	function pendingLine(k: (typeof data.keys)[number]) {
-		const p = k.pending[0];
-		if (!p) return '';
-		const name = proposalName(p);
-		if (!p.signedByMe && k.signers.some((s) => s.me)) return `${name} proposed · waiting on you`;
-		// Signatures on someone else's proposal are collected on their device.
-		if (!p.mine) return `${name} proposed · you signed`;
-		return `${name} proposed · ${p.signed.length} of ${k.quorum} signatures in`;
-	}
 </script>
 
 <svelte:head>
@@ -267,18 +259,20 @@
 								<span class="ml-auto font-mono">length {k.length}</span>
 								{#if k.repo}<span class="font-mono">{k.repo.name}</span>{/if}
 							</div>
-							{#if k.pending.length}
-								<div
-									class="flex items-center gap-2.5 rounded-[10px] bg-apricot-400/8 px-3 py-2.5 text-xs text-apricot-300"
-								>
-									<span
-										class="h-3 w-3 animate-spin rounded-full border-2 border-apricot-400/30 border-t-apricot-400"
-										aria-hidden="true"
-									></span>
-									{pendingLine(k)}
-								</div>
-							{/if}
 						</a>
+						{#if k.pending.length && !k.revoked}
+							{@const p = k.pending[0]}
+							<a
+								href="/releases/{k.key}/{p.id}"
+								class="flex items-center gap-2.5 rounded-[10px] bg-apricot-400/8 px-3 py-2.5 text-xs text-apricot-300 no-underline hover:bg-apricot-400/12"
+							>
+								<span
+									class="h-3 w-3 animate-spin rounded-full border-2 border-apricot-400/30 border-t-apricot-400"
+									aria-hidden="true"
+								></span>
+								{progressLine(proposalName(p), releaseProgress(k, p))}
+							</a>
+						{/if}
 						<KeyShare keyText={k.key} share={k.share} />
 					</li>
 				{/each}

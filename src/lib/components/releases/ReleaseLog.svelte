@@ -3,23 +3,20 @@
 	import {
 		changesSummary,
 		multisig,
-		proposalName,
 		shortKey,
 		tagHref,
 		type Changes,
 		type KeySummary,
-		type Pending,
 		type Release
 	} from '$lib/releases';
 
+	// The release in progress shows beside it, not in it.
 	let {
 		key,
-		current,
 		history,
 		changes = null
 	}: {
 		key: KeySummary;
-		current: Pending | null;
 		// Every signed tag, newest first.
 		history: Release[];
 		// The latest release's changes in brief.
@@ -41,28 +38,6 @@
 		<p class="m-0 mb-2 text-xs leading-normal text-fg-3">
 			Every tag in the repo as signed, up to length {key.length}.
 		</p>
-	{/if}
-	{#if current}
-		<a
-			href="/releases/{key.key}/{current.id}"
-			aria-label="{proposalName(current, 'Proposal')}, pending"
-			class="-mx-2 flex gap-3.5 rounded-lg px-2 pt-1 text-fg no-underline transition-colors hover:bg-surface-2"
-		>
-			<div class="flex w-3 flex-none flex-col items-center" aria-hidden="true">
-				<span
-					class="h-3 w-3 rounded-full bg-bg shadow-[inset_0_0_0_2px_#fb923c,0_0_10px_rgb(251_146_60/0.5)]"
-				></span>
-				<span class="w-0.5 flex-1 bg-neutral-800"></span>
-			</div>
-			<div class="flex flex-1 items-baseline gap-2.5 pb-3.5">
-				<span class="font-display text-[15px] font-semibold text-apricot-300">
-					{proposalName(current, '…')}
-				</span>
-				<span class="ml-auto text-xs text-fg-3">
-					{current.signed.length} / {key.quorum} · pending
-				</span>
-			</div>
-		</a>
 	{/if}
 	{#each history as r (r.tag)}
 		<a
@@ -101,10 +76,8 @@
 			</div>
 		{/if}
 	{:else}
-		{#if !current}
-			<p class="m-0 text-sm text-fg-3">
-				{key.arriving ? 'The signed repo is still arriving.' : 'Nothing signed yet.'}
-			</p>
-		{/if}
+		<p class="m-0 text-sm text-fg-3">
+			{key.arriving ? 'The signed repo is still arriving.' : 'Nothing signed yet.'}
+		</p>
 	{/each}
 </aside>

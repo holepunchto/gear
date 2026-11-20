@@ -611,7 +611,7 @@
 						{#if tab.release.pending}
 							<span
 								class="ml-1.5 h-[7px] w-[7px] rounded-full bg-apricot-400 shadow-[0_0_8px_#fb923c]"
-								title="Collecting signatures"
+								title="Release in progress"
 							></span>
 						{/if}
 					{/if}

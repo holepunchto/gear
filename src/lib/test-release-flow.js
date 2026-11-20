@@ -1,6 +1,6 @@
 // @ts-nocheck
 import test from 'brittle';
-import { flowSteps, publishStatus, shouldPublish } from './release-flow.js';
+import { flowSteps, publishStatus, releaseProgress, shouldPublish } from './release-flow.js';
 
 const ready = { quorum: 2, signed: ['a', 'b'], length: 10, keyLength: 4 };
 
@@ -77,4 +77,36 @@ test('without a seat there is no sign step', function (t) {
 		steps: ['version:done', 'signatures:open', 'publish:todo', 'done:todo'],
 		current: 'signatures'
 	});
+});
+
+const named = (key, label = null, me = false) => ({ key, label, me });
+
+test('progress names who is left, and how many of them are needed', function (t) {
+	const key = {
+		quorum: 2,
+		length: 4,
+		signers: [named('me', null, true), named('kasper', 'Kasper'), named('ana', 'Ana')]
+	};
+	const p = { mine: true, length: 10 };
+	t.alike(releaseProgress(key, { ...p, signed: [] }), {
+		at: 'sign',
+		step: 2,
+		steps: 5,
+		text: 'waiting on your signature'
+	});
+	t.is(releaseProgress(key, { ...p, signed: ['me'] }).text, 'waiting on 1 of Kasper, Ana');
+	t.is(
+		releaseProgress({ ...key, quorum: 3 }, { ...p, signed: ['me'] }).text,
+		'waiting on Kasper, Ana'
+	);
+	t.is(releaseProgress(key, { ...p, signed: ['me', 'ana'] }).text, 'ready to publish');
+	t.is(releaseProgress(key, { ...p, signed: ['me', 'ana'], publishing: true }).text, 'publishing');
+	t.is(releaseProgress({ ...key, length: 10 }, { ...p, signed: [] }).text, 'released');
+});
+
+test("a co-signer's progress doesn't wait on the proposer, who signed", function (t) {
+	const key = { quorum: 2, length: 4, signers: [named('me', null, true), named('kasper')] };
+	const progress = releaseProgress(key, { mine: false, length: 10, signed: ['me'] });
+	t.is(progress.at, 'signatures');
+	t.is(progress.text, 'the proposer collects the signatures');
 });
