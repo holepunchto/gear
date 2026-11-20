@@ -4,7 +4,8 @@ import b4a from 'b4a';
 import ReleaseKey from './releases/index.js';
 import ReleaseStore from './releases/store.js';
 import type { GipDB } from './gip';
-import { openRepo, getTagTarget } from './repo';
+import { openRepo, getTagTarget, getTagRefs, getBranchRefs } from './repo';
+import { createTag, TagError } from './tags.js';
 import { events } from './events';
 import { log, logError } from './log.js';
 
@@ -66,6 +67,18 @@ export type KeySummary = {
 	length: number;
 	latest: (Release & { index: number }) | null;
 	pending: Pending[];
+};
+
+// What the propose form offers: the repo's tags, newest first with released
+// ones last, and on a repo this device owns, the branches a new tag can name.
+export type TagOption = { name: string; released: number | null };
+
+export type Candidates = {
+	repo: string;
+	tags: TagOption[];
+	branches: string[];
+	head: string | null;
+	writable: boolean;
 };
 
 export type Check = { label: string; ok: boolean; detail: string };
@@ -230,6 +243,69 @@ class Releases {
 		return out;
 	}
 
+	// Everything a key's page shows, for the key page and the repo's Releases tab.
+	async details(key: string) {
+		const summary = await this.getKey(key);
+		const responses = Object.fromEntries(
+			await Promise.all(
+				summary.pending.map(async (p) => [p.id, await this.myResponse(key, p.id)] as const)
+			)
+		);
+		return {
+			key: summary,
+			history: await this.history(key),
+			candidates: await this.candidates(summary),
+			responses
+		};
+	}
+
+	async release(key: string, index: number) {
+		const rk = await this.key(await this.record(key));
+		if (index >= rk.length) throw new ReleaseError('No such release');
+		const entry = await this.read(rk, index);
+		if (!entry) throw new ReleaseError('This release has not arrived yet');
+		return entry;
+	}
+
+	private async candidates(summary: KeySummary): Promise<Candidates | null> {
+		if (!summary.repo) return null;
+		const remote = (await openRepo(this.db, summary.repo.name)) as {
+			core: { writable: boolean };
+			getHead(): Promise<string | null>;
+		} | null;
+		if (!remote) return null;
+
+		const released = await this.released(summary.key);
+		const [tags, branches, head] = await Promise.all([
+			getTagRefs(remote),
+			getBranchRefs(remote),
+			remote.getHead()
+		]);
+
+		return {
+			repo: summary.repo.name,
+			tags: tags
+				.sort((a, b) => (b.commit?.timestamp ?? 0) - (a.commit?.timestamp ?? 0))
+				.map((t) => ({ name: t.name, released: released.get(t.name) ?? null }))
+				.sort((a, b) => Number(a.released !== null) - Number(b.released !== null)),
+			branches: branches.map((b) => b.name),
+			head,
+			writable: remote.core.writable
+		};
+	}
+
+	// Tag → entry index for every release on the key. Release logs are tiny
+	// and kept local, so this reads them all.
+	private async released(key: string) {
+		const rk = await this.key(await this.record(key));
+		const out = new Map<string, number>();
+		for (let i = 0; i < rk.length; i++) {
+			const entry = await this.read(rk, i);
+			if (entry) out.set(entry.tag, i);
+		}
+		return out;
+	}
+
 	private async summary(record: KeyRecord): Promise<KeySummary> {
 		const rk = await this.key(record);
 		const me = this.seatKey;
@@ -349,12 +425,7 @@ class Releases {
 			throw new ReleaseError(`${record.repo.name} is no longer in your library`);
 		}
 
-		const open = (await this.store.listProposals(key)).find(
-			(p) => p.mine && p.previous >= rk.length
-		);
-		if (open) {
-			throw new ReleaseError(`${open.release?.name ?? 'A release'} is still collecting signatures`);
-		}
+		await this.canPropose(key, tag);
 
 		const target = await getTagTarget(remote, tag);
 		if (!target) throw new ReleaseError(`No tag ${tag} in ${record.repo.name}`);
@@ -388,6 +459,38 @@ class Releases {
 
 		events.emit('release', { key });
 		return id;
+	}
+
+	// Make the tag on a repo this device owns, then propose it.
+	async proposeNewTag(key: string, tag: string, target: string) {
+		const record = await this.record(key);
+		if (!record.repo) throw new ReleaseError('This key has no repo to release from');
+		await this.canPropose(key, tag);
+
+		const remote = await openRepo(this.db, record.repo.name);
+		if (!remote) throw new ReleaseError(`${record.repo.name} is no longer in your library`);
+		try {
+			await createTag(remote, tag, target);
+		} catch (err) {
+			if (err instanceof TagError) throw new ReleaseError(err.message);
+			throw err;
+		}
+		return this.propose(key, tag);
+	}
+
+	// Refuse a tag that is already released, or a second proposal of ours
+	// while one is still collecting.
+	private async canPropose(key: string, tag: string) {
+		const rk = await this.key(await this.record(key));
+		const open = (await this.store.listProposals(key)).find(
+			(p) => p.mine && p.previous >= rk.length
+		);
+		if (open) {
+			throw new ReleaseError(`${open.release?.name ?? 'A release'} is still collecting signatures`);
+		}
+
+		const index = (await this.released(key)).get(tag);
+		if (index !== undefined) throw new ReleaseError(`${tag} is already release #${index}`);
 	}
 
 	// A proposal pasted in by a co-signer. Opens the key if this device hasn't
