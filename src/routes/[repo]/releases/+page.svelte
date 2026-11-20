@@ -32,6 +32,9 @@
 	let signers = $state<DraftSigner[]>([{ key: untrack(() => data.seat), label: '', me: true }]);
 	let quorum = $state(1);
 	let creating = $state(false);
+
+	// Just made on this page: say so once, until dismissed.
+	let created = $derived(form?.create && 'key' in form.create ? form.create.key : null);
 </script>
 
 {#if data.keys.length === 0}
@@ -109,6 +112,37 @@
 			{@const key = d.key}
 			{@const current = key.revoked ? null : (key.pending[0] ?? null)}
 			<article class="flex flex-col gap-4" aria-label="{key.name} releases">
+				{#if created === key.key}
+					<div
+						role="status"
+						class="flex items-start gap-3 rounded-2xl bg-accent-400/8 px-5 py-4 ring-1 ring-accent-400/30 ring-inset"
+					>
+						<span
+							class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-400 text-xs font-bold text-accent-900"
+							aria-hidden="true">✓</span
+						>
+						<div class="flex min-w-0 flex-1 flex-col gap-1">
+							<span class="font-semibold text-fg">
+								Release key <span class="font-mono">{key.name}</span> created
+							</span>
+							<span class="text-sm text-fg-2">
+								Next, tag a version below and propose it.
+								{#if key.signers.length > 1}
+									Send the share link to your co-signers so they can sign.
+								{:else}
+									You sign it alone, so it is released as soon as you sign.
+								{/if}
+							</span>
+						</div>
+						<button
+							type="button"
+							onclick={() => (created = null)}
+							aria-label="Dismiss"
+							class="tap-44 cursor-pointer border-0 bg-transparent text-lg leading-none text-fg-3 hover:text-fg"
+							>×</button
+						>
+					</div>
+				{/if}
 				<header
 					class="flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-2xl bg-surface p-[18px] ring-1 ring-line ring-inset"
 				>
