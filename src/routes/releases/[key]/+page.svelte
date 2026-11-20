@@ -10,15 +10,7 @@
 	import RotateNext from '$lib/components/releases/RotateNext.svelte';
 	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
 	import ReleaseInProgress from '$lib/components/releases/ReleaseInProgress.svelte';
-	import {
-		ago,
-		avatar,
-		liveReleases,
-		proposalName,
-		shortKey,
-		signerInitials,
-		signerName
-	} from '$lib/releases';
+	import { avatar, liveReleases, shortKey, signerInitials, signerName } from '$lib/releases';
 
 	let { data }: PageProps = $props();
 
@@ -48,21 +40,9 @@
 				<h1
 					class="m-0 font-display text-[48px] leading-none font-semibold tracking-[-0.04em] break-all text-fg sm:text-[64px]"
 				>
-					{current
-						? proposalName(current, 'Proposal')
-						: key.revoked
-							? key.name
-							: (key.latest?.name ?? key.name)}
+					{key.revoked ? key.name : (key.latest?.name ?? key.name)}
 				</h1>
-				{#if current}
-					<span
-						class="inline-flex items-center gap-2 rounded-full bg-apricot-400/12 px-3 py-[5px] text-xs font-semibold text-apricot-300"
-					>
-						<span class="h-2 w-2 animate-pulse rounded-full bg-apricot-400" aria-hidden="true"
-						></span>
-						Collecting signatures
-					</span>
-				{:else if key.revoked}
+				{#if key.revoked}
 					<span
 						class="inline-flex items-center rounded-full bg-red-500/14 px-3 py-[5px] text-xs font-semibold text-red-300"
 					>
@@ -79,10 +59,7 @@
 				{/if}
 			</div>
 			<span class="text-fg-2">
-				{#if current}
-					Proposed by <b class="font-semibold text-fg">{current.mine ? 'you' : 'a co-signer'}</b>
-					· {ago(current.added)} · signs the repo up to length {current.length}
-				{:else if key.format === 'old'}
+				{#if key.format === 'old'}
 					<span class="font-mono text-fg">{key.name}</span> · made before release keys mirrored the repo
 				{:else if key.latest}
 					<span class="font-mono text-fg">{key.name}</span> · {key.released}
@@ -103,32 +80,6 @@
 				<span class="text-[13px] text-fg-3">Share links appear after your first release.</span>
 			{/if}
 		</div>
-
-		{#if current}
-			<div class="flex w-full min-w-0 flex-col gap-2 sm:w-[320px]">
-				<div class="flex justify-between text-[13px]">
-					<span class="text-fg-2">
-						{current.mine ? 'Signatures' : 'Signatures on this device'}
-					</span>
-					<span>
-						<b class="font-display text-lg font-semibold">{current.signed.length}</b>
-						<span class="text-fg-3">of {key.quorum} needed</span>
-					</span>
-				</div>
-				<div
-					class="grid gap-1.5"
-					style="grid-template-columns: repeat({key.quorum}, minmax(0, 1fr))"
-				>
-					{#each { length: key.quorum }, i}
-						<span
-							class="h-2 rounded {i < current.signed.length
-								? 'bg-accent-400 shadow-[0_0_12px_#23cc94]'
-								: 'bg-[repeating-linear-gradient(90deg,#3a2c20_0_6px,#1a1610_6px_12px)]'}"
-						></span>
-					{/each}
-				</div>
-			</div>
-		{/if}
 	</section>
 
 	{#if key.revoked}
@@ -152,13 +103,8 @@
 		class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-4"
 	>
 		{#each key.signers as s, i (s.key)}
-			{@const signed = current?.signed.includes(s.key) ?? false}
 			<article
-				class="flex flex-col gap-4 rounded-[18px] p-[18px] ring-1 ring-inset {signed
-					? 'bg-linear-170 from-[#10201a] to-[#0b130f] ring-accent-300/30'
-					: current && s.me
-						? 'bg-linear-170 from-[#1a140d] to-[#0f0d09] ring-apricot-400/35'
-						: 'bg-surface ring-line'}"
+				class="flex flex-col gap-4 rounded-[18px] bg-surface p-[18px] ring-1 ring-line ring-inset"
 			>
 				<div class="flex items-center gap-3">
 					<span
@@ -174,28 +120,6 @@
 						</span>
 					</div>
 				</div>
-				{#if current}
-					<div class="flex items-center gap-2.5">
-						{#if signed}
-							<span
-								class="rounded-full bg-accent-400/14 px-2.5 py-1 text-xs font-semibold text-accent-300"
-							>
-								✓ Signed
-							</span>
-						{:else if s.me}
-							<a
-								href="/releases/{key.key}/{current.id}"
-								class="rounded-full bg-apricot-400/14 px-2.5 py-1 text-xs font-semibold text-apricot-300 no-underline"
-							>
-								Review &amp; sign
-							</a>
-						{:else}
-							<span class="rounded-full bg-white/6 px-2.5 py-1 text-xs font-semibold text-fg-2">
-								{current.mine ? 'Waiting' : 'Not seen here'}
-							</span>
-						{/if}
-					</div>
-				{/if}
 			</article>
 		{/each}
 	</section>
@@ -211,7 +135,7 @@
 		</div>
 
 		{#if !key.revoked || showRevoked}
-			<ReleaseLog {key} {current} history={data.history} changes={data.changes} />
+			<ReleaseLog {key} history={data.history} changes={data.changes} />
 		{:else if key.length}
 			<button
 				type="button"

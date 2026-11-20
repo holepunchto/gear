@@ -26,6 +26,12 @@ a tick and a line saying what happened. Later steps are greyed out.
 
 Withdraw is a secondary action in a menu on the page, not a button beside Publish.
 
+Everywhere else a release in progress is one line, worded the same on every page: "`0.1.1` · step 3
+of 5 · waiting on Kasper", linking to the flow page. It never says "commit", "proposal" or
+"collecting"; it is a release, in progress, then published. On a co-signer's device the line can't
+name who is left, since the signatures are collected on the proposer's: it says the proposer collects
+them.
+
 ## Step 0: starting a release
 
 The repo's Releases tab and the key page have one action, **Release a new version**. It picks a tag

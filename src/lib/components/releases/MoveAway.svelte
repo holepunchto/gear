@@ -279,8 +279,8 @@
 					</p>
 					{#if pending}
 						<p class="m-0 text-sm leading-normal text-apricot-300" role="alert">
-							{proposalName(pending)} is still collecting signatures. Archiving doesn't withdraw it: co-signers
-							can still sign it, and anyone holding enough signatures can still commit it.
+							{proposalName(pending)} is still in progress. Archiving doesn't withdraw it: co-signers
+							can still sign it, and anyone holding enough signatures can still publish it.
 						</p>
 					{/if}
 					<div class="flex flex-wrap gap-2.5">

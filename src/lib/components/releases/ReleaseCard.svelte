@@ -1,10 +1,9 @@
 <script lang="ts">
 	import ReleaseSeal from './ReleaseSeal.svelte';
-	import { multisig, releaseHref, releaseWaiting, type RepoRelease } from '$lib/releases';
+	import { multisig, progressLine, releaseHref, type RepoRelease } from '$lib/releases';
 
 	let { release }: { release: RepoRelease } = $props();
 
-	const waiting = $derived(releaseWaiting(release));
 	const sealed = $derived(release.version !== null && multisig(release.signers));
 </script>
 
@@ -47,7 +46,9 @@
 			</span>
 		{/if}
 	</div>
-	{#if waiting}
-		<span class="text-xs text-apricot-300">{waiting}</span>
+	{#if release.pending}
+		<span class="text-xs text-apricot-300">
+			{progressLine(release.pending.name, release.pending.progress)}
+		</span>
 	{/if}
 </a>

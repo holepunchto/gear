@@ -1,31 +1,20 @@
 <script lang="ts">
 	import SeatDots from './SeatDots.svelte';
-	import { multisig, proposalName, type KeySummary } from '$lib/releases';
+	import { multisig, proposalName, releaseProgress, type KeySummary } from '$lib/releases';
 
 	let { keys }: { keys: KeySummary[] } = $props();
 
 	// What each key is waiting on, from this device's point of view.
 	function state(k: KeySummary) {
 		const p = k.pending[0];
-		const amSigner = k.signers.some((s) => s.me);
-		if (p && !p.signedByMe && amSigner) {
+		if (p) {
+			const progress = releaseProgress(k, p);
 			return {
-				kind: 'you',
+				kind: progress.at === 'sign' ? 'you' : 'progress',
 				href: `/releases/${k.key}/${p.id}`,
 				version: proposalName(p, k.latest?.name ?? '—'),
-				filled: p.mine ? p.signed.length : 0,
-				status: 'Waiting on your signature'
-			};
-		}
-		if (p) {
-			return {
-				kind: 'collecting',
-				href: `/releases/${k.key}`,
-				version: proposalName(p, k.latest?.name ?? '—'),
 				filled: p.signed.length,
-				status: p.mine
-					? `Collecting · ${p.signed.length} of ${k.quorum} in`
-					: 'You signed · waiting on a commit'
+				status: `Step ${progress.step} of ${progress.steps} · ${progress.text}`
 			};
 		}
 		return {
@@ -41,15 +30,15 @@
 
 	const rows = $derived(keys.map((k) => ({ k, s: state(k) })));
 	const waiting = $derived(rows.filter((r) => r.s.kind === 'you').length);
-	const collecting = $derived(rows.filter((r) => r.s.kind === 'collecting').length);
+	const progress = $derived(rows.filter((r) => r.s.kind === 'progress').length);
 </script>
 
 <section aria-label="Your releases" class="flex flex-col gap-3.5">
 	<div class="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
 		<h2 class="m-0 text-xl font-semibold tracking-[-0.01em] text-fg">Your releases</h2>
-		{#if waiting || collecting}
+		{#if waiting || progress}
 			<span class="text-[13px] font-medium text-apricot-300">
-				{[waiting && `${waiting} waiting on you`, collecting && `${collecting} collecting`]
+				{[waiting && `${waiting} waiting on you`, progress && `${progress} in progress`]
 					.filter(Boolean)
 					.join(' · ')}
 			</span>
