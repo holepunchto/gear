@@ -29,11 +29,12 @@ export const load: PageServerLoad = async ({ params, locals, url, parent }) => {
 
 	// Cursor takes precedence — paging from "after this commit" — otherwise
 	// we start at the ref's tip, resolved from the layout's ref rows so tags
-	// work the same as branches.
+	// work the same as branches, and a commit ref starts at that commit.
 	let startOid: string | null = cursor;
 	if (!startOid) {
 		const entry = [...repo.branches, ...repo.tags].find((r: { name: string }) => r.name === branch);
-		startOid = entry?.commitOid ?? null;
+		const atCommit = repo.ref?.kind === 'commit' ? repo.refCommit?.oid : null;
+		startOid = entry?.commitOid ?? atCommit ?? null;
 	}
 
 	if (!startOid) {

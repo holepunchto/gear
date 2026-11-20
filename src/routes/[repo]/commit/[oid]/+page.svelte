@@ -62,6 +62,12 @@
 			>
 				{copied ? '✓' : '⧉'}
 			</button>
+			<a
+				href="/{repoName}/{c.oid}/"
+				class="rounded-md px-2 py-1 text-neutral-400 no-underline hover:bg-neutral-800 hover:text-white"
+			>
+				Browse files at this commit
+			</a>
 			{#if data.repo.writable}
 				<button
 					type="button"

@@ -1,4 +1,4 @@
-import { parseCommit } from 'gip-remote';
+import { parseCommit, RemoteDrive, type Remote } from 'gip-remote';
 import { treeEntries } from 'gip-remote/git';
 import type { GipDB } from './gip';
 import { parseCommitMessage, type ParsedCommit } from './commit-parse';
@@ -23,7 +23,7 @@ export async function openRepo(db: GipDB, name: string) {
 type RemoteWithDB = {
 	_db: {
 		get(collection: string, query: object): Promise<unknown>;
-		find(collection: string, query?: object): AsyncIterable<unknown>;
+		find(collection: string, query?: object, opts?: object): AsyncIterable<unknown>;
 	};
 	getObject(oid: string): Promise<{ type: string; size: number; data: Buffer } | null>;
 };
@@ -127,6 +127,56 @@ export async function getTagTarget(
 	const obj = await r.getObject(tag.commitOid);
 	if (!obj || obj.type !== 'commit') return null;
 	return { commit: tag.commitOid, tree: (parseCommit(obj.data) as { tree: string }).tree };
+}
+
+const OID = /^[0-9a-f]{7,40}$/;
+
+/**
+ * The commit and its tree for a full commit oid or an unambiguous prefix of
+ * at least 7 characters, or null when it isn't a commit here. A prefix reads
+ * at most two object rows.
+ */
+export async function getCommitTarget(
+	remote: unknown,
+	oid: string
+): Promise<{ commit: string; tree: string } | null> {
+	if (!OID.test(oid)) return null;
+	const r = remote as RemoteWithDB;
+
+	let commit = oid;
+	if (oid.length < 40) {
+		const rows: { oid: string }[] = [];
+		const range = { gte: { oid }, lt: { oid: oid + 'g' } };
+		for await (const row of r._db.find('@gip/objects', range, { limit: 2 })) {
+			rows.push(row as { oid: string });
+		}
+		if (rows.length !== 1) return null;
+		commit = rows[0].oid;
+	}
+
+	const obj = await r.getObject(commit);
+	if (!obj || obj.type !== 'commit') return null;
+	return { commit, tree: (parseCommit(obj.data) as { tree: string }).tree };
+}
+
+/**
+ * The files at a branch, a tag or a commit. Branches and tags go through
+ * toDrive(); a commit is served lazily from its tree objects, the same way
+ * gip-remote serves tags. Untyped, like the toDrive() result it stands in for.
+ */
+export async function openDrive(remote: Remote, ref: string): Promise<any> {
+	const drive = await remote.toDrive(ref);
+	if (drive) return drive;
+
+	const target = await getCommitTarget(remote, ref);
+	if (!target) return null;
+
+	const { TreeDrive } = RemoteDrive as unknown as {
+		TreeDrive: new (db: unknown, opts: { treeOid: string }) => RemoteDrive;
+	};
+	const tree = new TreeDrive((remote as unknown as RemoteWithDB)._db, { treeOid: target.tree });
+	await tree.ready();
+	return tree;
 }
 
 async function readCommit(r: RemoteWithDB, oid: string): Promise<RefCommit | null> {

@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { openRepo } from '$lib/server/repo';
+import { openRepo, openDrive } from '$lib/server/repo';
 
 /**
  * Raw file download.
@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const remote = await openRepo(locals.db, params.repo);
 	if (!remote) throw error(404, 'Repository not found');
 
-	const drive = await remote.toDrive(params.ref);
+	const drive = await openDrive(remote, params.ref);
 	if (!drive) throw error(404, `Ref '${params.ref}' not found`);
 
 	const cleanPath = (params.path ?? '').replace(/^\/+|\/+$/g, '');

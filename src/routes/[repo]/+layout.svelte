@@ -278,7 +278,9 @@
 				{repo.name}
 			</a>
 			<span class="text-neutral-700">/</span>
-			<span class="font-mono font-medium text-white">{repo.ref.name}</span>
+			<span class="font-mono font-medium text-white">
+				{repo.ref.kind === 'commit' ? repo.refCommit.oid.slice(0, 7) : repo.ref.name}
+			</span>
 		{:else}
 			<span class="font-medium text-white">{repo.name}</span>
 		{/if}

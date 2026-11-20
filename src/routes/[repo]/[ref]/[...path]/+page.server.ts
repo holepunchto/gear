@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import {
 	openRepo,
+	openDrive,
 	listTree,
 	findReadme,
 	getFileMeta,
@@ -30,7 +31,7 @@ export const load: PageServerLoad = async ({ params, locals, parent }) => {
 	const remote = await openRepo(locals.db, params.repo);
 	if (!remote) throw error(404, 'Repository not found');
 
-	const drive = await remote.toDrive(params.ref);
+	const drive = await openDrive(remote, params.ref);
 	if (!drive) throw error(404, `Ref '${params.ref}' not found`);
 
 	const rawPath = params.path ?? '';
@@ -124,7 +125,10 @@ export const load: PageServerLoad = async ({ params, locals, parent }) => {
 	// @gip/files is the ref the commit was pushed under — for branches we
 	// pass the ref name through; tags use a 'tags/<name>' prefix in the
 	// store, and we can support that later when the UI shows trees for tags.
-	const fileMeta = await getFileMeta(remote, params.ref);
+	// File rows are indexed per branch only, so at a commit there is no cheap,
+	// correct attribution: show none.
+	const { repo } = await parent();
+	const fileMeta = repo.ref?.kind === 'commit' ? new Map() : await getFileMeta(remote, params.ref);
 	const itemsWithCommits = attachCommitsToTree(items, fileMeta, folder);
 
 	return {
