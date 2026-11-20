@@ -80,6 +80,6 @@
 {#if parsed.body}
 	<pre
 		class="m-0 font-mono text-[12px] leading-relaxed whitespace-pre-wrap text-neutral-300">{#each segs as s}{#if s.cls}<span
-				class={s.cls}>{s.text}</span
-			>{:else}{s.text}{/if}{/each}</pre>
+					class={s.cls}>{s.text}</span
+				>{:else}{s.text}{/if}{/each}</pre>
 {/if}

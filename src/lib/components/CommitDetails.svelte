@@ -3,7 +3,6 @@
 	import CommitBody from './CommitBody.svelte';
 
 	let { parsed }: { parsed: ParsedCommit } = $props();
-
 </script>
 
 {#if parsed.body}

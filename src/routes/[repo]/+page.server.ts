@@ -43,7 +43,10 @@ export const actions: Actions = {
 		}
 		if (!REPO_NAME_PATTERN.test(name)) {
 			return fail(400, {
-				fork: { error: 'Name may only contain letters, numbers, dashes and underscores', value: name }
+				fork: {
+					error: 'Name may only contain letters, numbers, dashes and underscores',
+					value: name
+				}
 			});
 		}
 		if (name === params.repo) {
@@ -53,7 +56,9 @@ export const actions: Actions = {
 		// Ensure a repo with that name doesn't already exist.
 		const existing = await openRepo(locals.db, name);
 		if (existing) {
-			return fail(409, { fork: { error: 'A repository with that name already exists', value: name } });
+			return fail(409, {
+				fork: { error: 'A repository with that name already exists', value: name }
+			});
 		}
 
 		const src = await openRepo(locals.db, params.repo);

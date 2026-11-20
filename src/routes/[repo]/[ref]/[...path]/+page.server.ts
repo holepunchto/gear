@@ -44,7 +44,9 @@ export const load: PageServerLoad = async ({ params, locals, parent }) => {
 
 	if (entry) {
 		const size = entry.value.blob.byteLength;
-		const parentFolder = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) || '/' : '/';
+		const parentFolder = folder.includes('/')
+			? folder.slice(0, folder.lastIndexOf('/')) || '/'
+			: '/';
 		const name = folder.slice(folder.lastIndexOf('/') + 1);
 
 		// Last commit that touched this file — for the strip above the content.

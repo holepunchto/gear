@@ -22,9 +22,6 @@ const EMPTY: SourceRepoData = { blindPeers: [], repos: [] };
 
 const g = globalThis as unknown as { __ota?: Promise<{ current: SourceConfig | null }> };
 
-// The available-repo list ships baked into the app via hyperconf, so it works
-// with no network. The gear-ota core carries newer config blocks; whenever one
-// replicates in, conf.current flips to it — updates OTA without a new build.
 export async function getAllSourceRepos(gip: GipDB): Promise<SourceRepoData> {
 	if (!g.__ota) g.__ota = open(gip);
 	const conf = await g.__ota;
@@ -38,8 +35,6 @@ async function open(gip: GipDB) {
 	const core = d._store.namespace('ota').get({ key: hid.decode(key) });
 	await core.ready();
 
-	// Every user swarms the config core and serves it back — updates spread
-	// user-to-user, no blind peers involved.
 	d.swarm.join(core.discoveryKey, { server: true, client: true });
 
 	const conf = new Hyperconf(spec, core);
@@ -47,8 +42,6 @@ async function open(gip: GipDB) {
 	log(`ota ready — ${repoCount(conf)} repos (core ${key} length ${core.length})`);
 	conf.on('update', () => {
 		log(`ota update — ${repoCount(conf)} repos (length ${core.length})`);
-		// Fan out over SSE so open pages (the search overlay) refresh their
-		// manifest without a navigation.
 		events.emit('sources');
 	});
 	return conf;

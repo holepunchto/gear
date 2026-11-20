@@ -1,0 +1,125 @@
+name: Integrate
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint
+    steps:
+      - uses: holepunchto/actions/node-base@v1
+        with:
+          allow-git: root
+      - run: npm run lint
+      - run: npm run check
+
+  # One runner per host, because the packaging tools are not cross-platform:
+  # codesign and notarytool are macOS-only, MSIX needs makeappx from the
+  # Windows SDK, and bare-app-image is published as an os:linux package. Only
+  # the JS side of bare-build cross-builds.
+  build:
+    name: ${{ matrix.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            host: linux-x64
+          - os: ubuntu-24.04-arm
+            host: linux-arm64
+          - os: macos-latest
+            host: darwin-arm64
+          - os: macos-15-intel
+            host: darwin-x64
+          - os: windows-latest
+            host: win32-x64
+          - os: windows-11-arm
+            host: win32-arm64
+    runs-on: ${{ matrix.os }}
+    environment: release
+    timeout-minutes: 20
+    steps:
+      - name: Setup repo
+        uses: holepunchto/actions/.github/steps/setup-repo@v1
+
+      - name: Install w/ dev deps
+        run: npm install
+
+      - name: Build ${{ matrix.host }}
+        run: npm run make -- --host ${{ matrix.host }}
+        env:
+          # macOS: signing identity plus notarization credentials. A keychain
+          # profile is the local path; CI has no stored profile, so make.js
+          # prefers these three when all are set.
+          MAC_CODESIGN_IDENTITY: ${{ secrets.MAC_CODESIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows: WINDOWS_SUBJECT becomes the MSIX Publisher and must stay
+          # byte-identical across releases and match the certificate subject,
+          # or Windows refuses the OTA update.
+          WINDOWS_SUBJECT: ${{ secrets.WINDOWS_SUBJECT }}
+          WINDOWS_THUMBPRINT: ${{ secrets.WINDOWS_THUMBPRINT }}
+          LINUX_GPG_KEY: ${{ secrets.LINUX_GPG_KEY }}
+
+      # Tarred before upload, not uploaded directly. actions/upload-artifact
+      # drops the executable bit and does not preserve symlinks, which breaks
+      # a macOS .app twice over: the inner Mach-O stops being executable and
+      # the Frameworks symlinks vanish, invalidating the code signature and
+      # the notarization staple. A tar round-trip keeps modes and links.
+      - name: Pack artifact
+        shell: bash
+        run: tar -czf ${{ matrix.host }}.tar.gz -C out ${{ matrix.host }}
+
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: ${{ matrix.host }}
+          path: ${{ matrix.host }}.tar.gz
+
+  # Collecting every host on one runner is what makes the matrix workable:
+  # `pear build` only mirrors files into the by-arch layout, so it does not
+  # care which machine produced them.
+  release:
+    name: Deployment folder
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Setup repo
+        uses: holepunchto/actions/.github/steps/setup-repo@v1
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Unpack artifacts
+        run: |
+          mkdir -p out
+          for tarball in artifacts/*/*.tar.gz; do
+            tar -xzf "$tarball" -C out
+          done
+          ls -R out | head -40
+
+      - name: Build release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Outside the repo, per pear's guidance that the deployment folder is
+          # a hypercore staging directory rather than build output.
+          PEAR_TARGET: ${{ runner.temp }}/gear-release
+        run: |
+          npm run release
+
+          tar -czf release.tar.gz -C "$(dirname "$PEAR_TARGET")" "$(basename "$PEAR_TARGET")"
+
+          gh release create "$GITHUB_REF_NAME" --generate-notes || true
+          gh release upload "$GITHUB_REF_NAME" release.tar.gz --clobber

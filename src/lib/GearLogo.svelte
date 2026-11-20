@@ -22,15 +22,7 @@
 		stroke-linejoin="round"
 	/>
 	<!-- Stem angling up-right from the top of the G -->
-	<path
-		d="M 19 5.5 L 23 2.5"
-		stroke="currentColor"
-		stroke-width="2.2"
-		stroke-linecap="round"
-	/>
+	<path d="M 19 5.5 L 23 2.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
 	<!-- Leaf at the tip of the stem -->
-	<path
-		d="M 23 2.5 C 26 1, 29 2, 29 4.5 C 26 4.5, 24 4, 23 2.5 Z"
-		fill="currentColor"
-	/>
+	<path d="M 23 2.5 C 26 1, 29 2, 29 4.5 C 26 4.5, 24 4, 23 2.5 Z" fill="currentColor" />
 </svg>

@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
 import { events, type RepoStats } from '$lib/server/events';
+import { getUpdateState, getBuildLog, type UpdateState } from '$lib/server/pear';
 
 // Live global stats stream — peer count, DHT nodes, AND per-repo updates
 // for every known repo. Backed by a shared EventHub: the hub wires to swarm
@@ -23,6 +24,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 	let onRepo: ((payload: { name: string } & RepoStats) => void) | null = null;
 	let onSources: (() => void) | null = null;
 	let onRelease: ((payload: { key: string }) => void) | null = null;
+	let onUpdate: ((state: UpdateState) => void) | null = null;
+	let onBuildLog: ((lines: string[]) => void) | null = null;
 
 	const stream = new ReadableStream({
 		start(controller) {
@@ -56,6 +59,18 @@ export const GET: RequestHandler = async ({ locals }) => {
 			// A release key changed: a new entry, proposal or signature.
 			onRelease = (payload) => send('release', payload);
 			events.on('release', onRelease);
+			// App update progress. Snapshot first so a page opened mid-download
+			// doesn't show "idle" until the next progress tick.
+			send('update', getUpdateState());
+			onUpdate = (state) => send('update', state);
+			events.on('update', onUpdate);
+
+			// What the rebuild is saying, line by line. `reset` marks the snapshot
+			// so a page that opens mid-build replaces its list rather than
+			// appending a second copy of everything it already had from SSR.
+			send('build-log', { reset: true, lines: getBuildLog() });
+			onBuildLog = (lines) => send('build-log', { lines });
+			events.on('build-log', onBuildLog);
 
 			// Heartbeat — keeps intermediaries from closing the idle connection.
 			heartbeat = setInterval(() => {
@@ -72,11 +87,15 @@ export const GET: RequestHandler = async ({ locals }) => {
 			if (onRepo) events.off('repo', onRepo);
 			if (onSources) events.off('sources', onSources);
 			if (onRelease) events.off('release', onRelease);
+			if (onUpdate) events.off('update', onUpdate);
+			if (onBuildLog) events.off('build-log', onBuildLog);
 			if (heartbeat) clearInterval(heartbeat);
 			onStats = null;
 			onRepo = null;
 			onSources = null;
 			onRelease = null;
+			onUpdate = null;
+			onBuildLog = null;
 			heartbeat = null;
 		}
 	});

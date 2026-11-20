@@ -1,6 +1,7 @@
 import Id from 'hypercore-id-encoding';
 import type { LayoutServerLoad } from './$types';
 import { getAllSourceRepos, type SourceRepo } from '$lib/server/source';
+import { getUpdateState, canRestart } from '$lib/server/pear';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	const publicKey = await locals.db.getPublicKey();
@@ -9,6 +10,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	return {
 		identity,
 		identityShort: identity.slice(0, 6) + '…' + identity.slice(-4),
+		update: getUpdateState(),
+		canRestart: canRestart(),
 		// The library names are cheap and awaited; the discover manifest is
 		// streamed so it never blocks paint. Both feed the header search.
 		repoNames: (await locals.db.getRepoNames()) as string[],

@@ -177,9 +177,7 @@
 		<span class="flex-1"></span>
 	{/if}
 	{#if data.kind === 'tree'}
-		<span
-			class="text-xs text-fg-3 {!segments.length && data.repo.refCommit ? 'sm:hidden' : ''}"
-		>
+		<span class="text-xs text-fg-3 {!segments.length && data.repo.refCommit ? 'sm:hidden' : ''}">
 			<strong class="font-semibold text-fg-2">{data.items.length}</strong>
 			item{data.items.length === 1 ? '' : 's'}
 		</span>
@@ -272,9 +270,7 @@
 									{item.name}
 								</a>
 							</td>
-							<td
-								class="hidden max-w-0 py-3 pr-4 align-middle text-[13px] text-fg-2 sm:table-cell"
-							>
+							<td class="hidden max-w-0 py-3 pr-4 align-middle text-[13px] text-fg-2 sm:table-cell">
 								{#if item.commit}
 									{#if item.commit.oid}
 										<a
