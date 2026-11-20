@@ -65,7 +65,7 @@ or raced another one.
    entry to the old one, signed by the old quorum. Readers follow the pointer.
    The mockup's "require M to change signers" control becomes "Rotate key".
 2. **A seat is one device keypair.** Gear derives it from its corestore
-   (`store.createKeyPair('gear/release-signer')`), so no password key file is
+   (`store.createKeyPair('gear/release-signer/v1')`), so no password key file is
    involved. Adding a second device of your own adds a seat, so do it when the
    key is created.
 3. **Any signer can propose.** A staging core is valid as long as its prefix
@@ -134,10 +134,7 @@ stale proposal and a non-signer. The same file passes under `brittle-node`.
 
 ### Not done yet
 
-- Persisting known keys (created, signing for) and pending proposals. These
-  go in Gear's own local storage on this device for now. They move to the
-  private profile, one identity across devices, once that exists.
-- Wiring into gear: seat key from the corestore, blind peering, routes and UI.
+- Wiring into gear: blind peering, routes and UI.
 - Mailbox transport for proposals and responses.
 - Rotation records (`ROTATE` is in the codec; nothing writes it).
 - Checking a release record against the repo (does the commit exist at
@@ -145,6 +142,16 @@ stale proposal and a non-signer. The same file passes under `brittle-node`.
 - `inspect` joins and then leaves the staging topic without ref-counting, so a
   proposer that signs its own proposal stops announcing its staging core. The
   blind peers still serve it.
+
+## Local store
+
+`src/lib/server/releases/store.js` keeps what this device knows: the keys it
+owns or signs for, pending proposals, and the responses collected for them. It
+is a hyperbee on its own corestore namespace (`gear/releases/v1`). That core is
+never announced or mirrored, so it stays on this device. It also derives the
+seat key, `store.createKeyPair('gear/release-signer/v1')`. When the private
+profile exists, the records move there behind the same methods; the seat stays
+per device.
 
 ## Risks to check on Bare
 
