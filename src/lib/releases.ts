@@ -74,6 +74,23 @@ export function linkKey(url: string) {
 	return /^git\+pear:\/\/(?:\d+\.\d+\.)?([^/]+)/.exec(url)?.[1] ?? null;
 }
 
+// How to get a release: npm and git commands pinned to the repo length it
+// was cut from, and the .npmrc lines npm needs to fetch over git+pear. npm
+// can't parse git+pear://, so it takes git+file://pear/, which the git+pear
+// executable maps back.
+export function installCommands(
+	name: string,
+	source: { key: string; length: number },
+	tag: string
+) {
+	const pinned = `0.${source.length}.${source.key}/${name}`;
+	return {
+		npm: `npm install git+file://pear/${pinned}#${tag}`,
+		git: `git clone git+pear://${pinned} && cd ${name} && git checkout ${tag}`,
+		npmrc: 'git=git+pear\nallow-git=all'
+	};
+}
+
 // A signer being added to a new key, before it exists.
 export type DraftSigner = { key: string; label: string; me: boolean };
 

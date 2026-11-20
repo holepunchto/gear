@@ -19,8 +19,10 @@ const NAMESPACE = 'gear/releases/';
 const NAME = /^[a-z0-9][a-z0-9._/-]{0,63}$/i;
 const MAX_SIGNERS = 16;
 const MAX_PASTE = 4096;
-// A release key to follow, with the name it goes by: release+pear://<key>/<name>.
-const SHARE = 'release+pear://';
+// A release key to follow: the repo's clone link with the key as ?release=.
+// Older links were release+pear://<key>/<name>, still accepted.
+const SHARE = 'git+pear://';
+const LEGACY_SHARE = 'release+pear://';
 // How many rotations a lookup follows to a repo's newest key.
 const MAX_HOPS = 8;
 // Record types, as in ./releases/messages.js.
@@ -100,6 +102,9 @@ export type RepoRelease = {
 	role: Role;
 	version: string | null;
 	index: number | null;
+	// The latest release's tag and the repo core and length it was cut from.
+	tag: string | null;
+	source: { key: string; length: number } | null;
 	quorum: number;
 	signers: number;
 	pending: { id: string; name: string | null; missing: number; waitingOnMe: boolean } | null;
@@ -499,6 +504,7 @@ class Releases {
 		// A rotation is always the last entry, so the latest release is the one
 		// before it.
 		const latest = rk.length - (rotated ? 2 : 1);
+		const latestRelease = latest >= 0 ? await this.read(rk, latest) : null;
 		const me = this.seatKey;
 		const proposals = await this.store.listProposals(record.key);
 
@@ -528,7 +534,7 @@ class Releases {
 			owner: record.owner,
 			role: record.follower ? 'follower' : record.owner ? 'owner' : 'signer',
 			archived: record.archived ?? false,
-			share: SHARE + record.key + (NAME.test(record.name) ? '/' + record.name : ''),
+			share: shareLink(record, latestRelease),
 			quorum: record.quorum,
 			signers: record.signers.map((key) => ({
 				key,
@@ -537,7 +543,7 @@ class Releases {
 			})),
 			repo: record.repo,
 			length: rk.length,
-			latest: latest >= 0 ? await this.read(rk, latest) : null,
+			latest: latestRelease,
 			rotatedTo: rotated
 				? { to: rotated, name: successor?.name ?? null, known: successor !== null }
 				: null,
@@ -1130,6 +1136,8 @@ export function repoReleases(keys: KeySummary[]) {
 			role: k.role,
 			version: k.latest?.name ?? null,
 			index: k.latest?.index ?? null,
+			tag: k.latest?.tag ?? null,
+			source: k.latest?.repo ?? null,
 			quorum: k.quorum,
 			signers: k.signers.length,
 			pending: p
@@ -1176,10 +1184,31 @@ function normalizeKey(text: string) {
 	}
 }
 
+// git+pear://0.<length>.<repo key>/<repo>?release=<key>, pinned to the
+// latest release's repo length. The repo link is what clones; the git+pear
+// helper only reads ?storage= and leaves ?release= alone. Without a repo to
+// name yet, the plain key.
+function shareLink(record: KeyRecord, latest: Release | null) {
+	const repo = latest?.repo ?? (record.repo && { key: record.repo.key, length: null });
+	if (!repo) return record.key;
+	const name = record.repo?.name ?? record.name.split('/')[0];
+	const pin = repo.length === null ? '' : `0.${repo.length}.`;
+	return `${SHARE}${pin}${repo.key}/${name}?release=${record.key}`;
+}
+
+// A share link, a bare key or a legacy release+pear:// link. A share link
+// names the repo, so its follower record goes by the repo's name.
 function parseShare(text: string) {
 	const trimmed = text.trim();
 	if (trimmed.length > MAX_PASTE) return null;
-	const rest = trimmed.startsWith(SHARE) ? trimmed.slice(SHARE.length) : trimmed;
+	if (trimmed.startsWith(SHARE)) {
+		const match = /^[^?#]*\/([^/?#]*)\?(?:[^#]*&)?release=([^&#]*)/.exec(trimmed);
+		const key = match && normalizeKey(match[2]);
+		if (!key) return null;
+		const name = match[1];
+		return { key: z32.decode(key) as Uint8Array, name: NAME.test(name) ? name : null };
+	}
+	const rest = trimmed.startsWith(LEGACY_SHARE) ? trimmed.slice(LEGACY_SHARE.length) : trimmed;
 	const slash = rest.indexOf('/');
 	const key = normalizeKey(slash === -1 ? rest : rest.slice(0, slash));
 	if (!key) return null;

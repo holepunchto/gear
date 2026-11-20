@@ -9,6 +9,7 @@
 	import Ticker from '$lib/components/Ticker.svelte';
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
 	import ReleaseCard from '$lib/components/releases/ReleaseCard.svelte';
+	import ReleaseInstall from '$lib/components/releases/ReleaseInstall.svelte';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
 
@@ -423,6 +424,11 @@
 					<path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" />
 				</svg>
 				Clone
+				{#if repo.release?.tag}
+					<span class="rounded-md bg-accent-900/15 px-1.5 py-px font-mono text-xs">
+						{repo.release.tag}
+					</span>
+				{/if}
 				<svg
 					width="12"
 					height="12"
@@ -443,6 +449,10 @@
 					aria-label="Clone {repo.name}"
 					class="absolute top-[52px] right-0 z-20 flex w-full flex-col gap-3 rounded-[14px] bg-surface-3 p-4 shadow-[inset_0_0_0_1px_rgb(93_221_173/0.2),0_24px_60px_rgb(0_0_0/0.6)] sm:w-[440px]"
 				>
+					{#if repo.release?.tag && repo.release.source}
+						<ReleaseInstall name={repo.name} release={repo.release} />
+						<span class="border-t border-white/6 pt-3 text-[13px] font-semibold text-fg">Current head</span>
+					{/if}
 					<div
 						class="flex items-center gap-2 rounded-[10px] bg-bg px-3 py-2.5 ring-1 ring-line-strong ring-inset"
 					>
