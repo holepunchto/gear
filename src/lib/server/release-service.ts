@@ -3,6 +3,7 @@ import z32 from 'z32';
 import b4a from 'b4a';
 import ReleaseKey from './releases/index.js';
 import ReleaseStore from './releases/store.js';
+import Publishes from './releases/publishes.js';
 import type { GipDB } from './gip';
 import {
 	openRepo,
@@ -283,10 +284,8 @@ class Releases {
 	// Each key's signed tags, read once per length.
 	private signed = new Map<string, { length: number; tags: Promise<Release[]> }>();
 	private seat: { publicKey: Uint8Array; secretKey: Uint8Array } | null = null;
-	// Publishes running on this device, and the last failure of each, by
-	// key/id. Neither outlives the app.
-	private publishing = new Map<string, Promise<{ length: number; mirrored: boolean }>>();
-	private failed = new Map<string, string>();
+	// By key/id.
+	private publishes = new Publishes((at) => events.emit('release', { key: at.split('/')[0] }));
 
 	constructor(db: GipDB) {
 		this.db = db;
@@ -328,6 +327,20 @@ class Releases {
 		const records = (await this.store.listKeys()) as KeyRecord[];
 		for (const record of records) if (record.mirror) await this.key(record);
 		log(`releases ready (${records.length} keys)`);
+		// Publishes that were due when the app last stopped: nothing else starts
+		// them again.
+		for (const record of records) {
+			if (!record.mirror) continue;
+			this.resume(record.key).catch((err) =>
+				logError(`resuming publishes on ${short(record.key)}`, err)
+			);
+		}
+	}
+
+	private async resume(key: string) {
+		for (const p of (await this.store.listProposals(key)) as ProposalRecord[]) {
+			await this.publishIfReady(key, p.id);
+		}
 	}
 
 	private key(record: KeyRecord): Promise<Key> {
@@ -999,12 +1012,7 @@ class Releases {
 	}
 
 	private publishState(key: string, p: ProposalRecord) {
-		const at = key + '/' + p.id;
-		return {
-			autoPublish: p.autoPublish !== false,
-			publishing: this.publishing.has(at),
-			error: this.failed.get(at) ?? null
-		};
+		return { autoPublish: p.autoPublish !== false, ...this.publishes.state(key + '/' + p.id) };
 	}
 
 	async inspect(key: string, id: string): Promise<Inspection> {
@@ -1138,6 +1146,9 @@ class Releases {
 	}
 
 	async addResponse(key: string, id: string, text: string) {
+		if ((await this.record(key)).revoked) {
+			throw new ReleaseError('This key was revoked on this device');
+		}
 		const p = await this.getProposal(key, id);
 		const trimmed = text.trim();
 		const gear = trimmed.startsWith(GEAR_RESPONSE);
@@ -1174,31 +1185,24 @@ class Releases {
 		return mine ? GEAR_RESPONSE + mine.response : null;
 	}
 
-	// Commit waits for two full copies of the new release before it returns,
-	// with no bound of its own. Past the timeout the blocks are already
-	// appended here and the mirrors keep catching up. One commit runs per
-	// proposal: a second call joins the first.
-	commit(key: string, id: string) {
-		const at = key + '/' + id;
-		let running = this.publishing.get(at);
-		if (running) return running;
-		this.failed.delete(at);
-		running = this.publish(key, id)
-			.catch((err) => {
-				this.failed.set(at, err instanceof ReleaseError ? err.message : 'Publishing failed');
-				throw err;
-			})
-			.finally(() => {
-				this.publishing.delete(at);
-				events.emit('release', { key });
-			});
-		this.publishing.set(at, running);
-		events.emit('release', { key });
-		return running;
+	// Starts publishing, or joins the publish running, and waits for it to
+	// finish or for the timeout, with it still running.
+	async commit(key: string, id: string) {
+		const running = this.publishes.start(
+			key + '/' + id,
+			() => this.publish(key, id),
+			(err) => (err instanceof ReleaseError ? err.message : 'Publishing failed')
+		);
+		await within(running, TIMEOUT * 2);
 	}
 
+	// Commit waits for two full copies of the new release before it returns,
+	// with no bound of its own. The release is published once it is appended
+	// here: past the timeout, if it is, that is recorded while the mirrors
+	// catch up. Either way the publish runs until the commit settles.
 	private async publish(key: string, id: string) {
 		const record = await this.mirror(key);
+		if (record.revoked) throw new ReleaseError('This key was revoked on this device');
 		const rk = await this.key(record);
 		const p = await this.getProposal(key, id);
 
@@ -1207,33 +1211,24 @@ class Releases {
 			throw new ReleaseError(`Needs ${record.quorum} signatures, has ${responses.length}`);
 		}
 
-		const committing = rk.commit(p.proposal, responses);
-		committing.catch((err) => logError('release commit', err));
-
-		let done: number | null;
-		try {
-			done = await within(committing, TIMEOUT * 2);
-		} catch (err) {
+		const committing = rk.commit(p.proposal, responses).catch((err) => {
+			logError('release commit', err);
 			throw new ReleaseError((err as Error).message);
-		}
+		});
 
-		if (done === null && rk.length < p.length) throw new ReleaseError('Commit timed out');
-		const published = { length: rk.length, mirrored: done !== null, at: Date.now() };
-		await this.markPublished(key, id, published);
-		// The mirrors caught up after Gear stopped waiting.
-		if (done === null) {
-			committing.then(
-				() => this.markPublished(key, id, { ...published, mirrored: true }),
-				() => {}
-			);
+		if ((await within(committing, TIMEOUT * 2)) === null && rk.length >= p.length) {
+			await this.markPublished(key, id, { length: rk.length, mirrored: false });
 		}
-		return { length: published.length, mirrored: published.mirrored };
+		await committing;
+		await this.markPublished(key, id, { length: rk.length, mirrored: true });
 	}
 
-	private async markPublished(key: string, id: string, published: Published) {
+	// Keeps when it was first recorded as published.
+	private async markPublished(key: string, id: string, published: Omit<Published, 'at'>) {
 		const stored = (await this.store.getProposal(key, id)) as ProposalRecord | null;
 		if (!stored) return;
-		await this.store.putProposal({ ...stored, published });
+		const at = stored.published?.at ?? Date.now();
+		await this.store.putProposal({ ...stored, published: { ...published, at } });
 		events.emit('release', { key });
 	}
 
@@ -1242,6 +1237,7 @@ class Releases {
 	// proposal until the user tries again.
 	async publishIfReady(key: string, id: string) {
 		const record = await this.mirror(key);
+		if (record.revoked) return;
 		const p = await this.getProposal(key, id);
 		const rk = await this.key(record);
 		if (!shouldPublish({ ...p, quorum: record.quorum, keyLength: rk.length })) return;
@@ -1249,13 +1245,14 @@ class Releases {
 	}
 
 	// Waits for a publish running here to append the release on this device,
-	// not for the blind peers. Returns at once when none is running.
+	// not for the blind peers, or for the timeout. Returns at once when none
+	// is running.
 	async landed(key: string, id: string) {
-		const running = this.publishing.get(key + '/' + id);
+		const running = this.publishes.running.get(key + '/' + id);
 		if (!running) return;
 		const rk = await this.key(await this.mirror(key));
 		const p = await this.getProposal(key, id);
-		await new Promise<void>((resolve) => {
+		const appended = new Promise<void>((resolve) => {
 			const check = () => {
 				if (rk.core.length >= p.length) done();
 			};
@@ -1267,6 +1264,7 @@ class Releases {
 			running.then(done, done);
 			check();
 		});
+		await within(appended, TIMEOUT * 2);
 	}
 
 	async setAutoPublish(key: string, id: string, on: boolean) {
@@ -1336,6 +1334,9 @@ class Releases {
 	}
 
 	async withdraw(key: string, id: string) {
+		if (this.publishes.state(key + '/' + id).publishing) {
+			throw new ReleaseError('It is publishing; it can no longer be withdrawn');
+		}
 		await this.store.deleteProposal(key, id);
 		events.emit('release', { key });
 	}

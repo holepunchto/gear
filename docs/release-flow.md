@@ -53,5 +53,11 @@ The key page follows the same rules: no share links before the first release.
 
 "Publish when signed" is a checkbox on the flow page, ticked by default, stored with the proposal on
 this device. When ticked, whichever device holds the last signature publishes: the proposer when a
-response is pasted, or on load of the flow page when the signatures are already there. A co-signer
-who isn't the proposer only publishes if they hold enough signatures themselves.
+response is pasted, or when Gear starts with the signatures already there. Opening a page never
+starts a publish. A co-signer who isn't the proposer only publishes if they hold enough signatures
+themselves. A revoked key never publishes.
+
+A publish runs until its commit settles, however long the blind peers take; the release is recorded
+as published as soon as it is appended here. While one runs, the release can't be withdrawn and a
+second Publish joins it. Everywhere else the status says "publishing" only while a publish runs on
+this device, "publishing failed" after one failed, and "ready to publish" otherwise.

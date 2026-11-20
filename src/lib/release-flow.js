@@ -15,6 +15,16 @@ export function shouldPublish(p) {
 }
 
 /**
+ * What the publish step says once enough have signed. It only says
+ * publishing while a publish runs on this device.
+ * @param {{ publishing?: boolean, error?: string | null }} p
+ */
+export function publishStatus(p) {
+	if (p.publishing) return 'publishing';
+	return p.error ? 'publishing failed' : 'ready to publish';
+}
+
+/**
  * @typedef {'version' | 'sign' | 'signatures' | 'publish' | 'done'} StepId
  * @typedef {'done' | 'open' | 'todo' | 'skipped'} StepState
  */

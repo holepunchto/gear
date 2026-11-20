@@ -2,6 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	attempt,
+	failure,
 	getReleases,
 	ReleaseError,
 	type Changes,
@@ -12,17 +13,13 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	depends('releases');
 	const releases = await getReleases(locals.db);
 
-	// Holding the last signature here publishes, unless "Publish when signed"
-	// is unticked.
-	const [key, proposal] = await releases
-		.publishIfReady(params.key, params.id)
-		.then(() =>
-			Promise.all([releases.getKey(params.key), releases.getProposal(params.key, params.id)])
-		)
-		.catch((err) => {
-			if (err instanceof ReleaseError) throw error(404, err.message);
-			throw err;
-		});
+	const [key, proposal] = await Promise.all([
+		releases.getKey(params.key),
+		releases.getProposal(params.key, params.id)
+	]).catch((err) => {
+		if (err instanceof ReleaseError) throw error(404, err.message);
+		throw err;
+	});
 
 	// Inspecting replicates the staging core, so it streams in after paint.
 	const inspection: Promise<Inspection> = releases
@@ -80,7 +77,11 @@ export const actions: Actions = {
 	withdraw: async ({ locals, params }) => {
 		const releases = await getReleases(locals.db);
 		const key = await releases.getKey(params.key);
-		await releases.withdraw(params.key, params.id);
+		try {
+			await releases.withdraw(params.key, params.id);
+		} catch (err) {
+			return failure('withdraw', err);
+		}
 		throw redirect(303, key.repo ? `/${key.repo.name}/releases` : `/releases/${params.key}`);
 	}
 };
