@@ -5,12 +5,14 @@ import { openRepo, getCommitCount, getBranchRefs, getTagRefs } from '$lib/server
 import type { ParsedCommit } from '$lib/server/commit-parse';
 import { getPendingAdd } from '$lib/server/pending';
 import { events } from '$lib/server/events';
+import { getReleases } from '$lib/server/release-service';
 
 export const load: LayoutServerLoad = async ({ params, locals, url, depends }) => {
 	const name = params.repo;
 	// Tag this load so the client can ask for a re-run when an 'append'
 	// event tells us someone pushed new blocks.
 	depends('repo:' + name);
+	depends('releases');
 
 	// Still being added: no record and no git data yet, only the core filling
 	// up. The page shows that and swaps to the repo when the add lands.
@@ -38,7 +40,8 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 				refCommit: null,
 				commitCount: { count: 0, capped: false },
 				branches: [],
-				tags: []
+				tags: [],
+				release: null
 			}
 		};
 	}
@@ -103,6 +106,9 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 	const key = Id.encode(remote.core.key);
 	const length = remote.core.length;
 
+	// The Releases tab label: the first release key cut from this repo.
+	const [release] = await (await getReleases(locals.db)).forRepo(key);
+
 	return {
 		repo: {
 			name,
@@ -121,7 +127,15 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 			branches,
 			tags,
 			syncing: false,
-			error: null
+			error: null,
+			release: release
+				? {
+						version: release.latest?.name ?? null,
+						quorum: release.quorum,
+						signers: release.signers.length,
+						pending: release.pending.length > 0
+					}
+				: null
 		}
 	};
 };

@@ -7,6 +7,7 @@
 	import ReplicationPanel from '$lib/components/ReplicationPanel.svelte';
 	import LiveActivity, { type Activity } from '$lib/components/LiveActivity.svelte';
 	import Ticker from '$lib/components/Ticker.svelte';
+	import SeatDots from '$lib/components/releases/SeatDots.svelte';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
 
@@ -217,6 +218,7 @@
 				!p.endsWith('/branches') &&
 				!p.endsWith('/tags') &&
 				!p.endsWith('/commits') &&
+				!p.endsWith('/releases') &&
 				!p.endsWith('/settings') &&
 				!p.includes('/commit/')
 		},
@@ -239,6 +241,12 @@
 			href: `/${repo.name}/tags`,
 			count: repo.tags.length,
 			match: (p: string) => p.endsWith('/tags')
+		},
+		{
+			label: 'Releases',
+			href: `/${repo.name}/releases`,
+			release: repo.release,
+			match: (p: string) => p.endsWith('/releases')
 		}
 	]);
 
@@ -568,6 +576,20 @@
 					{tab.label}
 					{#if tab.count !== undefined}
 						<span class="ml-1 text-fg-3 tabular-nums">{tab.count}</span>
+					{/if}
+					{#if tab.release}
+						{#if tab.release.version}
+							<span class="ml-1.5 font-mono text-xs text-fg">{tab.release.version}</span>
+						{/if}
+						<span class="ml-1.5 inline-flex">
+							<SeatDots n={tab.release.signers} filled={tab.release.quorum} />
+						</span>
+						{#if tab.release.pending}
+							<span
+								class="ml-1.5 h-[7px] w-[7px] rounded-full bg-apricot-400 shadow-[0_0_8px_#fb923c]"
+								title="Collecting signatures"
+							></span>
+						{/if}
 					{/if}
 				</a>
 			{/each}
