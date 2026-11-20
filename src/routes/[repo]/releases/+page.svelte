@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
-	import ProposeForm from '$lib/components/releases/ProposeForm.svelte';
+	import NewRelease from '$lib/components/releases/NewRelease.svelte';
 	import ReleaseInProgress from '$lib/components/releases/ReleaseInProgress.svelte';
 	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
@@ -149,7 +149,7 @@
 				{#if current}
 					<ReleaseInProgress {key} {current} />
 				{:else if key.role !== 'follower' && !key.revoked}
-					<ProposeForm {key} candidates={d.candidates} />
+					<NewRelease key={key.key} />
 				{/if}
 				<ReleaseLog {key} history={d.history} />
 			</article>

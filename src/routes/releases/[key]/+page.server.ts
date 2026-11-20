@@ -1,6 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { attempt, failure, getReleases, ReleaseError } from '$lib/server/release-service';
+import { failure, getReleases, ReleaseError } from '$lib/server/release-service';
 
 export const load: PageServerLoad = async ({ locals, params, depends, url }) => {
 	depends('releases');
@@ -29,32 +29,6 @@ export const load: PageServerLoad = async ({ locals, params, depends, url }) => 
 };
 
 export const actions: Actions = {
-	propose: async ({ request, locals, params }) => {
-		const form = await request.formData();
-		const releases = await getReleases(locals.db);
-		return attempt('propose', async () => {
-			const id = await releases.propose(params.key, String(form.get('tag') ?? ''), password(form));
-			// Signed alone: it is publishing, so the flow page opens on it done.
-			await releases.landed(params.key, id);
-			return { id };
-		});
-	},
-
-	proposeNew: async ({ request, locals, params }) => {
-		const form = await request.formData();
-		const releases = await getReleases(locals.db);
-		return attempt('propose', async () => {
-			const id = await releases.proposeNewTag(
-				params.key,
-				String(form.get('name') ?? '').trim(),
-				String(form.get('target') ?? ''),
-				password(form)
-			);
-			await releases.landed(params.key, id);
-			return { id };
-		});
-	},
-
 	rotate: async ({ request, locals, params }) => {
 		const form = await request.formData();
 		const keys = form.getAll('signer').map(String);
@@ -94,10 +68,3 @@ export const actions: Actions = {
 		return { unarchive: { ok: true } };
 	}
 };
-
-// A pear key's password, posted over loopback to sign one entry. Never
-// stored or logged.
-function password(form: FormData) {
-	const value = form.get('password');
-	return value ? String(value) : undefined;
-}

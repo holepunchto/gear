@@ -1,15 +1,14 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
 	import type { ActionResult } from '@sveltejs/kit';
 	import type { Candidates, KeySummary } from '$lib/releases';
 
 	// Release a new version: propose a tag newer than the latest release, an
 	// older one from behind a fold, or on a repo this device owns, make a new
 	// tag and propose it in one go, then open its flow. On a key this device
-	// signs alone it is signed and published in the same go. Posts to the key
-	// page's actions.
+	// signs alone it is signed and published in the same go. Posts to the
+	// actions of /releases/<key>/new, which redirect to the flow page.
 	let { key, candidates }: { key: KeySummary; candidates: Candidates | null } = $props();
 
 	let tag = $state(untrack(() => candidates?.tags[0] ?? ''));
@@ -42,8 +41,6 @@
 					error = (result.data?.propose as { error?: string } | undefined)?.error ?? 'Failed';
 				} else if (result.type === 'error') {
 					error = result.error?.message ?? 'Failed';
-				} else if (result.type === 'success' && typeof result.data?.id === 'string') {
-					await goto(`/releases/${key.key}/${result.data.id}`, { invalidateAll: true });
 				} else {
 					await update();
 				}
@@ -91,7 +88,7 @@
 			</p>
 			<form
 				method="POST"
-				action="/releases/{key.key}?/propose"
+				action="?/propose"
 				class="flex flex-col gap-2 sm:flex-row"
 				use:enhance={submitting('propose')}
 			>
@@ -126,7 +123,7 @@
 		{#if candidates.writable}
 			<form
 				method="POST"
-				action="/releases/{key.key}?/proposeNew"
+				action="?/proposeNew"
 				class="flex flex-col gap-2 border-t border-white/4 pt-3"
 				use:enhance={submitting('proposeNew')}
 			>
@@ -188,7 +185,7 @@
 			</summary>
 			<form
 				method="POST"
-				action="/releases/{key.key}?/propose"
+				action="?/propose"
 				class="flex flex-col gap-2"
 				use:enhance={submitting('propose')}
 			>

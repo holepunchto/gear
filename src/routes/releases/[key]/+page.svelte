@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { PageProps } from './$types';
-	import ProposeForm from '$lib/components/releases/ProposeForm.svelte';
+	import NewRelease from '$lib/components/releases/NewRelease.svelte';
 	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import MoveAway from '$lib/components/releases/MoveAway.svelte';
@@ -129,7 +129,7 @@
 			{#if current}
 				<ReleaseInProgress {key} {current} />
 			{:else if key.role !== 'follower' && !key.archived && !key.revoked && key.format === 'mirror'}
-				<ProposeForm {key} candidates={data.candidates} />
+				<NewRelease key={key.key} />
 			{/if}
 			<MoveAway {key} />
 		</div>
