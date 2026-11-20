@@ -9,7 +9,10 @@ import z32 from 'z32';
 import c from 'compact-encoding';
 import sodium from 'sodium-native';
 import { generateKeys, sign } from 'hypercore-sign-lib';
+import fs from 'fs';
+import path from 'path';
 import ReleaseKey from './index.js';
+import { listPearKeys, signWithPearKey } from '../pear-keys.js';
 import { Proposal, ROTATE } from './messages.js';
 
 test('2 of 3 signers release, anyone commits', async function (t) {
@@ -273,6 +276,27 @@ test('a pear multisig key signs next to a gear seat', async function (t) {
 	t.ok(b4a.equals(ReleaseKey.verify(proposal, response), pear.publicKey));
 	t.is(await kd.key.commit(proposal, [await dc.key.sign(proposal, dc.seat), response]), 1);
 	t.is((await dc.key.get(0)).name, '1.0.0');
+});
+
+test('a pear key in its directory signs in gear', async function (t) {
+	const dir = await t.tmp();
+	const pear = await generateKeys(password('hunter2'));
+	fs.writeFileSync(path.join(dir, 'gip.public'), pear.publicKey);
+	fs.writeFileSync(path.join(dir, 'gip'), pear.secretKey);
+	fs.writeFileSync(path.join(dir, 'lonely.public'), crypto.keyPair().publicKey);
+
+	t.alike(await listPearKeys(dir), [{ name: 'gip', key: z32.encode(pear.publicKey) }]);
+	t.alike(await listPearKeys(path.join(dir, 'missing')), []);
+
+	const { dc, kd } = await create(t, [crypto.keyPair(), { publicKey: pear.publicKey }]);
+	const proposal = await dc.key.propose(release('1.0.0'));
+	const request = z32.decode(ReleaseKey.request(proposal));
+
+	await t.exception(signWithPearKey(dir, 'gip', request, 'wrong'), /decryption failed/);
+	const response = z32.encode(await signWithPearKey(dir, 'gip', request, 'hunter2'));
+
+	t.ok(b4a.equals(ReleaseKey.verify(proposal, response), pear.publicKey));
+	t.is(await kd.key.commit(proposal, [await dc.key.sign(proposal, dc.seat), response]), 1);
 });
 
 async function create(

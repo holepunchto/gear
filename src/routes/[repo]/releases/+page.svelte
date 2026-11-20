@@ -4,6 +4,7 @@
 	import type { PageProps } from './$types';
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
 	import SignerList from '$lib/components/releases/SignerList.svelte';
+	import SignAs from '$lib/components/releases/SignAs.svelte';
 	import Threshold from '$lib/components/releases/Threshold.svelte';
 	import CollectSignatures from '$lib/components/releases/CollectSignatures.svelte';
 	import ProposeForm from '$lib/components/releases/ProposeForm.svelte';
@@ -77,6 +78,8 @@
 				</span>
 			</div>
 		</section>
+
+		<SignAs gearKey={data.seat} pearKeys={data.pearKeys} bind:signers />
 
 		<SignerList bind:signers bind:quorum />
 

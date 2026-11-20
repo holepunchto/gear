@@ -277,7 +277,20 @@ The CLI signs whatever request it is shown. It doesn't replicate the staging
 core or check the record the way `inspect` does, so a pear signer should
 inspect the proposal in Gear first, or trust the proposer.
 
-Not done: signing in Gear with a key from `~/.pear`.
+### Signing as a pear key
+
+On desktop, Gear can sign with a pear key itself. It lists `~/.pear/*.public`
+(names and public keys only; `GEAR_PEAR_DIR` points it elsewhere) under Your
+signing keys in Settings, and key setup asks "You sign as": this device's Gear
+key, the default, or one of those pear keys, whose public key then takes your
+seat. Pasting a proposal whose signers include one of your pear keys picks it
+the same way. On such a key, proposing and signing ask for the key's password
+and sign in Gear the way `pear multisig sign` does: Gear inspects the proposal,
+reads `~/.pear/<name>` only then, and calls hypercore-sign-lib's
+`sign(request, encryptedKey, password)` with the password in a sodium buffer it
+frees. The password reaches the local server only in the loopback form post and
+is never stored or logged. The `pear multisig sign` command stays on the page as
+the other way to sign.
 
 ## Risks to check on Bare
 

@@ -6,6 +6,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const releases = await getReleases(locals.db);
 	return {
 		seat: releases.seatKey,
+		pearKeys: await releases.pearKeys(),
 		repos: (await locals.db.getRepoNames()) as string[],
 		repo: url.searchParams.get('repo')
 	};
@@ -24,7 +25,8 @@ export const actions: Actions = {
 				name: String(form.get('name') ?? ''),
 				repo: String(form.get('repo') ?? ''),
 				signers: keys.map((key, i) => ({ key, label: labels[i] ?? '' })),
-				quorum: Number(form.get('quorum'))
+				quorum: Number(form.get('quorum')),
+				signAs: String(form.get('signAs') ?? '') || undefined
 			});
 		} catch (err) {
 			return failure('create', err);

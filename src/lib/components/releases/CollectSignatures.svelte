@@ -60,6 +60,38 @@
 		<PearSign request={current.request} signers={pearSigners} />
 	{/if}
 
+	{#if key.signAs && !current.signedByMe && key.signers.some((s) => s.me)}
+		<form
+			method="POST"
+			action="/releases/{key.key}?/sign"
+			class="flex flex-col gap-2"
+			use:enhance={submitting('sign')}
+		>
+			<label for="pear-password-{current.id}" class="text-base font-semibold text-fg">
+				Sign with your pear key <span class="font-mono">{key.signAs}</span>
+			</label>
+			<input type="hidden" name="id" value={current.id} />
+			<div class="flex flex-col gap-2 sm:flex-row">
+				<input
+					id="pear-password-{current.id}"
+					type="password"
+					name="password"
+					required
+					autocomplete="off"
+					placeholder="Its password"
+					class="min-w-0 flex-1 rounded-[10px] border-0 bg-bg px-3 py-2.5 text-[13px] text-fg ring-1 ring-line-strong ring-inset placeholder:text-fg-3 focus:ring-2 focus:ring-accent-400/50 focus:outline-none"
+				/>
+				<button
+					type="submit"
+					disabled={busy !== null}
+					class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-[10px] bg-accent-400 px-4 text-sm font-semibold text-accent-900 hover:bg-accent-300 disabled:opacity-60 sm:h-auto"
+				>
+					{busy === 'sign' ? 'Signing…' : 'Sign'}
+				</button>
+			</div>
+		</form>
+	{/if}
+
 	{#if current.signedByMe && response && !current.mine}
 		<div class="flex flex-col gap-2">
 			<h2 class="m-0 text-base font-semibold text-fg">Your signature</h2>

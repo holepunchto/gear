@@ -15,6 +15,9 @@
 	let branch = $state(untrack(() => candidates?.head ?? candidates?.branches[0] ?? ''));
 	let busy = $state<string | null>(null);
 	let error = $state<string | null>(null);
+	// Your seat is a pear key: proposing signs with it, given its password.
+	const pear = $derived(key.signAs !== null && key.signers.some((s) => s.me));
+	let password = $state('');
 
 	$effect(() => {
 		if (candidates && !candidates.tags.includes(tag)) tag = candidates.tags[0] ?? '';
@@ -27,6 +30,7 @@
 			error = null;
 			return async ({ result, update }: { result: ActionResult; update: () => Promise<void> }) => {
 				busy = null;
+				password = '';
 				if (result.type === 'failure') {
 					error = (result.data?.propose as { error?: string } | undefined)?.error ?? 'Failed';
 				} else if (result.type === 'error') {
@@ -49,6 +53,20 @@
 	class="flex flex-col gap-3 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
 >
 	<h2 class="m-0 text-xl font-semibold text-fg">Propose a release</h2>
+	{#if pear && candidates}
+		<label class="flex flex-col gap-1.5 text-xs text-fg-2">
+			<span>
+				Password for your pear key <span class="font-mono text-fg">{key.signAs}</span>, to sign what
+				you propose. Leave it empty to sign later.
+			</span>
+			<input
+				type="password"
+				bind:value={password}
+				autocomplete="off"
+				class="{field} font-sans sm:max-w-[320px]"
+			/>
+		</label>
+	{/if}
 	{#if !key.repo || !candidates}
 		<p class="m-0 text-sm text-fg-2">
 			This device doesn't have the repo these releases come from yet. Add it to your library to
@@ -67,6 +85,7 @@
 				class="flex flex-col gap-2 sm:flex-row"
 				use:enhance={submitting('propose')}
 			>
+				{#if pear}<input type="hidden" name="password" value={password} />{/if}
 				<label class="sr-only" for="tag-{key.key}">Tag</label>
 				<select id="tag-{key.key}" name="tag" bind:value={tag} class="{field} flex-1 px-2.5">
 					{#each candidates.tags as t (t)}
@@ -95,6 +114,7 @@
 				class="flex flex-col gap-2 border-t border-white/4 pt-3"
 				use:enhance={submitting('proposeNew')}
 			>
+				{#if pear}<input type="hidden" name="password" value={password} />{/if}
 				<span class="text-sm font-semibold text-fg">
 					{candidates.tags.length > 0
 						? 'Or tag a branch and propose it'
@@ -148,6 +168,7 @@
 				class="flex flex-col gap-2"
 				use:enhance={submitting('propose')}
 			>
+				{#if pear}<input type="hidden" name="password" value={password} />{/if}
 				<p class="m-0 text-xs text-apricot-300">
 					These are older than {candidates.latest?.name ?? 'the latest release'}, the latest
 					release. Releasing one puts an older version after it in the log.

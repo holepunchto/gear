@@ -5,6 +5,7 @@
 	import { initials } from '$lib/initials';
 	import type { DraftSigner } from '$lib/releases';
 	import SignerList from '$lib/components/releases/SignerList.svelte';
+	import SignAs from '$lib/components/releases/SignAs.svelte';
 	import Threshold from '$lib/components/releases/Threshold.svelte';
 
 	let { data, form }: PageProps = $props();
@@ -120,6 +121,8 @@
 					{/if}
 				</label>
 			</section>
+
+			<SignAs gearKey={data.seat} pearKeys={data.pearKeys} bind:signers />
 
 			<SignerList bind:signers bind:quorum />
 

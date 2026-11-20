@@ -29,10 +29,13 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 };
 
 export const actions: Actions = {
-	sign: async ({ locals, params }) => {
+	sign: async ({ request, locals, params }) => {
+		const form = await request.formData();
 		const releases = await getReleases(locals.db);
+		// A pear key's password, used for this one signature and dropped.
+		const password = form.get('password');
 		return attempt('sign', async () => ({
-			response: await releases.sign(params.key, params.id)
+			response: await releases.sign(params.key, params.id, password ? String(password) : undefined)
 		}));
 	}
 };
