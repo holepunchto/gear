@@ -21,8 +21,8 @@
 	}
 </script>
 
-<div class="rounded-lg border border-neutral-800 bg-neutral-900">
-	<div class="border-b border-neutral-800 px-4 py-4 sm:px-5">
+<div class="rounded-2xl bg-surface ring-1 ring-line ring-inset">
+	<div class="border-b border-line px-4 py-4 sm:px-5">
 		<div class="text-[15px]">
 			<CommitMessage parsed={c.message} variant="expanded" />
 		</div>
@@ -65,7 +65,7 @@
 
 	{#if c.parents.length}
 		<div
-			class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-neutral-800 px-4 py-3 text-[12.5px] text-neutral-500 sm:px-5"
+			class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line px-4 py-3 text-[12.5px] text-neutral-500 sm:px-5"
 		>
 			<span>{c.parents.length === 1 ? 'parent' : 'parents'}</span>
 			{#each c.parents as parent}
