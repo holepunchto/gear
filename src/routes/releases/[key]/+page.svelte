@@ -16,7 +16,8 @@
 		shortKey,
 		signerInitials,
 		signerName,
-		type Release
+		type Release,
+		releaseOrdinal
 	} from '$lib/releases';
 
 	let { data }: PageProps = $props();
@@ -98,8 +99,7 @@
 			<span class="text-fg-2">
 				{#if current}
 					Proposed by <b class="font-semibold text-fg">{current.mine ? 'you' : 'a co-signer'}</b>
-					· {ago(current.added)} · will be entry
-					<span class="font-mono text-fg">#{current.previous}</span> of the release log
+					· {ago(current.added)} · will be the {releaseOrdinal(current.previous)}
 					{#if current.rotate}
 						· hands it over to <span class="font-mono text-fg"
 							>{current.rotate.name ?? shortKey(current.rotate.to)}</span
@@ -109,8 +109,8 @@
 					<span class="font-mono text-fg">{key.name}</span> · retired · {key.quorum} of {key.signers
 						.length} signed its last entry
 				{:else if key.latest}
-					<span class="font-mono text-fg">{key.name}</span> · entry #{key.latest.index} · {key.quorum}
-					of {key.signers.length} signed
+					<span class="font-mono text-fg">{key.name}</span> · {key.latest.index + 1}
+					{key.latest.index === 0 ? 'release' : 'releases'}
 				{:else}
 					No releases yet · {key.quorum} of {key.signers.length} must sign
 				{/if}

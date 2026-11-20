@@ -10,6 +10,7 @@
 		changesSummary,
 		liveReleases,
 		multisig,
+		releaseOrdinal,
 		shortKey,
 		signerInitials,
 		signerName
@@ -44,7 +45,7 @@
 			v:
 				r.index === 0
 					? 'none, this is the first'
-					: `#${r.index - 1} · ${data.previous?.name ?? ''}`,
+					: (data.previous?.name ?? releaseOrdinal(r.index - 1)),
 			href: r.index === 0 ? null : `/releases/${key.key}/${r.index - 1}`
 		}
 	]);
@@ -67,7 +68,7 @@
 			{key.name}
 		</a>
 		<span>/</span>
-		<span class="shrink-0 font-mono text-fg-2">#{r.index}</span>
+		<span class="shrink-0 font-mono text-fg-2">{r.name}</span>
 	</nav>
 
 	<section class="flex flex-col gap-2.5">
@@ -84,7 +85,8 @@
 			<ReleaseSeal quorum={key.quorum} signers={key.signers.length} />
 		</div>
 		<span class="text-fg-2">
-			<span class="font-mono text-fg">{key.name}</span> · entry #{r.index} of {key.length}
+			<span class="font-mono text-fg">{key.name}</span> · {releaseOrdinal(r.index)}
+			{#if data.previous}· after {data.previous.name}{/if}
 			{#if committed}
 				· tagged commit from
 				<span title={isoDate(committed)}>{relativeTime(committed)}</span>
