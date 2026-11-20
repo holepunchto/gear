@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate, invalidateAll } from '$app/navigation';
 	import { onMount, untrack } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import PeerConstellation from '$lib/components/PeerConstellation.svelte';
 	import SyncRing from '$lib/components/SyncRing.svelte';
 	import Ticker from '$lib/components/Ticker.svelte';
+	import YourReleases from '$lib/components/releases/YourReleases.svelte';
 	import type { PageProps } from './$types';
 
 	type Repo = {
@@ -85,6 +86,7 @@
 				// malformed payload — drop it
 			}
 		});
+		es.addEventListener('release', () => invalidate('releases'));
 		es.addEventListener('repo', (e) => {
 			try {
 				const payload = JSON.parse((e as MessageEvent).data) as {
@@ -351,6 +353,10 @@
 				{/if}
 			</div>
 		</div>
+	{/if}
+
+	{#if data.releases.length}
+		<YourReleases keys={data.releases} />
 	{/if}
 
 	<!-- ─── On this device ────────────────────────────────────────────────── -->
