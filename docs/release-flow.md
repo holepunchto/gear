@@ -1,78 +1,67 @@
 # Release flow
 
-Releasing a version is a flow of steps on its own page, not a set of panels on the repo's Releases
-tab. Today the tab shows everything at once: share links before anything is signed, "send this to
-your co-signers" on a key you sign alone, a paste box and a Commit button that nothing asks for.
-
-## The page
-
-`/releases/<key>/<id>`, the proposal page, becomes the flow. A release can take days while
-co-signers sign, so it has a URL to come back to. One step is open at a time. Done steps collapse to
-a tick and a line saying what happened. Later steps are greyed out.
-
-1. **Version.** The tag, its commit and what changed since the last release. Picking or making the
-   tag happens before the page exists (step 0 below), so this step is always done here.
-2. **Sign.** You sign, with your Gear key or your pear key (its password inline). Done already when
-   proposing signed for you.
-3. **Signatures.** Only when the quorum needs someone else. One row per signer: signed, or waiting.
-   A waiting row holds what to send that signer (the Gear proposal, or the pear CLI request for a
-   pear signer, both labelled) and a box to paste what they send back. No generic "send to
-   co-signers" block.
-4. **Publish.** Commits the release once enough have signed and waits for the blind peers to hold
-   it ("seeded to 2 peers"). It runs on its own as soon as the last signature lands, unless
-   "Publish when signed" is unticked; then the step is a Publish button.
-5. **Done.** The release, with its git clone, npm install and share link, since you just released
-   it. Elsewhere in a repo the Clone menu holds the latest release's install commands and the key's
-   share link, the only share link in the repo view; the key page has it too. Every copy button is
-   the same fixed-width button, so "Copied" never moves anything.
-
-Withdraw is a secondary action in a menu on the page, not a button beside Publish.
-
-Everywhere else a release in progress is one line, worded the same on every page: "`0.1.1` · step 3
-of 5 · waiting on Kasper", linking to the flow page. It never says "commit", "proposal" or
-"collecting"; it is a release, in progress, then published. On a co-signer's device the line can't
-name who is left, since the signatures are collected on the proposer's: it says the proposer collects
-them.
-
-## Step 0: starting a release
-
-The repo's Releases tab and the key page have one action, **Release a new version**, a link to
-`/releases/<key>/new`. That page picks a tag (older ones folded away) or tags a branch, takes the
-pear key's password when signing needs it, proposes, and goes to the flow page. If signing fails, a
-wrong password say, the proposal is kept and the flow page opens on its Sign step with the error.
-While one of your releases is in progress the page links to it instead.
-
-On a key where you are the only signer needed (quorum 1 and you hold a seat), the action is **Sign &
-release `<tag>`**: propose, sign and publish in one go, landing on the flow page at step 5. A pear
-key asks for its password first.
+Releases live in the repo, the way tags do. You never leave the repo to release a version or to look
+at one.
 
 ## The Releases tab
 
-What this repo released, not the flow and not the key:
+`/<repo>/releases` is a list, like the Tags tab.
 
-- The key, compact, linking to its page.
-- The latest signed release, linking to its tag page. No install commands or share link: those are
-  in the Clone menu.
-- A release in progress as one line: "`0.1.1` · step 3 of 5 · waiting on Kasper", linking to the
-  flow page. Otherwise **Release a new version**.
-- The release log.
+- One row per signed release, newest first: the version, its seal ("1 of 1 signed", glowing for a
+  multisig key), the tag, the short commit and the date. The repo's current release says Latest.
+- Releases in progress are apricot rows at the top, each with one status line: "step 3 of 5 ·
+  waiting on Kasper".
+- Above the list, one quiet line per key: "Release key `name` · M of N · Key settings →". With more
+  than one key, each row names its key.
 
-With no key in use the tab has one button, **Make a release key**, to `/releases/new?repo=<repo>`,
-which comes back to the tab saying the key was made. When the repo's keys are all archived it says
-so. Following, rotating, archiving and revoking live on the key page. The tab, the Clone
-button and the release card follow release events on every tab of the repo.
+## New release
 
-The key page follows the same rules: no share links before the first release.
+A **New release** button, top right, opens a section on the tab, with Cancel, like New tag.
+
+- Pick a tag newer than the last release (older ones are folded away), or tag a branch on a repo you
+  own.
+- Then **Propose**, or **Sign & release `<tag>`** on a key where you are the only signer needed. A
+  seat held by a pear key asks for its password.
+- With no release key yet, the section first sets one up: its name, which key you sign as, who
+  signs and how many must agree. Then it goes on to the tag.
+- Proposing opens the release's page. If your signature fails, a wrong password say, the release is
+  kept and its page opens on the Sign step with the error.
+
+While one of your releases is in progress on a key, there is no New release for it; its row is the
+way back in. The key page's button opens New release on the tab.
+
+## A release's page
+
+`/<repo>/releases/<tag>`, under the repo's header and tabs with Releases active, and a "← Releases"
+link at the top.
+
+- **Signed:** how to install it, Browse files at the tag, the changes since the previous release,
+  what was signed and by whom, and links to the releases either side.
+- **In progress:** its steps, one open at a time: Version, Sign, Signatures (only when the quorum
+  needs someone else), Publish, Done. The Signatures step holds what to send each co-signer and a
+  box for what they send back. Publish runs on its own when the last signature lands, unless
+  "Publish when signed" is unticked. Withdraw is in the menu.
+
+At most one release per key and tag is in progress. When two keys of a repo have the same tag,
+`?key=` picks one.
+
+`/releases/<key>/<id>` and `/releases/<key>/tag/<tag>` redirect here when the repo is in your
+library. Without it, for a follower or a co-signer who hasn't added the repo, they still show the
+release on its own.
+
+## Elsewhere
+
+Everywhere else a release in progress is the same one line, linking to its page: "`0.1.1` · step 3
+of 5 · waiting on Kasper". On a co-signer's device it says the proposer collects the signatures. The
+Clone menu holds the latest release's install commands and the key's share link.
+
+The key page, `/releases/<key>`, is for the key itself: its signers, sharing and following,
+rotating, archiving and revoking, and its history. `/releases` is the inbox for proposals sent to
+you and the directory of keys.
 
 ## Auto-publish
 
-"Publish when signed" is a checkbox on the flow page, ticked by default, stored with the proposal on
-this device. When ticked, whichever device holds the last signature publishes: the proposer when a
-response is pasted, or when Gear starts with the signatures already there. Opening a page never
-starts a publish. A co-signer who isn't the proposer only publishes if they hold enough signatures
-themselves. A revoked key never publishes.
-
-A publish runs until its commit settles, however long the blind peers take; the release is recorded
-as published as soon as it is appended here. While one runs, the release can't be withdrawn and a
-second Publish joins it. Everywhere else the status says "publishing" only while a publish runs on
-this device, "publishing failed" after one failed, and "ready to publish" otherwise.
+"Publish when signed" is ticked by default and stored with the release on this device. Whichever
+device holds the last signature publishes. Opening a page never starts a publish. A revoked key never
+publishes. While a publish runs the release can't be withdrawn, and its status says "publishing"
+only on the device running it.
