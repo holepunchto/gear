@@ -17,7 +17,8 @@ const NAMESPACE = 'gear/releases/v1';
  * @typedef {{ name: string, tag: string, commit: string, tree: string, timestamp: number }} Release
  * @typedef {{
  *   key: string, id: string, proposal: string, length: number, base: number, mine: boolean,
- *   added: number, tag: string | null, release: Release | null
+ *   added: number, tag: string | null, release: Release | null, autoPublish?: boolean,
+ *   published?: { length: number, mirrored: boolean, at: number }
  * }} ProposalRecord
  * @typedef {{ signer: string, response: string }} ResponseRecord
  */

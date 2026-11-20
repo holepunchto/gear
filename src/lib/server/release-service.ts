@@ -16,6 +16,7 @@ import { parseCommitMessage, type ParsedCommit } from './commit-parse';
 import { createTag, TagError } from './tags.js';
 import { newerTags, compareVersions } from './newer-tags.js';
 import { namespaceFor, nameOf } from './release-names.js';
+import { shouldPublish } from '../release-flow.js';
 import { listPearKeys, pearDir, signWithPearKey } from './pear-keys.js';
 import { events } from './events';
 import { log, logError } from './log.js';
@@ -93,7 +94,16 @@ export type Pending = {
 	release: Release | null;
 	signed: string[];
 	signedByMe: boolean;
+	// "Publish when signed" on this device, whether a publish is running here,
+	// and why the last one failed.
+	autoPublish: boolean;
+	publishing: boolean;
+	error: string | null;
 };
+
+// What publishing left: the key's length after it, and whether two blind
+// peers held a full copy before Gear stopped waiting.
+export type Published = { length: number; mirrored: boolean; at: number };
 
 // Owner made the key here, signer holds a seat on it, follower only reads it.
 export type Role = 'owner' | 'signer' | 'follower';
@@ -215,6 +225,10 @@ type ProposalRecord = {
 	added: number;
 	tag: string | null;
 	release: Release | null;
+	// Unset means ticked.
+	autoPublish?: boolean;
+	// Kept once published here, so the flow page can say it is done.
+	published?: Published;
 };
 
 type Core = {
@@ -225,6 +239,7 @@ type Core = {
 	treeHash(length: number): Promise<Uint8Array>;
 	download(range: { start: number; end: number }): unknown;
 	on(event: 'append', fn: () => void): void;
+	off(event: 'append', fn: () => void): void;
 };
 
 type RawTag = { name: string; oid: string; commit: string; tree: string; timestamp: number };
@@ -268,6 +283,10 @@ class Releases {
 	// Each key's signed tags, read once per length.
 	private signed = new Map<string, { length: number; tags: Promise<Release[]> }>();
 	private seat: { publicKey: Uint8Array; secretKey: Uint8Array } | null = null;
+	// Publishes running on this device, and the last failure of each, by
+	// key/id. Neither outlives the app.
+	private publishing = new Map<string, Promise<{ length: number; mirrored: boolean }>>();
+	private failed = new Map<string, string>();
 
 	constructor(db: GipDB) {
 		this.db = db;
@@ -620,7 +639,8 @@ class Releases {
 						added: p.added,
 						release: p.release,
 						signed,
-						signedByMe: signed.includes(me)
+						signedByMe: signed.includes(me),
+						...this.publishState(record.key, p)
 					};
 				})
 		);
@@ -960,7 +980,17 @@ class Releases {
 			...p,
 			request: ReleaseKey.request(p.proposal),
 			signed,
-			signedByMe: signed.includes(me)
+			signedByMe: signed.includes(me),
+			...this.publishState(key, p)
+		};
+	}
+
+	private publishState(key: string, p: ProposalRecord) {
+		const at = key + '/' + p.id;
+		return {
+			autoPublish: p.autoPublish !== false,
+			publishing: this.publishing.has(at),
+			error: this.failed.get(at) ?? null
 		};
 	}
 
@@ -1061,6 +1091,7 @@ class Releases {
 
 		await this.store.putResponse(key, id, { signer: this.seatFor(record), response });
 		events.emit('release', { key });
+		await this.publishIfReady(key, id);
 		return GEAR_RESPONSE + response;
 	}
 
@@ -1119,6 +1150,7 @@ class Releases {
 			await this.store.putKey({ ...record, gear: [...(record.gear ?? []), seat] });
 		}
 		events.emit('release', { key });
+		await this.publishIfReady(key, id);
 	}
 
 	// This device's signature, marked as Gear's for the proposer.
@@ -1131,8 +1163,28 @@ class Releases {
 
 	// Commit waits for two full copies of the new release before it returns,
 	// with no bound of its own. Past the timeout the blocks are already
-	// appended here and the mirrors keep catching up.
-	async commit(key: string, id: string) {
+	// appended here and the mirrors keep catching up. One commit runs per
+	// proposal: a second call joins the first.
+	commit(key: string, id: string) {
+		const at = key + '/' + id;
+		let running = this.publishing.get(at);
+		if (running) return running;
+		this.failed.delete(at);
+		running = this.publish(key, id)
+			.catch((err) => {
+				this.failed.set(at, err instanceof ReleaseError ? err.message : 'Publishing failed');
+				throw err;
+			})
+			.finally(() => {
+				this.publishing.delete(at);
+				events.emit('release', { key });
+			});
+		this.publishing.set(at, running);
+		events.emit('release', { key });
+		return running;
+	}
+
+	private async publish(key: string, id: string) {
 		const record = await this.mirror(key);
 		const rk = await this.key(record);
 		const p = await this.getProposal(key, id);
@@ -1153,9 +1205,63 @@ class Releases {
 		}
 
 		if (done === null && rk.length < p.length) throw new ReleaseError('Commit timed out');
-		await this.store.deleteProposal(key, id);
+		const published = { length: rk.length, mirrored: done !== null, at: Date.now() };
+		await this.markPublished(key, id, published);
+		// The mirrors caught up after Gear stopped waiting.
+		if (done === null) {
+			committing.then(
+				() => this.markPublished(key, id, { ...published, mirrored: true }),
+				() => {}
+			);
+		}
+		return { length: published.length, mirrored: published.mirrored };
+	}
+
+	private async markPublished(key: string, id: string, published: Published) {
+		const stored = (await this.store.getProposal(key, id)) as ProposalRecord | null;
+		if (!stored) return;
+		await this.store.putProposal({ ...stored, published });
 		events.emit('release', { key });
-		return { length: rk.length, mirrored: done !== null };
+	}
+
+	// Starts publishing in the background when "Publish when signed" is ticked
+	// and the signatures held here are enough. A failure stays on the
+	// proposal until the user tries again.
+	async publishIfReady(key: string, id: string) {
+		const record = await this.mirror(key);
+		const p = await this.getProposal(key, id);
+		const rk = await this.key(record);
+		if (!shouldPublish({ ...p, quorum: record.quorum, keyLength: rk.length })) return;
+		this.commit(key, id).catch(() => {});
+	}
+
+	// Waits for a publish running here to append the release on this device,
+	// not for the blind peers. Returns at once when none is running.
+	async landed(key: string, id: string) {
+		const running = this.publishing.get(key + '/' + id);
+		if (!running) return;
+		const rk = await this.key(await this.mirror(key));
+		const p = await this.getProposal(key, id);
+		await new Promise<void>((resolve) => {
+			const check = () => {
+				if (rk.core.length >= p.length) done();
+			};
+			const done = () => {
+				rk.core.off('append', check);
+				resolve();
+			};
+			rk.core.on('append', check);
+			running.then(done, done);
+			check();
+		});
+	}
+
+	async setAutoPublish(key: string, id: string, on: boolean) {
+		const stored = (await this.store.getProposal(key, id)) as ProposalRecord | null;
+		if (!stored) throw new ReleaseError('Unknown proposal');
+		await this.store.putProposal({ ...stored, autoPublish: on });
+		events.emit('release', { key });
+		if (on) await this.publishIfReady(key, id);
 	}
 
 	// Rotating replaces a key that can't be trusted any more: a new, empty key
