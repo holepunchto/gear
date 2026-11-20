@@ -223,6 +223,6 @@
 			{/if}
 		</div>
 
-		<ReleaseLog {key} {current} history={data.history} />
+		<ReleaseLog {key} {current} history={data.history} changes={data.changes} />
 	</div>
 </main>

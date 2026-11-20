@@ -4,7 +4,8 @@ import b4a from 'b4a';
 import ReleaseKey from './releases/index.js';
 import ReleaseStore from './releases/store.js';
 import type { GipDB } from './gip';
-import { openRepo, getTagTarget, getTagRefs, getBranchRefs } from './repo';
+import { openRepo, getTagTarget, getTagRefs, getBranchRefs, getCommitHistory } from './repo';
+import { parseCommitMessage, type ParsedCommit } from './commit-parse';
 import { createTag, TagError } from './tags.js';
 import { events } from './events';
 import { log, logError } from './log.js';
@@ -95,6 +96,21 @@ export type Candidates = {
 };
 
 export type Check = { label: string; ok: boolean; detail: string };
+
+// The commits a release adds over the one before it, newest first, from the
+// repo in the library. `status` says where the walk ended: at the previous
+// release's commit, at `base` where the previous release forked off this
+// history, at the cap, at the root without meeting it (history was
+// rewritten), at the root of a first release, or nowhere because a commit
+// isn't in this copy yet.
+export type Changes = {
+	repo: string;
+	base: string | null;
+	since: { index: number; name: string; commit: string } | null;
+	commits: { oid: string; author: string | null; message: ParsedCommit; timestamp: number }[];
+	more: string | null;
+	status: 'reached' | 'forked' | 'capped' | 'unrelated' | 'first' | 'missing';
+};
 
 export type Inspection =
 	| { ok: true; release: Release; checks: Check[] }
@@ -270,11 +286,18 @@ class Releases {
 				summary.pending.map(async (p) => [p.id, await this.myResponse(key, p.id)] as const)
 			)
 		);
+		const changes = summary.latest ? await this.changes(key, summary.latest.index) : null;
 		return {
 			key: summary,
 			history: await this.history(key),
 			candidates: await this.candidates(summary),
-			responses
+			responses,
+			// The latest release's changes in brief: the count and the first few.
+			changes: changes && {
+				...changes,
+				count: changes.commits.length,
+				commits: changes.commits.slice(0, 3)
+			}
 		};
 	}
 
@@ -284,6 +307,62 @@ class Releases {
 		const entry = await this.read(rk, index);
 		if (!entry) throw new ReleaseError('This release has not arrived yet');
 		return entry;
+	}
+
+	// Walks first-parent history from the release's commit until it meets the
+	// previous release's history, or for `cap` commits. Null when the repo
+	// isn't in the library.
+	async changes(key: string, index: number, cap = 100): Promise<Changes | null> {
+		const record = await this.record(key);
+		const rk = await this.key(record);
+		const release = await this.read(rk, index);
+		if (!release) return null;
+
+		const repo = await this.libraryRepo(record, release.repo.key);
+		if (!repo) return null;
+
+		// Stop where this release's history meets the previous one's: at its
+		// commit, or where it forked off when it was tagged off the line.
+		const previous = index > 0 ? await this.read(rk, index - 1) : null;
+		const before = previous ? await getCommitHistory(repo.remote, previous.commit, cap + 1) : [];
+		const stop = new Set(before.map((c) => c.oid));
+
+		const walked = await getCommitHistory(repo.remote, release.commit, cap + 1, stop);
+		const commits = walked.slice(0, cap);
+		const more = walked.length > cap ? walked[cap].oid : null;
+		const met = walked.length ? walked[walked.length - 1].parents[0] : release.commit;
+
+		let status: Changes['status'];
+		if (more) status = 'capped';
+		else if (!previous) status = walked.length ? 'first' : 'missing';
+		else if (!stop.size) status = 'missing';
+		else if (met === previous.commit) status = 'reached';
+		else if (stop.has(met)) status = 'forked';
+		else status = walked.length ? 'unrelated' : 'missing';
+
+		return {
+			repo: repo.name,
+			base: status === 'forked' ? met : null,
+			since: previous && { index: previous.index, name: previous.name, commit: previous.commit },
+			commits: commits.map((c) => ({
+				oid: c.oid,
+				author: c.author,
+				message: parseCommitMessage(c.message),
+				timestamp: c.timestamp
+			})),
+			more,
+			status
+		};
+	}
+
+	// The library repo with this core key: the key's own repo when it matches,
+	// otherwise a scan of the library.
+	private async libraryRepo(record: KeyRecord, repoKey: string) {
+		const name = record.repo?.key === repoKey ? record.repo.name : await this.findRepo(repoKey);
+		if (!name) return null;
+		const remote = (await openRepo(this.db, name)) as { core: { key: Uint8Array } } | null;
+		if (!remote || z32.encode(remote.core.key) !== repoKey) return null;
+		return { name, remote };
 	}
 
 	private async candidates(summary: KeySummary): Promise<Candidates | null> {

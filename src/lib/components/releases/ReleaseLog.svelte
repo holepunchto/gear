@@ -1,14 +1,25 @@
 <script lang="ts">
-	import { shortKey, type KeySummary, type Pending, type Release } from '$lib/releases';
+	import ChangeList from './ChangeList.svelte';
+	import {
+		changesSummary,
+		shortKey,
+		type Changes,
+		type KeySummary,
+		type Pending,
+		type Release
+	} from '$lib/releases';
 
 	let {
 		key,
 		current,
-		history
+		history,
+		changes = null
 	}: {
 		key: KeySummary;
 		current: Pending | null;
 		history: (Release & { index: number })[];
+		// The latest release's changes in brief.
+		changes?: (Changes & { count: number }) | null;
 	} = $props();
 </script>
 
@@ -63,6 +74,19 @@
 				</span>
 			</div>
 		</a>
+		{#if changes && r.index === key.latest?.index}
+			<div class="mb-2 ml-[26px] flex min-w-0 flex-col gap-1 rounded-lg bg-surface-2 px-3 py-2">
+				<a
+					href="/releases/{key.key}/{r.index}"
+					class="text-xs text-fg-2 no-underline hover:text-accent-300"
+				>
+					{changesSummary(changes, changes.count)}
+				</a>
+				{#if changes.commits.length}
+					<ChangeList {changes} compact />
+				{/if}
+			</div>
+		{/if}
 	{:else}
 		{#if !current}
 			<p class="m-0 text-sm text-fg-3">Nothing signed yet.</p>
