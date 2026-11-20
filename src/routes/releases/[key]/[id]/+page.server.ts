@@ -1,45 +1,27 @@
-import { error, redirect } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import {
-	attempt,
-	failure,
-	getReleases,
-	ReleaseError,
-	type Changes,
-	type Inspection
-} from '$lib/server/release-service';
+import { attempt, failure, getReleases } from '$lib/server/release-service';
+import { proposalPage } from '$lib/server/release-pages';
 
 export const load: PageServerLoad = async ({ locals, params, depends, url }) => {
 	depends('releases');
 	const releases = await getReleases(locals.db);
 
-	const [key, proposal] = await Promise.all([
-		releases.getKey(params.key),
-		releases.getProposal(params.key, params.id)
-	]).catch((err) => {
-		if (err instanceof ReleaseError) throw error(404, err.message);
-		throw err;
-	});
-
-	// Inspecting replicates the staging core, so it streams in after paint.
-	const inspection: Promise<Inspection> = releases
-		.inspect(params.key, params.id)
-		.catch((err) => ({ ok: false, error: (err as Error).message, checks: [] }));
-	const changes: Promise<Changes | null> = releases
-		.proposalChanges(params.key, params.id)
+	// Once its tag is known, a release opens in its repo when that is here.
+	const tag = await releases
+		.getProposal(params.key, params.id)
+		.then((p) => p.release?.tag ?? null)
 		.catch(() => null);
+	const path = tag && (await releases.releasePath(params.key, tag));
+	if (path) {
+		// Keeps ?error=, why signing failed.
+		const to = new URL(path, url);
+		const signError = url.searchParams.get('error');
+		if (signError) to.searchParams.set('error', signError);
+		throw redirect(303, to.pathname + to.search);
+	}
 
-	return {
-		seat: releases.seatKey,
-		key,
-		proposal,
-		response: await releases.myResponse(params.key, params.id),
-		inspection,
-		changes,
-		app: key.repo ? await releases.app(key.repo.name) : null,
-		// Why signing failed when it was proposed: the Sign step says it.
-		signError: url.searchParams.get('error')
-	};
+	return proposalPage(releases, params, url);
 };
 
 export const actions: Actions = {

@@ -158,6 +158,7 @@ export type RepoRelease = {
 	pending: {
 		id: string;
 		name: string | null;
+		tag: string | null;
 		waitingOnMe: boolean;
 		progress: { at: StepId; step: number; steps: number; text: string };
 	} | null;
@@ -486,6 +487,36 @@ class Releases {
 			);
 		}
 		return { release: tags[i], newer: tags[i - 1] ?? null, older: tags[i + 1] ?? null };
+	}
+
+	// A repo's release by its tag: the key it is signed on, or the release in
+	// progress on it. Keys releases come from go first, then retired and
+	// revoked ones; `pick` names the key when more than one has the tag.
+	async findRelease(repoKey: string, tag: string, pick: string | null = null) {
+		const records = (await this.records())
+			.filter(
+				(r) => r.repo?.key === repoKey && r.mirror && !r.archived && (!pick || r.key === pick)
+			)
+			.sort((a, b) => keyRank(a) - keyRank(b));
+		for (const record of records) {
+			const tags = await this.signedTags(record).catch(() => []);
+			if (tags.some((t) => t.tag === tag)) return { key: record.key, id: null };
+			const p = (await this.summary(record)).pending.find((p) => p.release?.tag === tag);
+			if (p) return { key: record.key, id: p.id };
+		}
+		return null;
+	}
+
+	// Where a key's release opens: its page in the repo, while the repo is in
+	// the library. `?key=` names the key when the repo has others.
+	async releasePath(key: string, tag: string) {
+		const record = await this.record(key);
+		const repo = await this.libraryRepo(record);
+		if (!repo) return null;
+		const others = (await this.records()).some(
+			(r) => r.key !== key && r.repo?.key === record.repo!.key && r.mirror && !r.archived
+		);
+		return `/${repo.name}/releases/${encodeURI(tag)}` + (others ? `?key=${key}` : '');
 	}
 
 	// Walks first-parent history from the release's commit until it meets the
@@ -1381,11 +1412,17 @@ function repoRelease(k: KeySummary): RepoRelease {
 			? {
 					id: p.id,
 					name: p.release?.name ?? null,
+					tag: p.release?.tag ?? null,
 					waitingOnMe: progress.at === 'sign',
 					progress
 				}
 			: null
 	};
+}
+
+// Retired and revoked keys go after the ones releases come from.
+function keyRank(k: { revoked?: boolean; retiredTo?: string | null }) {
+	return k.revoked ? 2 : k.retiredTo ? 1 : 0;
 }
 
 // Newest first: by semver, then tag time, then name.

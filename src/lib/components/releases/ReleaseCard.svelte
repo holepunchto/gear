@@ -2,13 +2,13 @@
 	import ReleaseSeal from './ReleaseSeal.svelte';
 	import { multisig, progressLine, releaseHref, type RepoRelease } from '$lib/releases';
 
-	let { release }: { release: RepoRelease } = $props();
+	let { release, repo }: { release: RepoRelease; repo: string } = $props();
 
 	const sealed = $derived(release.version !== null && multisig(release.signers));
 </script>
 
 <a
-	href={releaseHref(release)}
+	href={releaseHref(release, repo)}
 	aria-label="Signed release"
 	class="flex flex-col gap-2.5 rounded-2xl bg-surface p-[18px] text-fg no-underline ring-1 transition-colors ring-inset hover:bg-surface-2 {sealed
 		? 'shadow-glow-seal ring-seal-400/30'

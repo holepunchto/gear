@@ -1,6 +1,12 @@
 <script lang="ts">
 	import SeatDots from './SeatDots.svelte';
-	import { multisig, proposalName, releaseProgress, type KeySummary } from '$lib/releases';
+	import {
+		multisig,
+		proposalHref,
+		proposalName,
+		releaseProgress,
+		type KeySummary
+	} from '$lib/releases';
 
 	let { keys }: { keys: KeySummary[] } = $props();
 
@@ -11,7 +17,7 @@
 			const progress = releaseProgress(k, p);
 			return {
 				kind: progress.at === 'sign' ? 'you' : 'progress',
-				href: `/releases/${k.key}/${p.id}`,
+				href: proposalHref(k, p),
 				version: proposalName(p, k.latest?.name ?? '—'),
 				filled: p.signed.length,
 				status: `Step ${progress.step} of ${progress.steps} · ${progress.text}`

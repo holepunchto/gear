@@ -209,6 +209,11 @@
 		};
 	});
 
+	// The Releases tab and a release's page under it.
+	function inReleases(p: string) {
+		return p === `/${repo.name}/releases` || p.startsWith(`/${repo.name}/releases/`);
+	}
+
 	const tabs = $derived([
 		{
 			label: 'Files',
@@ -217,7 +222,7 @@
 				!p.endsWith('/branches') &&
 				!p.endsWith('/tags') &&
 				!p.endsWith('/commits') &&
-				!p.endsWith('/releases') &&
+				!inReleases(p) &&
 				!p.endsWith('/settings') &&
 				!p.includes('/commit/')
 		},
@@ -245,7 +250,7 @@
 			label: 'Releases',
 			href: `/${repo.name}/releases`,
 			release: repo.release,
-			match: (p: string) => p.endsWith('/releases')
+			match: inReleases
 		}
 	]);
 
@@ -632,7 +637,7 @@
 		<aside class="hidden min-w-0 flex-[1_1_300px] flex-col gap-4 lg:flex">
 			<LiveActivity items={activity} {now} />
 			{#if repo.release}
-				<ReleaseCard release={repo.release} />
+				<ReleaseCard release={repo.release} repo={repo.name} />
 			{/if}
 		</aside>
 	</div>
