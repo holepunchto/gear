@@ -5,7 +5,6 @@
 	import ReleaseInProgress from '$lib/components/releases/ReleaseInProgress.svelte';
 	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
-	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import Revoked from '$lib/components/releases/Revoked.svelte';
 	import Retired from '$lib/components/releases/Retired.svelte';
 	import { multisig, shortKey, signerName, tagHref } from '$lib/releases';
@@ -113,9 +112,6 @@
 					>
 						Key page <span class="font-mono text-fg-3">{shortKey(key.key)}</span> →
 					</a>
-					{#if key.latest}
-						<KeyShare keyText={key.key} share={key.share} />
-					{/if}
 				</header>
 
 				{#if key.revoked}

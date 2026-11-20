@@ -4,7 +4,6 @@
 	import type { PageProps } from './$types';
 	import SeatRing from '$lib/components/releases/SeatRing.svelte';
 	import FollowKey from '$lib/components/releases/FollowKey.svelte';
-	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import PearSign from '$lib/components/releases/PearSign.svelte';
 	import {
 		avatar,
@@ -273,7 +272,6 @@
 								{progressLine(proposalName(p), releaseProgress(k, p))}
 							</a>
 						{/if}
-						<KeyShare keyText={k.key} share={k.share} />
 					</li>
 				{/each}
 			</ul>

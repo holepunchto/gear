@@ -21,8 +21,10 @@ a tick and a line saying what happened. Later steps are greyed out.
 4. **Publish.** Commits the release once enough have signed and waits for the blind peers to hold
    it ("seeded to 2 peers"). It runs on its own as soon as the last signature lands, unless
    "Publish when signed" is unticked; then the step is a Publish button.
-5. **Done.** The release, with its git clone, npm install and share link. This is the only place
-   links for the release appear.
+5. **Done.** The release, with its git clone, npm install and share link, since you just released
+   it. Elsewhere in a repo the Clone menu holds the latest release's install commands and the key's
+   share link, the only share link in the repo view; the key page has it too. Every copy button is
+   the same fixed-width button, so "Copied" never moves anything.
 
 Withdraw is a secondary action in a menu on the page, not a button beside Publish.
 
@@ -46,8 +48,8 @@ key asks for its password first.
 What this repo released, not the flow and not the key:
 
 - The key, compact, linking to its page.
-- The latest signed release, linking to its tag page. No install commands: those are in the Clone
-  menu.
+- The latest signed release, linking to its tag page. No install commands or share link: those are
+  in the Clone menu.
 - A release in progress as one line: "`0.1.1` · step 3 of 5 · waiting on Kasper", linking to the
   flow page. Otherwise **Release a new version**.
 - The release log.

@@ -1,11 +1,13 @@
 <script lang="ts">
 	import ReleaseSeal from './ReleaseSeal.svelte';
 	import CopyInstall from './CopyInstall.svelte';
+	import CopyButton from './CopyButton.svelte';
 	import { multisig, type RepoRelease } from '$lib/releases';
 
 	// The latest release's commands for the Clone popover, all from the
-	// release key, each with a copy button, and the .npmrc lines npm needs.
-	// `pear` adds pear install, for repos that build as Pear apps.
+	// release key, each with a copy button, the .npmrc lines npm needs, and
+	// the key's share link: the only one in the repo view. `pear` adds pear
+	// install, for repos that build as Pear apps.
 	let {
 		name,
 		release,
@@ -31,4 +33,8 @@
 		<ReleaseSeal quorum={release.quorum} signers={release.signers} />
 	</div>
 	<CopyInstall {name} source={release.source} tag={release.tag} {pear} {multi} />
+	<div class="flex items-center gap-2 text-xs text-fg-3">
+		<span class="min-w-0 flex-1">Whoever follows the share link gets every release</span>
+		<CopyButton value={release.share} label="Copy share link" tone="seal" />
+	</div>
 </div>

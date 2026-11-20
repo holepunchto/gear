@@ -10,6 +10,7 @@
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
 	import ReleaseCard from '$lib/components/releases/ReleaseCard.svelte';
 	import ReleaseInstall from '$lib/components/releases/ReleaseInstall.svelte';
+	import CopyButton from '$lib/components/releases/CopyButton.svelte';
 	import { liveReleases, multisig } from '$lib/releases';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
@@ -189,7 +190,6 @@
 	);
 
 	let cloneOpen = $state(false);
-	let cloneCopied = $state(false);
 	let cloneEl = $state<HTMLElement>();
 	const cloneCommand = $derived(`git clone ${repo.url}`);
 
@@ -208,14 +208,6 @@
 			document.removeEventListener('keydown', onKey);
 		};
 	});
-
-	async function copyClone() {
-		try {
-			await navigator.clipboard.writeText(cloneCommand);
-			cloneCopied = true;
-			setTimeout(() => (cloneCopied = false), 1500);
-		} catch {}
-	}
 
 	const tabs = $derived([
 		{
@@ -473,30 +465,7 @@
 						>
 							git clone {shortUrl}
 						</code>
-						<button
-							type="button"
-							onclick={copyClone}
-							class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-[7px] bg-accent-400/14 px-2.5 py-[5px] text-xs font-semibold text-accent-300 transition-colors hover:bg-accent-400/22"
-						>
-							{#if cloneCopied}
-								<svg
-									width="13"
-									height="13"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2.4"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									aria-hidden="true"
-								>
-									<path d="m5 12 5 5 9-10" />
-								</svg>
-								Copied
-							{:else}
-								Copy
-							{/if}
-						</button>
+						<CopyButton value={cloneCommand} title="Copy the git clone command" />
 					</div>
 					<span class="text-xs text-fg-3">
 						Needs the gip command line tool, which you can install from
