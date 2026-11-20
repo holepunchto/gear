@@ -34,7 +34,7 @@
 			Retired: replaced by <span class="font-mono text-base">{shortKey(to)}</span> →
 		</a>
 		<span class="text-sm leading-normal text-fg-2">
-			It no longer shows as {repo}'s release. Installed copies follow
+			It shows as {repo}'s release until the new key has one. Installed copies follow
 			<code class="font-mono">upgrade</code> in package.json, so release one more version here with this
 			line, then revoke this key.
 		</span>
