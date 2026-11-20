@@ -2,7 +2,60 @@
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 
+/* Self-hosted, Latin subset, variable weight. The app runs offline and every
+   asset is embedded in build/assets.js, so no font CDN. Licence: ../lib/fonts/OFL.txt */
+@font-face {
+	font-family: 'Inter';
+	font-style: normal;
+	font-weight: 400 600;
+	font-display: swap;
+	src: url('../lib/fonts/inter-latin.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Space Grotesk';
+	font-style: normal;
+	font-weight: 500 700;
+	font-display: swap;
+	src: url('../lib/fonts/space-grotesk-latin.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'JetBrains Mono';
+	font-style: normal;
+	font-weight: 400 500;
+	font-display: swap;
+	src: url('../lib/fonts/jetbrains-mono-latin.woff2') format('woff2');
+}
+
 @theme {
+	/* Surfaces, darkest first. Depth separates things; hairlines only where
+	   content needs a grid. */
+	--color-bg: #070b09;
+	--color-surface: #0c1410;
+	--color-surface-2: #0f1813;
+	--color-surface-3: #111c17;
+	--color-surface-4: #17241d;
+	--color-line: rgb(255 255 255 / 0.05);
+	--color-line-strong: rgb(255 255 255 / 0.08);
+
+	/* Text */
+	--color-fg: #e8f1ec;
+	--color-fg-2: #9aaca3;
+	--color-fg-3: #6f8279;
+
+	/* Neutral, re-tinted onto the surfaces and text above so existing
+	   neutral-* classes pick up the palette. */
+	--color-neutral-50: #f3f8f5;
+	--color-neutral-100: #e8f1ec;
+	--color-neutral-200: #d0ddd6;
+	--color-neutral-300: #b6c5bd;
+	--color-neutral-400: #9aaca3;
+	--color-neutral-500: #6f8279;
+	--color-neutral-600: #526159;
+	--color-neutral-700: #2a3932;
+	--color-neutral-800: #1a2620;
+	--color-neutral-900: #0c1410;
+	--color-neutral-950: #070b09;
+
 	/* Primary — Pear mint (actions, brand, live states) */
 	--color-accent-50: #e8faf2;
 	--color-accent-100: #c9f5df;
@@ -40,9 +93,15 @@
 	--color-apricot-800: #9a3412;
 	--color-apricot-900: #7c2d12;
 
-	/* Type */
-	--font-sans: ui-sans-serif, -apple-system, 'Inter', 'Segoe UI', system-ui, sans-serif;
-	--font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+	/* Type: Space Grotesk for names and headings, Inter for UI, JetBrains
+	   Mono only for hashes, URLs and code. */
+	--font-sans: 'Inter', ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
+	--font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+	/* Glow: only live things get it (peers, sync, arriving blocks). */
+	--shadow-glow: 0 0 24px rgb(35 204 148 / 0.18);
+	--shadow-glow-strong: 0 0 10px #23cc94;
 
 	/* Radii */
 	--radius-sm: 6px;
@@ -62,6 +121,10 @@
 	50% {
 		opacity: 0.55;
 	}
+}
+
+@utility text-glow {
+	text-shadow: 0 0 12px rgb(35 204 148 / 0.6);
 }
 
 /* Syntax highlighting (highlight.js token classes), on the app palette:
@@ -132,5 +195,23 @@
 		/* Match the app surface. Anything else here only ever shows as a
 		   mismatched strip under short pages or behind overscroll bounce. */
 		@apply bg-neutral-950;
+		color-scheme: dark;
+	}
+
+	h1,
+	h2,
+	h3 {
+		font-family: var(--font-display);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
+			scroll-behavior: auto !important;
+		}
 	}
 }
