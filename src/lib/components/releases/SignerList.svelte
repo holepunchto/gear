@@ -111,5 +111,10 @@
 			Each device is its own seat. Co-signers find their key in Settings, under Your signing key.
 			Add your other devices the same way.
 		</span>
+		<span class="basis-full text-xs text-fg-3">
+			A <span class="font-mono">pear multisig</span> key works too: paste what
+			<span class="font-mono">pear multisig keys get &lt;name&gt;</span> prints. That signer signs with
+			the pear CLI.
+		</span>
 	</div>
 </section>

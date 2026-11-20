@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import type { ActionResult } from '@sveltejs/kit';
 	import CopyField from './CopyField.svelte';
+	import PearSign from './PearSign.svelte';
 	import type { KeySummary, Pending } from '$lib/releases';
 
 	// A pending proposal's signatures: the proposal to send, this device's
@@ -48,6 +49,8 @@
 		</div>
 	{/if}
 
+	<PearSign request={current.request} />
+
 	{#if current.signedByMe && response && !current.mine}
 		<div class="flex flex-col gap-2">
 			<h2 class="m-0 text-base font-semibold text-fg">Your signature</h2>
@@ -73,7 +76,7 @@
 				required
 				autocomplete="off"
 				spellcheck="false"
-				placeholder="A co-signer's signature"
+				placeholder="A co-signer's signature or pear CLI response"
 				class="min-w-0 flex-1 rounded-[10px] border-0 bg-bg px-3 py-2.5 font-mono text-[13px] text-fg ring-1 ring-line-strong ring-inset placeholder:text-fg-3 focus:ring-2 focus:ring-accent-400/50 focus:outline-none"
 			/>
 			<button
