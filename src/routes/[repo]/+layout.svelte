@@ -5,6 +5,9 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
+	import ReplicationPanel from '$lib/components/ReplicationPanel.svelte';
+	import LiveActivity, { type Activity } from '$lib/components/LiveActivity.svelte';
+	import Ticker from '$lib/components/Ticker.svelte';
 	import { relativeTime, isoDate, isRecent } from '$lib/time';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
@@ -63,13 +66,28 @@
 	// changes (route navigation).
 	let liveLength = $state(data.repo.length);
 	let livePeers = $state(data.repo.peers);
+	let liveContiguous = $state(untrack(() => data.repo.contiguousLength));
 	let pushFlash = $state(false);
 
 	$effect(() => {
 		// Re-seed when SvelteKit revalidates the layout load.
 		liveLength = data.repo.length;
 		livePeers = data.repo.peers;
+		liveContiguous = data.repo.contiguousLength;
 	});
+
+	// What happened while this page was open: appends and peer changes from
+	// the SSE stream. Client memory only, newest first, capped.
+	const ACTIVITY_CAP = 20;
+	let activity = $state.raw<Activity[]>([]);
+	let activityId = 0;
+	let lastAppend = $state.raw<{ added: number; at: number } | null>(null);
+	let freshBlocks = $state.raw<{ from: number; to: number }[]>([]);
+	let now = $state(Date.now());
+
+	function record(text: string) {
+		activity = [{ id: ++activityId, text, at: Date.now() }, ...activity].slice(0, ACTIVITY_CAP);
+	}
 
 	onMount(() => {
 		const name = untrack(() => data.repo.name);
@@ -79,21 +97,46 @@
 			try {
 				const s = JSON.parse((e as MessageEvent).data);
 				if (typeof s.length === 'number') liveLength = s.length;
-				if (typeof s.peers === 'number') livePeers = s.peers;
+				if (typeof s.contiguousLength === 'number') liveContiguous = s.contiguousLength;
+				if (typeof s.peers === 'number' && s.peers !== livePeers) {
+					const n = s.peers - livePeers;
+					if (n > 0) record(`${n === 1 ? 'A peer' : `${n} peers`} joined · ${s.peers} now`);
+					else record(`${n === -1 ? 'A peer' : `${-n} peers`} left · ${s.peers} now`);
+					livePeers = s.peers;
+				}
 			} catch {
 				// drop malformed payload
 			}
 		});
 
-		es.addEventListener('append', () => {
+		es.addEventListener('append', (e) => {
 			// Blocks landed — someone pushed (or we did). Flash the counter
 			// and ask SvelteKit to re-run the load so refs/HEAD refresh too.
+			try {
+				const d = JSON.parse((e as MessageEvent).data) as {
+					from: number;
+					to: number;
+					added: number;
+				};
+				const range = { from: d.from, to: d.to };
+				lastAppend = { added: d.added, at: Date.now() };
+				record(`+${d.added} block${d.added === 1 ? '' : 's'}`);
+				freshBlocks = [...freshBlocks, range];
+				setTimeout(() => (freshBlocks = freshBlocks.filter((r) => r !== range)), 1600);
+			} catch {
+				// drop malformed payload
+			}
 			pushFlash = true;
 			setTimeout(() => (pushFlash = false), 1500);
 			invalidate('repo:' + name).catch(() => {});
 		});
 
-		return () => es.close();
+		const clock = setInterval(() => (now = Date.now()), 1000);
+
+		return () => {
+			es.close();
+			clearInterval(clock);
+		};
 	});
 
 	// Active ref, resolved by the layout load (path param, ?ref=, or HEAD).
@@ -260,7 +303,7 @@
 					title={pushFlash ? 'New blocks just landed' : undefined}
 				>
 					<b class="font-semibold tabular-nums {pushFlash ? 'text-apricot-200' : 'text-fg'}">
-						{liveLength.toLocaleString()}
+						<Ticker value={liveLength} />
 					</b>
 					block{liveLength === 1 ? '' : 's'}
 				</span>
@@ -270,7 +313,7 @@
 							? 'animate-pulse-soft bg-accent-400 shadow-glow-strong'
 							: 'bg-neutral-600'}"
 					></span>
-					<b class="font-semibold text-fg tabular-nums">{livePeers}</b>
+					<b class="font-semibold text-fg tabular-nums"><Ticker value={livePeers} /></b>
 					peer{livePeers === 1 ? '' : 's'}
 				</span>
 				{#if repo.commitCount && repo.commitCount.count > 0}
@@ -456,6 +499,16 @@
 		</form>
 	{/if}
 
+	<ReplicationPanel
+		length={liveLength}
+		contiguous={liveContiguous}
+		peers={livePeers}
+		writable={repo.writable}
+		fresh={freshBlocks}
+		last={lastAppend}
+		{now}
+	/>
+
 	{#if repo.refCommit}
 		{@const c = repo.refCommit}
 		<!-- Tip commit of the active ref — what GitHub shows under the clone
@@ -520,5 +573,12 @@
 		</div>
 	</nav>
 
-	{@render children()}
+	<div class="flex flex-wrap items-start gap-6">
+		<div class="min-w-0 flex-[999_1_640px]">
+			{@render children()}
+		</div>
+		<aside class="hidden min-w-0 flex-[1_1_300px] flex-col gap-4 lg:flex">
+			<LiveActivity items={activity} {now} />
+		</aside>
+	</div>
 </main>

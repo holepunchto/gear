@@ -24,6 +24,7 @@ import { log } from './log.js';
 
 type CoreLike = {
 	length: number;
+	contiguousLength: number;
 	peers: Array<{ remotePublicKey: Uint8Array }>;
 	on(event: string, listener: () => void): void;
 	off(event: string, listener: () => void): void;
@@ -55,6 +56,9 @@ export type GlobalStats = {
 
 export type RepoStats = {
 	length: number;
+	// Blocks held locally from the start, with no gaps. Below `length` while
+	// a replica is still catching up.
+	contiguousLength: number;
 	peers: number;
 };
 
@@ -188,6 +192,7 @@ class EventHub extends EventEmitter {
 		// Seed initial state.
 		this.repoState.set(name, {
 			length: core.length,
+			contiguousLength: core.contiguousLength,
 			peers: core.peers.length
 		});
 
@@ -197,6 +202,7 @@ class EventHub extends EventEmitter {
 		const recompute = () => {
 			this.repoState.set(name, {
 				length: core.length,
+				contiguousLength: core.contiguousLength,
 				peers: core.peers.length
 			});
 			// Specific event for per-repo SSE handlers; generic 'repo' event
@@ -223,6 +229,17 @@ class EventHub extends EventEmitter {
 		// this specific core's protocol session.
 		core.on('peer-add', recompute);
 		core.on('peer-remove', recompute);
+
+		// 'download' fires per block while a replica catches up, so batch it:
+		// one recompute per half second at most.
+		let downloadTimer: ReturnType<typeof setTimeout> | null = null;
+		core.on('download', () => {
+			if (downloadTimer) return;
+			downloadTimer = setTimeout(() => {
+				downloadTimer = null;
+				recompute();
+			}, 500);
+		});
 	}
 
 	/**

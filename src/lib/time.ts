@@ -30,3 +30,15 @@ const RECENT_MS = 24 * 60 * 60 * 1000;
 export function isRecent(timestampSeconds: number) {
 	return Date.now() - timestampSeconds * 1000 < RECENT_MS;
 }
+
+/**
+ * Ticking "how long ago" for events seen this session, which carry ms
+ * timestamps. Seconds resolution under a minute, then the same shape as
+ * relativeTime.
+ */
+export function ago(atMs: number, nowMs: number) {
+	const s = Math.floor((nowMs - atMs) / 1000);
+	if (s < 5) return 'just now';
+	if (s < 60) return `${s}s ago`;
+	return relativeTime(atMs / 1000);
+}

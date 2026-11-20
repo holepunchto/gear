@@ -74,6 +74,7 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 			name,
 			key,
 			length,
+			contiguousLength: remote.core.contiguousLength,
 			peers: remote.core.peers.length,
 			writable: remote.core.writable,
 			url: `git+pear://0.${length}.${key}/${name}`,
