@@ -64,10 +64,11 @@
 	});
 
 	// Repo pages live under the library, so Library stays lit everywhere but
-	// Settings and Discover.
+	// Settings, Discover and Releases.
 	const onSettings = $derived(page.url.pathname.startsWith('/settings'));
 	const onDiscover = $derived(page.url.pathname === '/discover');
-	const onLibrary = $derived(!onSettings && !onDiscover);
+	const onReleases = $derived(page.url.pathname.startsWith('/releases'));
+	const onLibrary = $derived(!onSettings && !onDiscover && !onReleases);
 
 	async function copyIdentity() {
 		try {
@@ -105,6 +106,9 @@
 		{:else if name === 'discover'}
 			<circle cx="12" cy="12" r="9" />
 			<path d="m15.5 8.5-2 5-5 2 2-5z" />
+		{:else if name === 'releases'}
+			<path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.5 4-1.3 7-5.1 7-9.5V6z" />
+			<path d="m9 12 2 2 4-4" />
 		{:else if name === 'search'}
 			<circle cx="11" cy="11" r="7" />
 			<path d="m20 20-3.5-3.5" />
@@ -160,6 +164,15 @@
 					aria-current={onDiscover ? 'page' : undefined}
 				>
 					Discover
+				</a>
+				<a
+					href="/releases"
+					class="rounded-lg px-3 py-[7px] text-sm font-medium no-underline transition-colors {onReleases
+						? 'bg-white/6 text-fg'
+						: 'text-fg-2 hover:text-fg'}"
+					aria-current={onReleases ? 'page' : undefined}
+				>
+					Releases
 				</a>
 				<a
 					href="/settings"
@@ -256,7 +269,7 @@
 
 	<nav
 		aria-label="Main"
-		class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-20 grid h-[60px] grid-cols-4 rounded-[22px] bg-surface-3/85 p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.5)] ring-1 ring-line-strong backdrop-blur-lg ring-inset sm:hidden"
+		class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-20 grid h-[60px] grid-cols-5 rounded-[22px] bg-surface-3/85 p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.5)] ring-1 ring-line-strong backdrop-blur-lg ring-inset sm:hidden"
 	>
 		<a
 			href="/"
@@ -275,6 +288,15 @@
 			aria-current={onDiscover ? 'page' : undefined}
 		>
 			{@render navIcon('discover')}Discover
+		</a>
+		<a
+			href="/releases"
+			class="flex flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] no-underline {onReleases
+				? 'bg-accent-400/12 font-semibold text-accent-300'
+				: 'font-medium text-fg-2'}"
+			aria-current={onReleases ? 'page' : undefined}
+		>
+			{@render navIcon('releases')}Releases
 		</a>
 		<button
 			type="button"
