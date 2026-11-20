@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import Id from 'hypercore-id-encoding';
 import { events } from '$lib/server/events';
 import { cliStatus, installCli, INSTALL_COMMAND } from '$lib/server/cli';
+import { getReleases } from '$lib/server/release-service';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -17,6 +18,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		identity: Id.encode(publicKey),
+		signingKey: (await getReleases(locals.db)).seatKey,
 		blindPeers,
 		seedReadOnly,
 		cli: cliStatus(),

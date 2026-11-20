@@ -1,6 +1,7 @@
 import type { Handle } from '@sveltejs/kit'
 import { getDB, type GipDB } from '$lib/server/gip'
 import { events } from '$lib/server/events'
+import { getReleases } from '$lib/server/release-service'
 import { log, logError } from '$lib/server/log'
 
 // Announce every repo in the library so other devices can find the copies we
@@ -24,6 +25,7 @@ const dbPromise = getDB().then(
     events.attach(db)
     log(`stack ready in ${Date.now() - t0}ms`)
     seedLibrary(db).catch((err) => logError('seeding library failed', err))
+    getReleases(db).catch((err) => logError('opening release keys failed', err))
     return db
   },
   (err) => {
