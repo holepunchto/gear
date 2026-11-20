@@ -96,15 +96,13 @@
 				{/if}
 			</span>
 			{#if !key.revoked}
-				<div class="flex flex-wrap items-center gap-1.5">
-					<CopyInstall
-						name={data.name}
-						source={{ key: key.key, length: key.length }}
-						tag={r.tag}
-						pear={data.pear}
-						multi={multisig(key.signers.length)}
-					/>
-				</div>
+				<CopyInstall
+					name={data.name}
+					source={{ key: key.key, length: key.length }}
+					tag={r.tag}
+					pear={data.pear}
+					multi={multisig(key.signers.length)}
+				/>
 			{/if}
 		</section>
 
