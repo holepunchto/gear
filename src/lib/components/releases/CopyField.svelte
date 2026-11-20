@@ -1,5 +1,6 @@
 <script lang="ts">
-	let { value, label }: { value: string; label: string } = $props();
+	// `seal` for what belongs to a signed release; live colours otherwise.
+	let { value, label, seal = false }: { value: string; label: string; seal?: boolean } = $props();
 
 	let copied = $state(false);
 
@@ -12,9 +13,15 @@
 	}
 </script>
 
-<div class="flex flex-col gap-2 rounded-xl bg-bg p-3 ring-1 ring-line-strong ring-inset">
+<div
+	class="flex flex-col gap-2 rounded-xl bg-bg p-3 ring-1 ring-inset {seal
+		? 'ring-seal-400/30'
+		: 'ring-line-strong'}"
+>
 	<code
-		class="font-mono text-[11.5px] leading-relaxed break-all text-accent-200"
+		class="font-mono text-[11.5px] leading-relaxed break-all {seal
+			? 'text-seal-100'
+			: 'text-accent-200'}"
 		aria-label={label}
 	>
 		{value}
@@ -22,7 +29,9 @@
 	<button
 		type="button"
 		onclick={copy}
-		class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 self-stretch rounded-[10px] bg-accent-400/14 px-3 text-sm font-semibold text-accent-300 transition-colors hover:bg-accent-400/22 sm:h-9 sm:self-end"
+		class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 self-stretch rounded-[10px] px-3 text-sm font-semibold transition-colors sm:h-9 sm:self-end {seal
+			? 'bg-seal-400/16 text-seal-200 hover:bg-seal-400/24'
+			: 'bg-accent-400/14 text-accent-300 hover:bg-accent-400/22'}"
 	>
 		{copied ? 'Copied' : 'Copy'}
 	</button>

@@ -564,7 +564,7 @@
 						<span class="text-xs text-fg-2">
 							Share link: whoever follows it gets every release signed on this key
 						</span>
-						<CopyField value={key.share} label="Share link" />
+						<CopyField value={key.share} label="Share link" seal />
 					</div>
 				</div>
 			{/if}
