@@ -9,7 +9,7 @@ const NAMESPACE = 'gear/releases/v1';
 /**
  * @typedef {{
  *   key: string, name: string, namespace: string, signers: string[], quorum: number,
- *   repo: { name: string, key: string } | null, owner: boolean,
+ *   repo: { name: string, key: string } | null, owner: boolean, follower?: boolean,
  *   labels: Record<string, string>, added: number
  * }} KeyRecord
  * @typedef {{

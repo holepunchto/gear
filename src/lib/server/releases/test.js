@@ -107,6 +107,44 @@ test('a signer opens the key from the proposal alone', async function (t) {
 	t.is((await key.get(0)).name, '1.0.0');
 });
 
+test('a follower opens the key from the key alone', async function (t) {
+	const { dc, kd, bootstrap } = await create(t);
+
+	for (const name of ['1.0.0', '1.1.0']) {
+		const proposal = await dc.key.propose(release(name));
+		await dc.key.commit(proposal, [
+			await dc.key.sign(proposal, dc.seat),
+			await kd.key.sign(proposal, kd.seat)
+		]);
+	}
+
+	const p = await peer(t, bootstrap);
+	const key = new ReleaseKey(p.store, p.swarm, { key: dc.key.key });
+	t.teardown(() => key.close(), { order: -1 });
+
+	const latest = await key.follow();
+	t.is(latest.name, '1.1.0');
+	t.is(key.length, 2);
+	t.is((await key.get(0)).name, '1.0.0');
+	t.is(key.quorum, 2);
+	t.alike(key.signers, dc.key.signers);
+});
+
+test('following a core that is not a release key fails', async function (t) {
+	const { bootstrap } = await createTestnet(3, { teardown: t.teardown });
+	const writer = await peer(t, bootstrap);
+	const core = writer.store.get({ name: 'not-releases' });
+	await core.append(b4a.from('hello'));
+	writer.swarm.join(core.discoveryKey);
+	await writer.swarm.flush();
+
+	const p = await peer(t, bootstrap);
+	const key = new ReleaseKey(p.store, p.swarm, { key: core.key });
+	t.teardown(() => key.close(), { order: -1 });
+
+	await t.exception(key.follow());
+});
+
 test('a response is verified against its proposal offline', async function (t) {
 	const { dc, kd } = await create(t);
 

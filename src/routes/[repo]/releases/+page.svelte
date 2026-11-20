@@ -8,6 +8,8 @@
 	import CollectSignatures from '$lib/components/releases/CollectSignatures.svelte';
 	import ProposeForm from '$lib/components/releases/ProposeForm.svelte';
 	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
+	import FollowKey from '$lib/components/releases/FollowKey.svelte';
+	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import { liveReleases, shortKey, signerName, type DraftSigner } from '$lib/releases';
 
 	let { data, form }: PageProps = $props();
@@ -85,6 +87,10 @@
 			{/if}
 		</div>
 	</form>
+
+	<div class="mt-6">
+		<FollowKey action="?/follow" error={form?.follow?.error} />
+	</div>
 {:else}
 	<div class="flex flex-col gap-8">
 		{#each data.keys as d (d.key.key)}
@@ -104,6 +110,13 @@
 						<SeatDots n={key.signers.length} filled={key.quorum} />
 						{key.quorum} of {key.signers.length} must sign
 					</span>
+					{#if key.role === 'follower'}
+						<span
+							class="rounded-full bg-white/6 px-[7px] py-px text-[10px] font-semibold tracking-[0.08em] text-fg-2 uppercase"
+						>
+							Following
+						</span>
+					{/if}
 					<span class="min-w-0 flex-[1_1_200px] truncate text-xs text-fg-2">
 						{key.signers.map((s) => (s.me ? 'You' : signerName(s))).join(', ')}
 					</span>
@@ -113,6 +126,7 @@
 					>
 						Key page <span class="font-mono text-fg-3">{shortKey(key.key)}</span> →
 					</a>
+					<KeyShare keyText={key.key} share={key.share} />
 				</header>
 
 				<div class="flex flex-wrap items-start gap-6">
@@ -134,7 +148,7 @@
 								</span>
 							</div>
 							<CollectSignatures {key} {current} response={d.responses[current.id] ?? null} />
-						{:else}
+						{:else if key.role !== 'follower'}
 							<ProposeForm {key} candidates={d.candidates} />
 						{/if}
 					</div>

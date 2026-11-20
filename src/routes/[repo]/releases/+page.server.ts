@@ -1,5 +1,6 @@
+import { redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { attempt, getReleases } from '$lib/server/release-service';
+import { attempt, failure, getReleases } from '$lib/server/release-service';
 
 export const load: PageServerLoad = async ({ locals, parent, depends }) => {
 	depends('releases');
@@ -26,5 +27,18 @@ export const actions: Actions = {
 				quorum: Number(form.get('quorum'))
 			})
 		}));
+	},
+
+	follow: async ({ request, locals }) => {
+		const form = await request.formData();
+		const releases = await getReleases(locals.db);
+
+		let key: string;
+		try {
+			key = await releases.follow(String(form.get('key') ?? ''));
+		} catch (err) {
+			return failure('follow', err);
+		}
+		throw redirect(303, `/releases/${key}`);
 	}
 };

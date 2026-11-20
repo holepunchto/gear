@@ -9,10 +9,15 @@ import z32 from 'z32';
 import { Record, Proposal, RELEASE } from './messages.js';
 
 export default class ReleaseKey extends ReadyResource {
-	constructor(store, swarm, { signers, namespace, quorum, blind = null, timeout = 10000 }) {
+	constructor(
+		store,
+		swarm,
+		{ key = null, signers = [], namespace = null, quorum = 0, blind = null, timeout = 10000 }
+	) {
 		super();
 		this.store = store;
 		this.swarm = swarm;
+		this.followKey = key;
 		this.signers = signers.map((key) => z32.encode(key));
 		this.namespace = namespace;
 		this.quorum = quorum;
@@ -78,13 +83,40 @@ export default class ReleaseKey extends ReadyResource {
 	}
 
 	async _open() {
-		const { core } = await this.multisig.createCore(this.signers, this.namespace, {
-			quorum: this.quorum
-		});
-		this.core = core;
-		this.quorum = core.manifest.quorum;
-		this.swarm.join(core.discoveryKey);
-		if (this.blind) this.blind.addCore(core);
+		if (this.followKey) {
+			this.core = this.store.get({ key: this.followKey });
+			await this.core.ready();
+		} else {
+			const { core } = await this.multisig.createCore(this.signers, this.namespace, {
+				quorum: this.quorum
+			});
+			this.core = core;
+			this.quorum = core.manifest.quorum;
+		}
+		this.swarm.join(this.core.discoveryKey);
+		// A key opened to follow is only mirrored once follow() has checked it.
+		if (this.blind && this.core.manifest) this.blind.addCore(this.core);
+	}
+
+	/**
+	 * Opened by key alone: reads the first and the latest release and learns
+	 * the signers and quorum from the manifest, which arrives with the first
+	 * block. Throws when no peer serves the key in time or it isn't a release
+	 * key.
+	 */
+	async follow() {
+		await this.ready();
+		const first = c.decode(Record, await this.core.get(0, { timeout: this.timeout }));
+		const manifest = this.core.manifest;
+		if (!manifest || manifest.signers.length === 0 || first.previous !== 0) {
+			throw new Error('Not a release key');
+		}
+		this.signers = manifest.signers.map((s) => z32.encode(s.publicKey));
+		this.quorum = manifest.quorum;
+		if (this.blind) this.blind.addCore(this.core);
+
+		await this.core.update();
+		return this.get(this.core.length - 1);
 	}
 
 	async _close() {

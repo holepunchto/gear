@@ -100,6 +100,9 @@ database) or `gip-transport` (the git remote helper).
 const key = new ReleaseKey(store, swarm, { signers, namespace, quorum, blind });
 await key.ready(); // key.key, key.length
 
+const followed = new ReleaseKey(store, swarm, { key: releaseKey, blind });
+await followed.follow(); // → latest release record; signers and quorum from the manifest
+
 const proposal = await key.propose(release); // z32 envelope { source, request, namespace }
 ReleaseKey.describe(proposal); // → { key, source, signers, quorum, namespace, length }
 ReleaseKey.verify(proposal, response); // → signer public key, or throws
@@ -151,6 +154,27 @@ never announced or mirrored, so it stays on this device. It also derives the
 seat key, `store.createKeyPair('gear/release-signer/v1')`. When the private
 profile exists, the records move there behind the same methods; the seat stays
 per device.
+
+## Sharing and following
+
+A release key is public: anyone holding it can read and verify its releases.
+Gear shares one as a link:
+
+```
+release+pear://<z32 key>/<name>
+```
+
+The name (`autobee/stable`) is a label for the follower; a bare z32 key works
+too. The repo isn't in the link because every release record names it by core
+key and length.
+
+Following opens the core by key alone, `new ReleaseKey(store, swarm, { key })`,
+and `follow()` reads the first and the latest release. The manifest arrives
+with the first block, so the follower learns the signers and the quorum without
+being told; a test checks this against a testnet. A core whose first block
+isn't a release record, or that no peer serves within the timeout, is refused.
+Gear then keeps the key with the follower role and mirrors it to its blind
+peers like any other key. A follower never proposes or signs.
 
 ## pear multisig keys
 

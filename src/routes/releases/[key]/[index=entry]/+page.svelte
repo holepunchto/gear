@@ -3,6 +3,7 @@
 	import type { PageProps } from './$types';
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
 	import ChangeList from '$lib/components/releases/ChangeList.svelte';
+	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import {
 		avatar,
 		changesSummary,
@@ -99,6 +100,7 @@
 				<span title={isoDate(committed)}>{relativeTime(committed)}</span>
 			{/if}
 		</span>
+		<KeyShare keyText={key.key} share={key.share} />
 	</section>
 
 	{#if repo}
