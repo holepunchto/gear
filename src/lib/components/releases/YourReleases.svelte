@@ -69,7 +69,7 @@
 								? 'bg-accent-400/12 text-accent-300'
 								: 'bg-white/6 text-fg-2'}"
 						>
-							{k.owner ? 'Owner' : 'Signer'}
+							{k.role === 'owner' ? 'Owner' : k.role === 'follower' ? 'Following' : 'Signer'}
 						</span>
 					</div>
 					<div class="flex items-center gap-3">
