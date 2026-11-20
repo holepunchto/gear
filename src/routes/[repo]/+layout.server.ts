@@ -49,7 +49,8 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 				commitCount: { count: 0, capped: false },
 				branches: [],
 				tags: [],
-				release: null
+				release: null,
+				pearApp: false
 			}
 		};
 	}
@@ -129,8 +130,11 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 	const key = Id.encode(remote.core.key);
 	const length = remote.core.length;
 
-	// The Releases tab label and the aside card.
-	const release = (await (await getReleases(locals.db)).byRepo())[key] ?? null;
+	// The Releases tab label and the aside card, and whether the release
+	// installs with pear.
+	const releases = await getReleases(locals.db);
+	const release = (await releases.byRepo())[key] ?? null;
+	const pearApp = release ? ((await releases.app(name))?.pear ?? false) : false;
 
 	return {
 		repo: {
@@ -151,7 +155,8 @@ export const load: LayoutServerLoad = async ({ params, locals, url, depends }) =
 			tags,
 			syncing: false,
 			error: null,
-			release
+			release,
+			pearApp
 		}
 	};
 };

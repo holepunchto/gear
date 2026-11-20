@@ -78,18 +78,42 @@ test('archiving survives a restart and is undone by unarchive', async function (
 	t.is((await releases.getKey('a'))?.archived, false);
 });
 
-test('archived keys are left out of the active keys', async function (t) {
+test('archived, retired, revoked and old-format keys are left out of the active keys', async function (t) {
 	const { releases } = await open(t, await t.tmp());
 
 	await releases.putKey(key('a', 'gear/stable'));
 	await releases.putKey(key('b', 'gear/beta'));
+	await releases.putKey(key('c', 'gear/old'));
+	await releases.putKey({ ...key('d', 'gear/old'), mirror: undefined });
+	await releases.putKey(key('e', 'gear/stable'));
 	await releases.archive('a');
+	await releases.revoke('c');
+	await releases.retire('e', 'b');
 
 	t.alike(
 		(await releases.activeKeys()).map((k) => k.key),
 		['b']
 	);
-	t.is((await releases.listKeys()).length, 2);
+	t.is((await releases.listKeys()).length, 5);
+	t.is((await releases.getKey('e'))?.retiredTo, 'b');
+});
+
+test('revoking survives a restart and a write of a record read before it', async function (t) {
+	const dir = await t.tmp();
+
+	const first = await open(t, dir);
+	await first.releases.putKey(key('a', 'gear/stable'));
+	const read = await first.releases.getKey('a');
+	await first.releases.revoke('a');
+	if (read) await first.releases.putKey(read);
+	t.is((await first.releases.getKey('a'))?.revoked, true);
+	await first.close();
+
+	const { releases } = await open(t, dir);
+	t.alike(
+		(await releases.listKeys()).map((k) => [k.key, k.revoked]),
+		[['a', true]]
+	);
 });
 
 test('putting a key read before archiving keeps it archived', async function (t) {
@@ -133,7 +157,8 @@ function key(k, name) {
 		repo: null,
 		owner: true,
 		labels: {},
-		added: 0
+		added: 0,
+		mirror: true
 	};
 }
 
@@ -143,9 +168,11 @@ function proposal(k, id) {
 		key: k,
 		id,
 		proposal: 'z32',
-		previous: 0,
+		length: 1,
+		base: 0,
 		mine: true,
 		added: 0,
+		tag: null,
 		release: null
 	};
 }

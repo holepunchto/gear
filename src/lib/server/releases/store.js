@@ -11,15 +11,13 @@ const NAMESPACE = 'gear/releases/v1';
  *   key: string, name: string, namespace: string, signers: string[], quorum: number,
  *   repo: { name: string, key: string } | null, owner: boolean, follower?: boolean,
  *   labels: Record<string, string>, gear?: string[], signAs?: { name: string, key: string },
- *   added: number, archived?: boolean
+ *   added: number, mirror?: boolean, archived?: boolean, revoked?: boolean,
+ *   retiredTo?: string | null
  * }} KeyRecord
+ * @typedef {{ name: string, tag: string, commit: string, tree: string, timestamp: number }} Release
  * @typedef {{
- *   name: string, tag: string, commit: string, tree: string,
- *   repo: { key: string, length: number }
- * }} Release
- * @typedef {{
- *   key: string, id: string, proposal: string, previous: number, mine: boolean,
- *   added: number, release: Release | null, rotate?: { to: string, name: string | null } | null
+ *   key: string, id: string, proposal: string, length: number, base: number, mine: boolean,
+ *   added: number, tag: string | null, release: Release | null
  * }} ProposalRecord
  * @typedef {{ signer: string, response: string }} ResponseRecord
  */
@@ -46,32 +44,68 @@ export default class ReleaseStore extends ReadyResource {
 		return this.store.createKeyPair(SEAT);
 	}
 
-	// Archiving is kept apart from the key record, so a write of a record read
-	// earlier can't undo it. Reads report it as `archived` on the record.
+	// Archiving, retiring and revoking are kept apart from the key record, so
+	// a write of a record read earlier can't undo them. Reads report them as
+	// `archived`, `retiredTo` and `revoked` on the record.
 
 	/** @param {string} key @returns {Promise<KeyRecord | null>} */
 	async getKey(key) {
 		const record = await this._get('key/' + key);
 		if (!record) return null;
-		return { ...record, archived: (await this._get('archived/' + key)) !== null };
+		return {
+			...record,
+			archived: (await this._get('archived/' + key)) !== null,
+			revoked: (await this._get('revoked/' + key)) !== null,
+			retiredTo: (await this._get('retired/' + key))?.to ?? null
+		};
 	}
 
 	/** @returns {Promise<KeyRecord[]>} */
 	async listKeys() {
 		const archived = new Set(await this._list('archived/'));
+		const revoked = new Set(await this._list('revoked/'));
+		const retired = new Map(
+			(await this._list('retired/')).map((/** @type {{ key: string, to: string }} */ r) => [
+				r.key,
+				r.to
+			])
+		);
 		const records = /** @type {KeyRecord[]} */ (await this._list('key/'));
-		return records.map((r) => ({ ...r, archived: archived.has(r.key) }));
+		return records.map((r) => ({
+			...r,
+			archived: archived.has(r.key),
+			revoked: revoked.has(r.key),
+			retiredTo: retired.get(r.key) ?? null
+		}));
 	}
 
-	/** Keys that aren't archived: the ones a repo's releases come from. */
+	/**
+	 * Keys a repo's releases come from: in the mirror format, and not
+	 * archived, retired or revoked.
+	 */
 	async activeKeys() {
-		return (await this.listKeys()).filter((r) => !r.archived);
+		return (await this.listKeys()).filter(
+			(r) => r.mirror && !r.archived && !r.revoked && !r.retiredTo
+		);
 	}
 
 	/** @param {KeyRecord} record */
 	putKey(record) {
-		const { archived, ...rest } = record;
+		const { archived, revoked, retiredTo, ...rest } = record;
 		return this._put('key/' + record.key, rest);
+	}
+
+	/**
+	 * Marks a key as replaced by `to` while it makes one last release.
+	 * @param {string} key @param {string} to
+	 */
+	retire(key, to) {
+		return this._put('retired/' + key, { key, to });
+	}
+
+	/** Marks a key as not to be trusted on this device. There is no undo. @param {string} key */
+	revoke(key) {
+		return this._put('revoked/' + key, key);
 	}
 
 	/** @param {string} key */
