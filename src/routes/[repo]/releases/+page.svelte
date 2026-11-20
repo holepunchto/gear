@@ -1,21 +1,24 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import SeatDots from '$lib/components/releases/SeatDots.svelte';
 	import NewRelease from '$lib/components/releases/NewRelease.svelte';
-	import ReleaseInProgress from '$lib/components/releases/ReleaseInProgress.svelte';
-	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
-	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
+	import ReleaseList from '$lib/components/releases/ReleaseList.svelte';
 	import Revoked from '$lib/components/releases/Revoked.svelte';
 	import Retired from '$lib/components/releases/Retired.svelte';
-	import { multisig, shortKey, signedHref, signerName } from '$lib/releases';
 
-	// What this repo released. The layout keeps it live. The key itself, its
-	// links and moving away from it are on the key page.
+	// What this repo released, as a list like its tags. The layout keeps it
+	// live. The key itself, its links and moving away from it are on the key
+	// page.
 	let { data }: PageProps = $props();
 
 	// Just made from /releases/new?repo=: say so once, until dismissed.
 	let dismissed = $state(false);
 	const created = $derived(dismissed ? null : data.created);
+
+	// The key a new version is released on: the first this device signs that
+	// isn't revoked.
+	const releaser = $derived(
+		data.keys.map((d) => d.key).find((k) => k.role !== 'follower' && !k.revoked) ?? null
+	);
 </script>
 
 {#if data.keys.length === 0}
@@ -41,119 +44,83 @@
 		</a>
 	</section>
 {:else}
-	<div class="flex flex-col gap-8">
-		{#each data.keys as d (d.key.key)}
-			{@const key = d.key}
-			{@const current = key.revoked ? null : (key.pending[0] ?? null)}
-			<article class="flex flex-col gap-4" aria-label="{key.name} releases">
-				{#if created === key.key}
-					<div
-						role="status"
-						class="flex items-start gap-3 rounded-2xl bg-accent-400/8 px-5 py-4 ring-1 ring-accent-400/30 ring-inset"
-					>
-						<span
-							class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-400 text-xs font-bold text-accent-900"
-							aria-hidden="true">✓</span
-						>
-						<div class="flex min-w-0 flex-1 flex-col gap-1">
-							<span class="font-semibold text-fg">
-								Release key <span class="font-mono">{key.name}</span> created
-							</span>
-							<span class="text-sm text-fg-2">
-								Next, release a version below.
-								{#if key.quorum > 1}
-									Gear takes you through collecting your co-signers' signatures.
-								{:else}
-									You sign it alone, so it is released as soon as you sign.
-								{/if}
-							</span>
-						</div>
-						<button
-							type="button"
-							onclick={() => (dismissed = true)}
-							aria-label="Dismiss"
-							class="tap-44 cursor-pointer border-0 bg-transparent text-lg leading-none text-fg-3 hover:text-fg"
-							>×</button
-						>
-					</div>
-				{/if}
-				<header
-					class="flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-2xl bg-surface p-[18px] ring-1 ring-line ring-inset"
+	<div class="flex flex-col gap-4">
+		{#if created}
+			{@const key = data.keys.find((d) => d.key.key === created)?.key}
+			{#if key}
+				<div
+					role="status"
+					class="flex items-start gap-3 rounded-2xl bg-accent-400/8 px-5 py-4 ring-1 ring-accent-400/30 ring-inset"
 				>
-					<div class="flex min-w-0 flex-[1_1_240px] flex-col gap-1">
-						<span class="font-sans text-xs font-semibold tracking-[0.08em] text-fg-3 uppercase">
-							Release key
+					<span
+						class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-400 text-xs font-bold text-accent-900"
+						aria-hidden="true">✓</span
+					>
+					<div class="flex min-w-0 flex-1 flex-col gap-1">
+						<span class="font-semibold text-fg">
+							Release key <span class="font-mono">{key.name}</span> created
 						</span>
-						<span class="truncate font-mono text-[15px] font-medium text-fg">{key.name}</span>
+						<span class="text-sm text-fg-2">
+							Next, release a version.
+							{#if key.quorum > 1}
+								Gear takes you through collecting your co-signers' signatures.
+							{:else}
+								You sign it alone, so it is released as soon as you sign.
+							{/if}
+						</span>
 					</div>
-					<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-300">
-						<SeatDots n={key.signers.length} filled={key.quorum} />
-						{key.quorum} of {key.signers.length} must sign
-					</span>
-					{#if key.revoked}
-						<span
-							class="rounded-full bg-red-500/14 px-[7px] py-px text-[10px] font-semibold tracking-[0.08em] text-red-300 uppercase"
-						>
-							Revoked
-						</span>
-					{:else if key.role === 'follower'}
-						<span
-							class="rounded-full bg-white/6 px-[7px] py-px text-[10px] font-semibold tracking-[0.08em] text-fg-2 uppercase"
-						>
-							Following
-						</span>
-					{/if}
-					<span class="min-w-0 flex-[1_1_200px] truncate text-xs text-fg-2">
-						{key.signers.map((s) => (s.me ? 'You' : signerName(s))).join(', ')}
-					</span>
-					<a
-						href="/releases/{key.key}"
-						class="tap-44 ml-auto text-[13px] font-medium text-accent-300 no-underline hover:underline"
+					<button
+						type="button"
+						onclick={() => (dismissed = true)}
+						aria-label="Dismiss"
+						class="tap-44 cursor-pointer border-0 bg-transparent text-lg leading-none text-fg-3 hover:text-fg"
+						>×</button
 					>
-						Key page <span class="font-mono text-fg-3">{shortKey(key.key)}</span> →
-					</a>
-				</header>
+				</div>
+			{/if}
+		{/if}
 
-				{#if key.revoked}
-					<Revoked {key} />
-				{:else if key.retiredTo}
-					<Retired {key} />
-				{/if}
-				{#if key.latest && !key.revoked}
-					<section
-						aria-label="Latest release"
-						class="flex flex-col gap-3 rounded-2xl p-[18px] ring-1 ring-inset {multisig(
-							key.signers.length
-						)
-							? 'bg-seal-500/12 shadow-glow-seal ring-seal-400/45'
-							: 'bg-seal-500/5 ring-seal-400/20'}"
-					>
-						<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-							<span class="text-[13px] text-fg-2">Latest release</span>
-							<a
-								href={signedHref(key, key.latest.tag)}
-								class="font-display text-lg font-semibold text-seal-200 no-underline hover:underline"
-							>
-								{key.latest.name}
-							</a>
-							<ReleaseSeal quorum={key.quorum} signers={key.signers.length} />
-						</div>
-					</section>
-				{:else if !key.revoked}
-					<p class="m-0 text-[13px] text-fg-3">
-						{key.arriving
-							? 'The signed repo is still arriving.'
-							: 'Nothing is released on this key yet.'}
+		<div class="flex flex-wrap items-center justify-between gap-3">
+			<div class="flex min-w-0 flex-col gap-1">
+				{#each data.keys as { key } (key.key)}
+					<p class="m-0 flex flex-wrap items-center gap-x-2 text-[13px] text-fg-3">
+						<span>Release key <span class="font-mono text-fg-2">{key.name}</span></span>
+						<span aria-hidden="true">·</span>
+						<span>{key.quorum} of {key.signers.length}</span>
+						{#if key.revoked}
+							<span aria-hidden="true">·</span>
+							<span class="text-red-300">Revoked</span>
+						{:else if key.retiredTo}
+							<span aria-hidden="true">·</span>
+							<span class="text-apricot-300">Retired</span>
+						{:else if key.role === 'follower'}
+							<span aria-hidden="true">·</span>
+							<span>Following</span>
+						{/if}
+						<span aria-hidden="true">·</span>
+						<a
+							href="/releases/{key.key}"
+							class="tap-44 text-accent-300 no-underline hover:underline"
+						>
+							Key settings →
+						</a>
 					</p>
-				{/if}
-				{#if current}
-					<ReleaseInProgress {key} {current} />
-				{:else if key.role !== 'follower' && !key.revoked}
-					<NewRelease key={key.key} />
-				{/if}
-				<ReleaseLog {key} history={d.history} />
-			</article>
+				{/each}
+			</div>
+			{#if releaser && !releaser.pending.some((p) => p.mine)}
+				<NewRelease key={releaser.key} />
+			{/if}
+		</div>
+
+		{#each data.keys as { key } (key.key)}
+			{#if key.revoked}
+				<Revoked {key} />
+			{:else if key.retiredTo}
+				<Retired {key} />
+			{/if}
 		{/each}
+
+		<ReleaseList repo={data.repo.name} keys={data.keys} latest={data.repo.release} />
 	</div>
 {/if}
 
