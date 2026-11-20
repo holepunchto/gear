@@ -4,6 +4,7 @@ import { relativeTime } from '$lib/time';
 import type { Changes, Pending, RepoRelease, Signer } from '$lib/server/release-service';
 
 export type {
+	AppInfo,
 	Candidates,
 	Changes,
 	Check,
@@ -13,9 +14,7 @@ export type {
 	PearKey,
 	Release,
 	RepoRelease,
-	Rotate,
-	Signer,
-	Successor
+	Signer
 } from '$lib/server/release-service';
 
 const AVATARS = [
@@ -43,19 +42,9 @@ export function signerInitials(s: Signer) {
 	return s.me ? 'You' : s.key.slice(0, 2).toUpperCase();
 }
 
-// What a pending proposal is called: its release, or the key it rotates to.
+// What a pending proposal is called: the tag it releases.
 export function proposalName(p: Pending, fallback = 'A release') {
-	if (p.rotate) return `Rotation to ${p.rotate.name ?? shortKey(p.rotate.to)}`;
 	return p.release?.name ?? fallback;
-}
-
-// The log index is internal: say "first release", "3rd release".
-export function releaseOrdinal(index: number) {
-	if (index === 0) return 'first release';
-	const n = index + 1;
-	const teen = n % 100 >= 11 && n % 100 <= 13;
-	const suffix = teen ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
-	return `${n}${suffix} release`;
 }
 
 // A key with more than one signer: its releases get the full seal.
@@ -63,11 +52,16 @@ export function multisig(signers: number) {
 	return signers >= 2;
 }
 
+// A signed tag's page.
+export function tagHref(key: string, tag: string) {
+	return `/releases/${key}/tag/${encodeURI(tag)}`;
+}
+
 // Where a repo's release badge links: the sign view when it waits on you,
 // the latest release, or the key.
 export function releaseHref(r: RepoRelease) {
 	if (r.pending?.waitingOnMe) return `/releases/${r.key}/${r.pending.id}`;
-	if (r.index !== null) return `/releases/${r.key}/${r.index}`;
+	if (r.tag !== null) return tagHref(r.key, r.tag);
 	return `/releases/${r.key}`;
 }
 
@@ -88,19 +82,21 @@ export function linkKey(url: string) {
 	return /^git\+pear:\/\/(?:\d+\.\d+\.)?([^/]+)/.exec(url)?.[1] ?? null;
 }
 
-// How to get a release: npm and git commands pinned to the repo length it
-// was cut from, and the .npmrc lines npm needs to fetch over git+pear. npm
-// can't parse git+pear://, so it takes git+file://pear/, which the git+pear
-// executable maps back.
+// How to get a release: the release key's commands, pinned to the length
+// it is signed to, and the .npmrc lines npm needs to fetch over git+pear.
+// npm can't parse git+pear://, so it takes git+file://pear/, which the
+// git+pear executable maps back. `pear` adds pear install, for Pear apps.
 export function installCommands(
 	name: string,
 	source: { key: string; length: number },
-	tag: string
+	tag: string,
+	pear = false
 ) {
 	const pinned = `0.${source.length}.${source.key}/${name}`;
 	return {
 		npm: `npm install git+file://pear/${pinned}#${tag}`,
-		git: `git clone git+pear://${pinned} && cd ${name} && git checkout ${tag}`,
+		git: `git clone git+pear://${source.key}/${name} && cd ${name} && git checkout ${tag}`,
+		pear: pear ? `pear install git+pear://${source.key}/${name}` : null,
 		npmrc: 'git=git+pear\nallow-git=all'
 	};
 }

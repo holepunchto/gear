@@ -71,8 +71,8 @@
 				Release keys
 			</h1>
 			<p class="m-0 max-w-[600px] text-base leading-relaxed text-fg-2">
-				Each release key is its own signed log. You choose who signs and how many must agree. A
-				release only appends once enough of them have checked it on their own copy.
+				A release key is a signed copy of a repo. You choose who signs and how many must agree. It
+				only moves to a new tag once enough of them have checked the repo on their own copy.
 			</p>
 		</div>
 		<a
@@ -209,10 +209,11 @@
 					<li class="flex flex-col gap-2">
 						<a
 							href="/releases/{k.key}"
-							class="flex h-full flex-col gap-3.5 rounded-[18px] bg-surface p-[18px] text-fg no-underline ring-1 transition-colors ring-inset hover:bg-surface-2 {k
-								.pending.length
-								? 'ring-apricot-400/30'
-								: 'ring-line'}"
+							class="flex h-full flex-col gap-3.5 rounded-[18px] bg-surface p-[18px] text-fg no-underline ring-1 transition-colors ring-inset hover:bg-surface-2 {k.revoked
+								? 'ring-red-400/40'
+								: k.pending.length
+									? 'ring-apricot-400/30'
+									: 'ring-line'}"
 						>
 							<div class="flex items-start gap-3.5">
 								<SeatRing m={k.quorum} n={k.signers.length} />
@@ -235,12 +236,16 @@
 									<span class="font-display text-[22px] font-semibold text-fg">
 										{k.latest?.name ?? '—'}
 									</span>
-									<span class="text-xs text-fg-3">
-										{k.rotatedTo
-											? `rotated to ${k.rotatedTo.name ?? shortKey(k.rotatedTo.to)}`
-											: k.latest
-												? `#${k.latest.index}`
-												: 'no releases yet'}
+									<span class="text-xs {k.revoked ? 'font-semibold text-red-300' : 'text-fg-3'}">
+										{k.revoked
+											? "revoked: don't trust"
+											: k.format === 'old'
+												? 'old release format'
+												: k.retiredTo
+													? `retired · replaced by ${shortKey(k.retiredTo)}`
+													: k.latest
+														? `${k.released} ${k.released === 1 ? 'tag' : 'tags'} signed`
+														: 'no releases yet'}
 									</span>
 								</div>
 							</div>
@@ -300,7 +305,11 @@
 							<span class="truncate font-mono text-sm font-medium">{k.name}</span>
 							<span class="text-xs text-fg-3">
 								{k.role === 'owner' ? 'Owner' : k.role === 'follower' ? 'Following' : 'Signer'}
-								· {k.latest ? `${k.latest.name} · #${k.latest.index}` : 'no releases'}
+								· {k.format === 'old'
+									? 'old release format'
+									: k.revoked
+										? 'revoked'
+										: (k.latest?.name ?? 'no releases')}
 								{#if k.repo}· {k.repo.name}{/if}
 							</span>
 						</a>

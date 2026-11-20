@@ -455,7 +455,7 @@
 					class="absolute top-[52px] right-0 z-20 flex w-full flex-col gap-3 rounded-[14px] bg-surface-3 p-4 shadow-[inset_0_0_0_1px_rgb(93_221_173/0.2),0_24px_60px_rgb(0_0_0/0.6)] sm:w-[440px]"
 				>
 					{#if repo.release?.tag && repo.release.source}
-						<ReleaseInstall name={repo.name} release={repo.release} />
+						<ReleaseInstall name={repo.name} release={repo.release} pear={repo.pearApp} />
 						<span class="border-t border-white/6 pt-3 text-[13px] font-semibold text-fg">Current head</span>
 					{/if}
 					<div

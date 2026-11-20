@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { PageProps } from './$types';
 	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
+	import Revoked from '$lib/components/releases/Revoked.svelte';
 	import ChangeList from '$lib/components/releases/ChangeList.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import CopyInstall from '$lib/components/releases/CopyInstall.svelte';
@@ -10,10 +11,10 @@
 		changesSummary,
 		liveReleases,
 		multisig,
-		releaseOrdinal,
 		shortKey,
 		signerInitials,
-		signerName
+		signerName,
+		tagHref
 	} from '$lib/releases';
 	import { relativeTime, isoDate } from '$lib/time';
 
@@ -34,19 +35,16 @@
 	const rows = $derived([
 		{ k: 'Tag', v: r.tag, href: repo && `/${repo}/${r.commit}/` },
 		{ k: 'Commit', v: r.commit, href: repo && `/${repo}/commit/${r.commit}` },
-		{ k: 'Tree hash', v: r.tree, href: repo && `/${repo}/${r.commit}/` },
+		{ k: 'Tree', v: r.tree, href: repo && `/${repo}/${r.commit}/` },
 		{
-			k: 'Repo at length',
-			v: `${repo ?? shortKey(r.repo.key)} @ ${r.repo.length}`,
+			k: 'Signed repo',
+			v: `${repo ?? data.name} up to length ${key.length}`,
 			href: repo && `/${repo}`
 		},
 		{
-			k: 'Previous release',
-			v:
-				r.index === 0
-					? 'none, this is the first'
-					: (data.previous?.name ?? releaseOrdinal(r.index - 1)),
-			href: r.index === 0 ? null : `/releases/${key.key}/${r.index - 1}`
+			k: 'Signed before it',
+			v: data.previous?.name ?? 'nothing older on this key',
+			href: data.previous && tagHref(key.key, data.previous.tag)
 		}
 	]);
 </script>
@@ -71,6 +69,10 @@
 		<span class="shrink-0 font-mono text-fg-2">{r.name}</span>
 	</nav>
 
+	{#if key.revoked}
+		<Revoked {key} />
+	{/if}
+
 	<section class="flex flex-col gap-2.5">
 		<div class="flex flex-wrap items-center gap-3.5">
 			<h1
@@ -82,10 +84,12 @@
 			>
 				{r.name}
 			</h1>
-			<ReleaseSeal quorum={key.quorum} signers={key.signers.length} />
+			{#if !key.revoked}
+				<ReleaseSeal quorum={key.quorum} signers={key.signers.length} />
+			{/if}
 		</div>
 		<span class="text-fg-2">
-			<span class="font-mono text-fg">{key.name}</span> · {releaseOrdinal(r.index)}
+			<span class="font-mono text-fg">{key.name}</span> · signed
 			{#if data.previous}· after {data.previous.name}{/if}
 			{#if committed}
 				· tagged commit from
@@ -93,7 +97,14 @@
 			{/if}
 		</span>
 		<div class="flex flex-wrap items-center gap-1.5">
-			<CopyInstall name={data.name} source={r.repo} tag={r.tag} />
+			{#if !key.revoked}
+				<CopyInstall
+					name={data.name}
+					source={{ key: key.key, length: key.length }}
+					tag={r.tag}
+					pear={data.pear}
+				/>
+			{/if}
 			<KeyShare keyText={key.key} share={key.share} />
 		</div>
 	</section>
@@ -213,7 +224,7 @@
 	<nav aria-label="Releases" class="flex flex-wrap items-center gap-2.5">
 		{#if data.previous}
 			<a
-				href="/releases/{key.key}/{r.index - 1}"
+				href={tagHref(key.key, data.previous.tag)}
 				class="inline-flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[10px] bg-surface px-3.5 text-[13px] text-fg-2 no-underline ring-1 ring-line ring-inset hover:text-fg sm:flex-none"
 			>
 				← <span class="truncate font-display font-semibold text-fg">{data.previous.name}</span>
@@ -221,7 +232,7 @@
 		{/if}
 		{#if data.next}
 			<a
-				href="/releases/{key.key}/{r.index + 1}"
+				href={tagHref(key.key, data.next.tag)}
 				class="inline-flex h-11 min-w-0 flex-1 items-center justify-end gap-2 rounded-[10px] bg-surface px-3.5 text-[13px] text-fg-2 no-underline ring-1 ring-line ring-inset hover:text-fg sm:flex-none"
 			>
 				<span class="truncate font-display font-semibold text-fg">{data.next.name}</span> →

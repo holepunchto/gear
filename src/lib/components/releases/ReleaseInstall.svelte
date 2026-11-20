@@ -2,21 +2,25 @@
 	import ReleaseSeal from './ReleaseSeal.svelte';
 	import { installCommands, multisig, type RepoRelease } from '$lib/releases';
 
-	// The latest release's npm and git commands for the Clone popover, each
-	// with a copy button, and the .npmrc lines npm needs.
+	// The latest release's commands for the Clone popover, all from the
+	// release key, each with a copy button, and the .npmrc lines npm needs.
+	// `pear` adds pear install, for repos that build as Pear apps.
 	let {
 		name,
-		release
+		release,
+		pear = false
 	}: {
 		name: string;
 		release: RepoRelease & { tag: string; source: { key: string; length: number } };
+		pear?: boolean;
 	} = $props();
 
 	const multi = $derived(multisig(release.signers));
-	const commands = $derived(installCommands(name, release.source, release.tag));
+	const commands = $derived(installCommands(name, release.source, release.tag, pear));
 	const rows = $derived([
 		{ id: 'npm', value: commands.npm },
-		{ id: 'git', value: commands.git }
+		{ id: 'git', value: commands.git },
+		...(commands.pear ? [{ id: 'pear', value: commands.pear }] : [])
 	]);
 
 	let copied = $state<string | null>(null);
