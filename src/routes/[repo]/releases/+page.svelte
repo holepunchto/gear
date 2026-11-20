@@ -220,6 +220,7 @@
 							source={{ key: key.key, length: key.length }}
 							tag={key.latest.tag}
 							pear={d.app?.pear ?? false}
+							multi={multisig(key.signers.length)}
 						/>
 					</section>
 				{:else if !key.revoked}

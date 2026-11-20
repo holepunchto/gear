@@ -559,6 +559,7 @@
 						source={{ key: key.key, length: proposal.length }}
 						tag={release.tag}
 						pear={data.app?.pear ?? false}
+						multi={multisig(key.signers.length)}
 					/>
 					<div class="flex flex-col gap-1.5">
 						<span class="text-xs text-fg-2">
