@@ -15,6 +15,7 @@ import {
 import { parseCommitMessage, type ParsedCommit } from './commit-parse';
 import { createTag, TagError } from './tags.js';
 import { newerTags, compareVersions } from './newer-tags.js';
+import { namespaceFor, nameOf } from './release-names.js';
 import { listPearKeys, pearDir, signWithPearKey } from './pear-keys.js';
 import { events } from './events';
 import { log, logError } from './log.js';
@@ -25,7 +26,6 @@ import { log, logError } from './log.js';
 // are ReleaseError; anything else is a bug or the network and surfaces as is.
 
 const TIMEOUT = 30_000;
-const NAMESPACE = 'gear/releases/';
 const NAME = /^[a-z0-9][a-z0-9._/-]{0,63}$/i;
 const MAX_SIGNERS = 16;
 const MAX_PASTE = 4096;
@@ -685,22 +685,16 @@ class Releases {
 		} | null;
 		if (!entry) throw new ReleaseError('Pick a repo from your library');
 
-		// Same signers, quorum and namespace make the same key.
-		const namespace = NAMESPACE + name;
-		const known = ((await this.store.listKeys()) as KeyRecord[]).find(
-			(r) =>
-				r.namespace === namespace && r.quorum === opts.quorum && r.signers.join() === signers.join()
+		// Same signers, quorum and namespace make the same key. A live one is
+		// reused; an archived, revoked or old one is replaced under a new namespace.
+		const same = ((await this.store.listKeys()) as KeyRecord[]).filter(
+			(r) => r.quorum === opts.quorum && r.signers.join() === signers.join()
 		);
-		if (known && !known.mirror) {
-			throw new ReleaseError(
-				'A key in the old release format has these signers; pick another name'
-			);
-		}
-		if (known?.revoked) throw new ReleaseError('That key was revoked; pick another name');
-		if (known) {
-			await this.store.unarchive(known.key);
-			return known.key;
-		}
+		const live = same.find(
+			(r) => nameOf(r.namespace) === name && r.mirror && !r.archived && !r.revoked
+		);
+		if (live) return live.key;
+		const namespace = namespaceFor(name, new Set(same.map((r) => r.namespace)));
 
 		const opening = this.start({
 			signers: signers.map((s) => z32.decode(s)),
@@ -863,9 +857,7 @@ class Releases {
 			const repo = await this.findRepo(repoKey);
 			const record: KeyRecord = {
 				key,
-				name: described.namespace.startsWith(NAMESPACE)
-					? described.namespace.slice(NAMESPACE.length)
-					: described.namespace,
+				name: nameOf(described.namespace),
 				namespace: described.namespace,
 				signers,
 				quorum: described.quorum,
