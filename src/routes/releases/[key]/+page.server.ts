@@ -62,6 +62,18 @@ export const actions: Actions = {
 		return attempt('commit', () => releases.commit(params.key, String(form.get('id'))));
 	},
 
+	archive: async ({ locals, params }) => {
+		const releases = await getReleases(locals.db);
+		await releases.archive(params.key);
+		return { archive: { ok: true } };
+	},
+
+	unarchive: async ({ locals, params }) => {
+		const releases = await getReleases(locals.db);
+		await releases.unarchive(params.key);
+		return { unarchive: { ok: true } };
+	},
+
 	withdraw: async ({ request, locals, params }) => {
 		const form = await request.formData();
 		const releases = await getReleases(locals.db);

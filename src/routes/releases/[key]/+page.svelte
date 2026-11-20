@@ -5,6 +5,7 @@
 	import ProposeForm from '$lib/components/releases/ProposeForm.svelte';
 	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
+	import MoveAway from '$lib/components/releases/MoveAway.svelte';
 	import {
 		ago,
 		avatar,
@@ -103,6 +104,9 @@
 				{/if}
 				{#if key.role === 'follower'}
 					· <span class="text-fg">Following</span>
+				{/if}
+				{#if key.archived}
+					· <span class="text-fg">Archived</span>
 				{/if}
 			</span>
 			<KeyShare keyText={key.key} share={key.share} />
@@ -223,9 +227,10 @@
 				</section>
 
 				<CollectSignatures {key} {current} response={data.responses[current.id] ?? null} />
-			{:else if key.role !== 'follower'}
+			{:else if key.role !== 'follower' && !key.archived}
 				<ProposeForm {key} candidates={data.candidates} />
 			{/if}
+			<MoveAway {key} />
 		</div>
 
 		<ReleaseLog {key} {current} history={data.history} changes={data.changes} />

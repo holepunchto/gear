@@ -155,6 +155,17 @@ seat key, `store.createKeyPair('gear/release-signer/v1')`. When the private
 profile exists, the records move there behind the same methods; the seat stays
 per device.
 
+### Archiving
+
+Archiving a key is local and reversible. The store keeps it as its own entry
+(`archived/<key>`) next to the key record, so writing back a record read
+earlier can't undo it, and reads report it as `archived`. An archived key is
+left out of `activeKeys()`, which is what a repo's Releases tab, the badges and
+Your releases read from; it is listed under Archived on Release keys with
+Unarchive. Proposing from it is refused. Gear keeps it open and seeded, so
+co-signers and followers lose nothing, and a pending proposal on it can still
+be signed and committed. Nothing is ever deleted.
+
 ## Sharing and following
 
 A release key is public: anyone holding it can read and verify its releases.

@@ -10,6 +10,7 @@
 	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import FollowKey from '$lib/components/releases/FollowKey.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
+	import MoveAway from '$lib/components/releases/MoveAway.svelte';
 	import { liveReleases, shortKey, signerName, type DraftSigner } from '$lib/releases';
 
 	let { data, form }: PageProps = $props();
@@ -151,10 +152,20 @@
 						{:else if key.role !== 'follower'}
 							<ProposeForm {key} candidates={d.candidates} />
 						{/if}
+						<MoveAway {key} />
 					</div>
 					<ReleaseLog {key} {current} history={d.history} changes={d.changes} />
 				</div>
 			</article>
 		{/each}
 	</div>
+{/if}
+
+{#if data.archived}
+	<a
+		href="/releases#archived"
+		class="mt-4 inline-block text-[13px] text-fg-3 hover:text-accent-300"
+	>
+		{data.archived} archived {data.archived === 1 ? 'key' : 'keys'} →
+	</a>
 {/if}

@@ -10,7 +10,7 @@ const NAMESPACE = 'gear/releases/v1';
  * @typedef {{
  *   key: string, name: string, namespace: string, signers: string[], quorum: number,
  *   repo: { name: string, key: string } | null, owner: boolean, follower?: boolean,
- *   labels: Record<string, string>, added: number
+ *   labels: Record<string, string>, added: number, archived?: boolean
  * }} KeyRecord
  * @typedef {{
  *   name: string, tag: string, commit: string, tree: string,
@@ -45,19 +45,45 @@ export default class ReleaseStore extends ReadyResource {
 		return this.store.createKeyPair(SEAT);
 	}
 
+	// Archiving is kept apart from the key record, so a write of a record read
+	// earlier can't undo it. Reads report it as `archived` on the record.
+
 	/** @param {string} key @returns {Promise<KeyRecord | null>} */
-	getKey(key) {
-		return this._get('key/' + key);
+	async getKey(key) {
+		const record = await this._get('key/' + key);
+		if (!record) return null;
+		return { ...record, archived: (await this._get('archived/' + key)) !== null };
 	}
 
 	/** @returns {Promise<KeyRecord[]>} */
-	listKeys() {
-		return this._list('key/');
+	async listKeys() {
+		const archived = new Set(await this._list('archived/'));
+		const records = /** @type {KeyRecord[]} */ (await this._list('key/'));
+		return records.map((r) => ({ ...r, archived: archived.has(r.key) }));
+	}
+
+	/** Keys that aren't archived: the ones a repo's releases come from. */
+	async activeKeys() {
+		return (await this.listKeys()).filter((r) => !r.archived);
 	}
 
 	/** @param {KeyRecord} record */
 	putKey(record) {
-		return this._put('key/' + record.key, record);
+		const { archived, ...rest } = record;
+		return this._put('key/' + record.key, rest);
+	}
+
+	/** @param {string} key */
+	archive(key) {
+		return this._put('archived/' + key, key);
+	}
+
+	/** @param {string} key */
+	async unarchive(key) {
+		await this.ready();
+		const w = this.bee.write();
+		w.tryDelete(b4a.from('archived/' + key));
+		await w.flush();
 	}
 
 	/** @param {string} key @param {string} id @returns {Promise<ProposalRecord | null>} */
