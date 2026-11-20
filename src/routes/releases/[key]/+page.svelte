@@ -139,8 +139,8 @@
 		<div class="flex min-w-0 flex-[999_1_600px] flex-col gap-6">
 			{#if current}
 				<ReleaseInProgress {key} {current} />
-			{:else if key.role !== 'follower' && !key.archived && !key.revoked && key.format === 'mirror'}
-				<NewRelease key={key.key} />
+			{:else if key.role !== 'follower' && !key.archived && !key.revoked && key.format === 'mirror' && key.repo}
+				<NewRelease key={key.key} repo={key.repo.name} />
 			{/if}
 			<MoveAway {key} />
 		</div>

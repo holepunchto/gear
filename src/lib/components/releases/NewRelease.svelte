@@ -1,11 +1,11 @@
 <script lang="ts">
-	// Starts releasing a new version on `key`: picking its tag is a page of
-	// its own, which goes on to the release's flow page.
-	let { key }: { key: string } = $props();
+	// Starts releasing a new version on `key`: on the Releases tab of its
+	// repo, which opens New release on it.
+	let { key, repo }: { key: string; repo: string } = $props();
 </script>
 
 <a
-	href="/releases/{key}/new"
+	href="/{repo}/releases?new={key}"
 	class="inline-flex h-11 items-center gap-2 self-start rounded-xl bg-accent-400 px-5 text-sm font-semibold text-accent-900 no-underline shadow-[0_8px_28px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300"
 >
 	<svg

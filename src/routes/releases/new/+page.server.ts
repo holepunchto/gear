@@ -2,13 +2,12 @@ import { redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { failure, getReleases } from '$lib/server/release-service';
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const releases = await getReleases(locals.db);
 	return {
 		seat: releases.seatKey,
 		pearKeys: await releases.pearKeys(),
-		repos: (await locals.db.getRepoNames()) as string[],
-		repo: url.searchParams.get('repo')
+		repos: (await locals.db.getRepoNames()) as string[]
 	};
 };
 
@@ -34,13 +33,6 @@ export const actions: Actions = {
 		const { key } = made;
 		// The same key is already here, maybe for another repo: open it and say so.
 		if (made.existed) throw redirect(303, `/releases/${key}?existed`);
-		// Made from a repo's Releases tab: back there, to say it was made.
-		if (form.has('back')) {
-			throw redirect(
-				303,
-				`/${encodeURIComponent(String(form.get('repo')))}/releases?created=${key}`
-			);
-		}
 		throw redirect(303, `/releases/${key}`);
 	}
 };
