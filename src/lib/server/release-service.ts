@@ -478,6 +478,26 @@ class Releases {
 	async changes(key: string, tag: string, cap = 100): Promise<Changes | null> {
 		const record = await this.mirror(key);
 		const { release, older: previous } = await this.release(key, tag);
+		return this.walk(record, release, previous, cap);
+	}
+
+	// What a proposal releases over the signed tag before it: the latest one
+	// until it is published. Null until the proposal is checked here.
+	async proposalChanges(key: string, id: string, cap = 100): Promise<Changes | null> {
+		const record = await this.mirror(key);
+		const { release } = await this.getProposal(key, id);
+		if (!release) return null;
+		const tags = await this.signedTags(record);
+		const i = tags.findIndex((t) => t.tag === release.tag);
+		return this.walk(record, release, (i === -1 ? tags[0] : tags[i + 1]) ?? null, cap);
+	}
+
+	private async walk(
+		record: KeyRecord,
+		release: Release,
+		previous: Release | null,
+		cap: number
+	): Promise<Changes | null> {
 		const repo = await this.libraryRepo(record);
 		if (!repo) return null;
 
