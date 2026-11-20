@@ -7,6 +7,7 @@ import type { GipDB } from './gip';
 import { openRepo, getTagTarget, getTagRefs, getBranchRefs, getCommitHistory } from './repo';
 import { parseCommitMessage, type ParsedCommit } from './commit-parse';
 import { createTag, TagError } from './tags.js';
+import { newerTags } from './newer-tags.js';
 import { events } from './events';
 import { log, logError } from './log.js';
 
@@ -110,13 +111,15 @@ export type RepoRelease = {
 	pending: { id: string; name: string | null; missing: number; waitingOnMe: boolean } | null;
 };
 
-// What the propose form offers: the repo's tags, newest first with released
-// ones last, and on a repo this device owns, the branches a new tag can name.
-export type TagOption = { name: string; released: number | null };
-
+// What the propose form offers: the unreleased tags newer than the latest
+// release, newest first, the older ones apart, and on a repo this device
+// owns, the branches a new tag can name. `latest` is the latest release on
+// this key or the keys it was rotated from.
 export type Candidates = {
 	repo: string;
-	tags: TagOption[];
+	latest: { name: string; tag: string } | null;
+	tags: string[];
+	older: string[];
 	branches: string[];
 	head: string | null;
 	writable: boolean;
@@ -465,33 +468,74 @@ class Releases {
 		} | null;
 		if (!remote) return null;
 
-		const released = await this.released(summary.key);
+		const { tags: released, latest } = await this.released(summary.key);
 		const [tags, branches, head] = await Promise.all([
 			getTagRefs(remote),
 			getBranchRefs(remote),
 			remote.getHead()
 		]);
 
+		const unreleased = tags
+			.filter((t) => !released.has(t.name))
+			.sort((a, b) => (b.commit?.timestamp ?? 0) - (a.commit?.timestamp ?? 0));
+		const parent = async (oid: string) =>
+			(await getCommitHistory(remote, oid, 1))[0]?.parents[0] ?? null;
+		const newer = new Set<string>(
+			await newerTags(
+				latest,
+				unreleased.map((t) => ({ name: t.name, commit: t.commitOid })),
+				parent
+			)
+		);
+
 		return {
 			repo: summary.repo.name,
-			tags: tags
-				.sort((a, b) => (b.commit?.timestamp ?? 0) - (a.commit?.timestamp ?? 0))
-				.map((t) => ({ name: t.name, released: released.get(t.name) ?? null }))
-				.sort((a, b) => Number(a.released !== null) - Number(b.released !== null)),
+			latest: latest && { name: latest.name, tag: latest.tag },
+			tags: unreleased.filter((t) => newer.has(t.name)).map((t) => t.name),
+			older: unreleased.filter((t) => !newer.has(t.name)).map((t) => t.name),
 			branches: branches.map((b) => b.name),
 			head,
 			writable: remote.core.writable
 		};
 	}
 
-	// Tag → entry index for every release on the key. Release logs are tiny
-	// and kept local, so this reads them all.
+	// Every tag released on this key or the keys it was rotated from, with
+	// where, and the latest of those releases. Release logs are tiny and kept
+	// local, so this reads them all.
 	private async released(key: string) {
-		const rk = await this.key(await this.record(key));
-		const out = new Map<string, number>();
-		for (let i = 0; i < rk.length; i++) {
-			const entry = await this.read(rk, i);
-			if (entry) out.set(entry.tag, i);
+		const tags = new Map<string, { key: string; name: string; index: number }>();
+		let latest: (Release & { index: number }) | null = null;
+		for (const record of await this.chain(key)) {
+			const rk = await this.key(record);
+			for (let i = rk.length - 1; i >= 0; i--) {
+				const entry = await this.read(rk, i);
+				if (!entry) continue;
+				latest ??= entry;
+				if (!tags.has(entry.tag))
+					tags.set(entry.tag, { key: record.key, name: record.name, index: i });
+			}
+		}
+		return { tags, latest };
+	}
+
+	// This key, then the key that rotated to it and so on back, at most
+	// MAX_HOPS, among the keys this device has.
+	private async chain(key: string) {
+		const records = await this.records();
+		const out = [await this.record(key)];
+		for (let hops = 0; hops < MAX_HOPS; hops++) {
+			const to = out[out.length - 1].key;
+			let from: KeyRecord | null = null;
+			for (const r of records) {
+				if (out.some((o) => o.key === r.key)) continue;
+				const next = await (await this.key(r)).rotatedTo();
+				if (next && z32.encode(next) === to) {
+					from = r;
+					break;
+				}
+			}
+			if (!from) break;
+			out.push(from);
 		}
 		return out;
 	}
@@ -758,8 +802,13 @@ class Releases {
 		}
 		if (tag === undefined) return;
 
-		const index = (await this.released(key)).get(tag);
-		if (index !== undefined) throw new ReleaseError(`${tag} is already release #${index}`);
+		const released = (await this.released(key)).tags.get(tag);
+		if (!released) return;
+		throw new ReleaseError(
+			released.key === key
+				? `${tag} is already release #${released.index}`
+				: `${tag} was already released on ${released.name}`
+		);
 	}
 
 	// A proposal pasted in by a co-signer. Opens the key if this device hasn't
