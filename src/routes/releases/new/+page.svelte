@@ -70,6 +70,9 @@
 			};
 		}}
 	>
+		{#if data.repo}
+			<input type="hidden" name="back" value="repo" />
+		{/if}
 		<ol aria-label="Steps" class="m-0 hidden flex-[0_1_220px] list-none flex-col gap-1 p-0 lg:flex">
 			{#each steps as s, i (s.label)}
 				<li

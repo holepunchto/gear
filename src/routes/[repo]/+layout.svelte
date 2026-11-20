@@ -10,7 +10,7 @@
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
 	import ReleaseCard from '$lib/components/releases/ReleaseCard.svelte';
 	import ReleaseInstall from '$lib/components/releases/ReleaseInstall.svelte';
-	import { multisig } from '$lib/releases';
+	import { liveReleases, multisig } from '$lib/releases';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
 
@@ -94,6 +94,10 @@
 	function record(text: string) {
 		activity = [{ id: ++activityId, text, at: Date.now() }, ...activity].slice(0, ACTIVITY_CAP);
 	}
+
+	// The Clone button, the Releases tab and the release card follow every
+	// release key, on every tab.
+	onMount(liveReleases);
 
 	onMount(() => {
 		const name = untrack(() => data.repo.name);

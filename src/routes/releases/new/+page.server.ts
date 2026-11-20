@@ -31,6 +31,13 @@ export const actions: Actions = {
 		} catch (err) {
 			return failure('create', err);
 		}
+		// Made from a repo's Releases tab: back there, to say it was made.
+		if (form.has('back')) {
+			throw redirect(
+				303,
+				`/${encodeURIComponent(String(form.get('repo')))}/releases?created=${key}`
+			);
+		}
 		throw redirect(303, `/releases/${key}`);
 	}
 };
