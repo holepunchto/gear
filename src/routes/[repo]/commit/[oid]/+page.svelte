@@ -43,7 +43,7 @@
 			{relativeTime(c.timestamp)}
 		</span>
 		<span class="text-neutral-700">·</span>
-		<span class="text-neutral-600">{isoDate(c.timestamp)}</span>
+		<span class="text-fg-3">{isoDate(c.timestamp)}</span>
 
 		<span class="ml-auto inline-flex items-center gap-1.5">
 			<code

@@ -317,13 +317,14 @@
 				}}
 			></div>
 			<div
-				class="relative z-10 flex max-h-[calc(100vh-6rem)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl"
+				class="relative z-10 flex max-h-[calc(100vh-6rem)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl bg-surface-2 shadow-[inset_0_0_0_1px_rgb(93_221_173/0.2),0_24px_60px_rgb(0_0_0/0.6)]"
 			>
 				{#await data.discover}
-					<div class="px-6 py-10 text-center">
-						<span
-							class="inline-block h-6 w-6 animate-spin rounded-full border-2 border-neutral-800 border-t-accent-400"
-						></span>
+					<div aria-label="Loading repositories" class="flex flex-col gap-3 p-4">
+						<span class="h-11 animate-pulse-soft rounded-xl bg-surface-3"></span>
+						{#each { length: 4 }, i (i)}
+							<span class="h-16 animate-pulse-soft rounded-lg bg-surface-3/60"></span>
+						{/each}
 					</div>
 				{:then repos}
 					<Search

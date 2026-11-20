@@ -4,12 +4,17 @@
 </script>
 
 {#if data.empty}
-	<div class="rounded-lg border border-dashed border-neutral-800 bg-neutral-900 px-6 py-16 text-center">
-		<h3 class="m-0 text-base font-semibold text-white">This repository is empty</h3>
-		<p class="mx-auto mt-2 max-w-md text-sm text-neutral-400">
-			Nothing has been pushed yet. Clone the URL above and run
-			<span class="font-mono text-neutral-300">git push</span>
-			to seed your first commit.
+	<div class="rounded-2xl bg-surface px-6 py-16 text-center ring-1 ring-line ring-inset">
+		<h3 class="m-0 text-lg font-semibold text-fg">This repository is empty</h3>
+		<p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-fg-2">
+			{#if data.repo.writable}
+				Nothing has been pushed yet. Copy the clone command above, then run
+				<span class="font-mono text-fg">git push</span>
+				to send your first commit.
+			{:else}
+				Nothing has arrived yet. Blocks will appear here as soon as a peer that has this repo
+				connects.
+			{/if}
 		</p>
 	</div>
 {/if}

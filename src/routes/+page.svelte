@@ -528,7 +528,22 @@
 		</div>
 
 		{#await data.discover}
-			<p class="m-0 text-sm text-fg-3">Loading the manifest…</p>
+			<ul
+				aria-label="Loading the manifest"
+				class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3 p-0"
+			>
+				{#each { length: 8 }, i (i)}
+					<li
+						class="flex items-center gap-3 rounded-xl bg-[#0a110d] px-3.5 py-3 ring-1 ring-line ring-inset"
+					>
+						<span class="h-8 w-8 shrink-0 animate-pulse-soft rounded-[9px] bg-surface-3"></span>
+						<span class="flex flex-1 flex-col gap-2">
+							<span class="h-3 w-24 animate-pulse-soft rounded bg-surface-3"></span>
+							<span class="h-2.5 w-14 animate-pulse-soft rounded bg-surface-3"></span>
+						</span>
+					</li>
+				{/each}
+			</ul>
 		{:then all}
 			{@const list = all.filter((d) => !libraryNames.has(d.name))}
 			{#if list.length === 0}
