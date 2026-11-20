@@ -95,17 +95,15 @@
 				<span title={isoDate(committed)}>{relativeTime(committed)}</span>
 			{/if}
 		</span>
-		<div class="flex flex-wrap items-center gap-1.5">
-			{#if !key.revoked}
-				<CopyInstall
-					name={data.name}
-					source={{ key: key.key, length: key.length }}
-					tag={r.tag}
-					pear={data.pear}
-					multi={multisig(key.signers.length)}
-				/>
-			{/if}
-		</div>
+		{#if !key.revoked}
+			<CopyInstall
+				name={data.name}
+				source={{ key: key.key, length: key.length }}
+				tag={r.tag}
+				pear={data.pear}
+				multi={multisig(key.signers.length)}
+			/>
+		{/if}
 	</section>
 
 	{#if repo}
