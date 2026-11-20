@@ -776,8 +776,9 @@ class Releases {
 		return key;
 	}
 
-	// Proposes signing the repo up to where `tag` first appears. `password`
-	// signs the proposal when this device signs the key with a pear key.
+	// Proposes signing the repo up to where `tag` first appears, and signs it
+	// when this device holds a seat. `password` signs with a pear key. A
+	// signature that fails leaves the proposal made, with why in `error`.
 	async propose(key: string, tag: string, password?: string) {
 		const record = await this.canPropose(key, tag);
 		const repo = await this.libraryRepo(record);
@@ -814,10 +815,8 @@ class Releases {
 			}
 		} satisfies ProposalRecord);
 
-		await this.signOwn(record, id, password);
-
 		events.emit('release', { key });
-		return id;
+		return { id, error: await this.signOwn(record, id, password) };
 	}
 
 	// Make the tag on a repo this device owns, then propose it.
@@ -834,21 +833,18 @@ class Releases {
 		return this.propose(key, tag, password);
 	}
 
-	// Signs a proposal this device just made, when it holds a seat. A Gear
-	// seat signing is best effort; a pear key's wrong password is reported,
-	// with the proposal kept so it can be signed from its page.
+	// Signs a proposal this device just made, when it holds a seat and, for
+	// a pear key, has its password. Returns why it couldn't, or null.
 	private async signOwn(record: KeyRecord, id: string, password?: string) {
-		if (!record.signers.includes(this.seatFor(record))) return;
-		if (!record.signAs) {
-			await this.sign(record.key, id).catch((err) => logError('signing own proposal failed', err));
-			return;
-		}
-		if (!password) return;
+		if (!record.signers.includes(this.seatFor(record))) return null;
+		if (record.signAs && !password) return null;
 		try {
 			await this.sign(record.key, id, password);
+			return null;
 		} catch (err) {
-			if (!(err instanceof ReleaseError)) throw err;
-			throw new ReleaseError(`Proposed, not signed yet: ${err.message}`);
+			if (err instanceof ReleaseError) return err.message;
+			logError('signing own proposal failed', err);
+			return 'Signing failed';
 		}
 	}
 

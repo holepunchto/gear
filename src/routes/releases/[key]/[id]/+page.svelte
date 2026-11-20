@@ -362,8 +362,8 @@
 								Some checks could not run on this device. Sign only if you trust what you see above.
 							</span>
 						{/if}
-						{#if errors.sign}
-							<span class="text-sm text-red-400" role="alert">{errors.sign}</span>
+						{#if errors.sign ?? data.signError}
+							<span class="text-sm text-red-400" role="alert">{errors.sign ?? data.signError}</span>
 						{/if}
 					</form>
 					{#if key.signAs}

@@ -36,8 +36,11 @@ them.
 
 ## Step 0: starting a release
 
-The repo's Releases tab and the key page have one action, **Release a new version**. It picks a tag
-(or tags a branch) and proposes it, then goes to the flow page.
+The repo's Releases tab and the key page have one action, **Release a new version**, a link to
+`/releases/<key>/new`. That page picks a tag (older ones folded away) or tags a branch, takes the
+pear key's password when signing needs it, proposes, and goes to the flow page. If signing fails, a
+wrong password say, the proposal is kept and the flow page opens on its Sign step with the error.
+While one of your releases is in progress the page links to it instead.
 
 On a key where you are the only signer needed (quorum 1 and you hold a seat), the action is **Sign &
 release `<tag>`**: propose, sign and publish in one go, landing on the flow page at step 5. A pear

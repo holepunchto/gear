@@ -9,7 +9,7 @@ import {
 	type Inspection
 } from '$lib/server/release-service';
 
-export const load: PageServerLoad = async ({ locals, params, depends }) => {
+export const load: PageServerLoad = async ({ locals, params, depends, url }) => {
 	depends('releases');
 	const releases = await getReleases(locals.db);
 
@@ -36,7 +36,9 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		response: await releases.myResponse(params.key, params.id),
 		inspection,
 		changes,
-		app: key.repo ? await releases.app(key.repo.name) : null
+		app: key.repo ? await releases.app(key.repo.name) : null,
+		// Why signing failed when it was proposed: the Sign step says it.
+		signError: url.searchParams.get('error')
 	};
 };
 
