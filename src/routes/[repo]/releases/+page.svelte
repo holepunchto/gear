@@ -1,113 +1,46 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
-	import { enhance } from '$app/forms';
 	import type { PageProps } from './$types';
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
-	import SignerList from '$lib/components/releases/SignerList.svelte';
-	import SignAs from '$lib/components/releases/SignAs.svelte';
-	import Threshold from '$lib/components/releases/Threshold.svelte';
 	import ProposeForm from '$lib/components/releases/ProposeForm.svelte';
 	import ReleaseInProgress from '$lib/components/releases/ReleaseInProgress.svelte';
+	import ReleaseLog from '$lib/components/releases/ReleaseLog.svelte';
 	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
-	import CopyInstall from '$lib/components/releases/CopyInstall.svelte';
-	import FollowKey from '$lib/components/releases/FollowKey.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
-	import MoveAway from '$lib/components/releases/MoveAway.svelte';
 	import Revoked from '$lib/components/releases/Revoked.svelte';
 	import Retired from '$lib/components/releases/Retired.svelte';
-	import {
-		liveReleases,
-		multisig,
-		shortKey,
-		signerName,
-		tagHref,
-		type DraftSigner
-	} from '$lib/releases';
+	import { multisig, shortKey, signerName, tagHref } from '$lib/releases';
 
-	let { data, form }: PageProps = $props();
+	// What this repo released. The layout keeps it live. The key itself, its
+	// links and moving away from it are on the key page.
+	let { data }: PageProps = $props();
 
-	onMount(liveReleases);
-
-	// The repo is implied here, so setting up a key is name, signers and
-	// threshold.
-	let name = $state(untrack(() => `${data.repo.name}/stable`));
-	let signers = $state<DraftSigner[]>([{ key: untrack(() => data.seat), label: '', me: true }]);
-	let quorum = $state(1);
-	let creating = $state(false);
-
-	// Just made on this page: say so once, until dismissed.
-	let created = $derived(form?.create && 'key' in form.create ? form.create.key : null);
+	// Just made from /releases/new?repo=: say so once, until dismissed.
+	let dismissed = $state(false);
+	const created = $derived(dismissed ? null : data.created);
 </script>
 
 {#if data.keys.length === 0}
-	<form
-		method="POST"
-		action="?/createKey"
-		class="flex flex-col gap-5"
-		use:enhance={() => {
-			creating = true;
-			return async ({ update }) => {
-				await update({ reset: false });
-				creating = false;
-			};
-		}}
+	<section
+		aria-label="Set up signed releases"
+		class="flex flex-col items-start gap-3.5 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
 	>
-		<section
-			aria-label="Name"
-			class="flex flex-col gap-3.5 rounded-[18px] bg-surface p-5 ring-1 ring-line ring-inset"
-		>
-			<div class="flex flex-col gap-1.5">
-				<h2 class="m-0 text-xl font-semibold text-fg">Set up signed releases</h2>
-				<p class="m-0 max-w-2xl text-sm text-fg-2">
-					A release key is a signed log of {data.repo.name}'s releases. You pick who signs and how
-					many must agree before a tag becomes a release.
-				</p>
-			</div>
-			<div class="flex flex-wrap items-end gap-3.5">
-				<label class="flex min-w-0 flex-[1_1_260px] flex-col gap-1.5 text-xs text-fg-2">
-					Name
-					<input
-						name="name"
-						bind:value={name}
-						required
-						autocomplete="off"
-						spellcheck="false"
-						class="h-11 rounded-[10px] border-0 bg-bg px-3 font-mono text-sm text-fg ring-1 ring-line-strong ring-inset focus:ring-2 focus:ring-accent-400/50 focus:outline-none sm:h-10"
-					/>
-				</label>
-				<span class="flex h-11 items-center gap-2 text-[13px] text-fg-2 sm:h-10">
-					<span
-						class="flex h-6 w-6 items-center justify-center rounded-full bg-accent-400/16 text-xs font-semibold text-accent-300"
-						aria-hidden="true">✓</span
-					>
-					Releases come from <span class="font-mono text-fg">{data.repo.name}</span> tags
-				</span>
-			</div>
-		</section>
-
-		<SignAs gearKey={data.seat} pearKeys={data.pearKeys} bind:signers />
-
-		<SignerList bind:signers bind:quorum />
-
-		<Threshold bind:quorum n={signers.length} />
-
-		<div class="flex flex-wrap items-center gap-3">
-			<button
-				type="submit"
-				disabled={creating || !name.trim()}
-				class="h-12 cursor-pointer rounded-xl bg-accent-400 px-6 text-[15px] font-semibold text-accent-900 shadow-[0_10px_30px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300 disabled:cursor-default disabled:opacity-50"
-			>
-				{creating ? 'Creating…' : 'Create release key'}
-			</button>
-			{#if form?.create && 'error' in form.create}
-				<p class="m-0 text-sm text-red-400" role="alert">{form.create.error}</p>
+		<h2 class="m-0 text-xl font-semibold text-fg">Set up signed releases</h2>
+		<p class="m-0 max-w-2xl text-sm text-fg-2">
+			{#if data.archived}
+				Every release key for {data.repo.name} is archived on this device. Unarchive one, or make a new
+				one.
+			{:else}
+				A release key is a signed log of {data.repo.name}'s releases. You pick who signs and how
+				many must agree before a tag becomes a release.
 			{/if}
-		</div>
-	</form>
-
-	<div class="mt-6">
-		<FollowKey action="?/follow" error={form?.follow?.error} />
-	</div>
+		</p>
+		<a
+			href="/releases/new?repo={encodeURIComponent(data.repo.name)}"
+			class="inline-flex h-12 items-center rounded-xl bg-accent-400 px-6 text-[15px] font-semibold text-accent-900 no-underline shadow-[0_10px_30px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300"
+		>
+			Make a release key
+		</a>
+	</section>
 {:else}
 	<div class="flex flex-col gap-8">
 		{#each data.keys as d (d.key.key)}
@@ -138,7 +71,7 @@
 						</div>
 						<button
 							type="button"
-							onclick={() => (created = null)}
+							onclick={() => (dismissed = true)}
 							aria-label="Dismiss"
 							class="tap-44 cursor-pointer border-0 bg-transparent text-lg leading-none text-fg-3 hover:text-fg"
 							>×</button
@@ -208,28 +141,13 @@
 								{key.latest.name}
 							</a>
 							<ReleaseSeal quorum={key.quorum} signers={key.signers.length} />
-							<a
-								href="/releases/{key.key}"
-								class="tap-44 ml-auto text-[13px] text-fg-3 no-underline hover:text-accent-300"
-							>
-								Release log →
-							</a>
 						</div>
-						<CopyInstall
-							name={data.repo.name}
-							source={{ key: key.key, length: key.length }}
-							tag={key.latest.tag}
-							pear={d.app?.pear ?? false}
-							multi={multisig(key.signers.length)}
-						/>
 					</section>
 				{:else if !key.revoked}
 					<p class="m-0 text-[13px] text-fg-3">
 						{key.arriving
 							? 'The signed repo is still arriving.'
-							: key.role === 'follower'
-								? 'Nothing is released on this key yet.'
-								: 'Share links appear after your first release.'}
+							: 'Nothing is released on this key yet.'}
 					</p>
 				{/if}
 				{#if current}
@@ -237,7 +155,7 @@
 				{:else if key.role !== 'follower' && !key.revoked}
 					<ProposeForm {key} candidates={d.candidates} />
 				{/if}
-				<MoveAway {key} />
+				<ReleaseLog {key} history={d.history} />
 			</article>
 		{/each}
 	</div>

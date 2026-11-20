@@ -43,15 +43,19 @@ key asks for its password first.
 
 ## The Releases tab
 
-A summary, not the flow:
+What this repo released, not the flow and not the key:
 
-- The key, compact.
-- The latest signed release with its links. Before the first release there are no links: "Share
-  links appear after your first release."
-- A release in progress as one card: "`0.1.1` · step 3 of 5 · waiting on Kasper", linking to the
-  flow page.
-- Otherwise **Release a new version**.
-- Move away from this key, collapsed, at the bottom.
+- The key, compact, linking to its page.
+- The latest signed release, linking to its tag page. No install commands: those are in the Clone
+  menu.
+- A release in progress as one line: "`0.1.1` · step 3 of 5 · waiting on Kasper", linking to the
+  flow page. Otherwise **Release a new version**.
+- The release log.
+
+With no key in use the tab has one button, **Make a release key**, to `/releases/new?repo=<repo>`,
+which comes back to the tab saying the key was made. When the repo's keys are all archived it says
+so. Following, rotating, archiving and revoking live on the key page. The tab, the Clone
+button and the release card follow release events on every tab of the repo.
 
 The key page follows the same rules: no share links before the first release.
 
