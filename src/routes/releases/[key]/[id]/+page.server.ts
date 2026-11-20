@@ -1,30 +1,45 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { attempt, getReleases, ReleaseError, type Inspection } from '$lib/server/release-service';
+import {
+	attempt,
+	getReleases,
+	ReleaseError,
+	type Changes,
+	type Inspection
+} from '$lib/server/release-service';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
 	depends('releases');
 	const releases = await getReleases(locals.db);
 
-	const [key, proposal] = await Promise.all([
-		releases.getKey(params.key),
-		releases.getProposal(params.key, params.id)
-	]).catch((err) => {
-		if (err instanceof ReleaseError) throw error(404, err.message);
-		throw err;
-	});
+	// Holding the last signature here publishes, unless "Publish when signed"
+	// is unticked.
+	const [key, proposal] = await releases
+		.publishIfReady(params.key, params.id)
+		.then(() =>
+			Promise.all([releases.getKey(params.key), releases.getProposal(params.key, params.id)])
+		)
+		.catch((err) => {
+			if (err instanceof ReleaseError) throw error(404, err.message);
+			throw err;
+		});
 
 	// Inspecting replicates the staging core, so it streams in after paint.
 	const inspection: Promise<Inspection> = releases
 		.inspect(params.key, params.id)
 		.catch((err) => ({ ok: false, error: (err as Error).message, checks: [] }));
+	const changes: Promise<Changes | null> = releases
+		.proposalChanges(params.key, params.id)
+		.catch(() => null);
 
 	return {
 		seat: releases.seatKey,
 		key,
 		proposal,
 		response: await releases.myResponse(params.key, params.id),
-		inspection
+		inspection,
+		changes,
+		app: key.repo ? await releases.app(key.repo.name) : null
 	};
 };
 
@@ -37,5 +52,35 @@ export const actions: Actions = {
 		return attempt('sign', async () => ({
 			response: await releases.sign(params.key, params.id, password ? String(password) : undefined)
 		}));
+	},
+
+	respond: async ({ request, locals, params }) => {
+		const form = await request.formData();
+		const releases = await getReleases(locals.db);
+		return attempt('respond', async () => {
+			await releases.addResponse(params.key, params.id, String(form.get('response') ?? ''));
+			return { signer: String(form.get('signer') ?? '') };
+		});
+	},
+
+	publish: async ({ locals, params }) => {
+		const releases = await getReleases(locals.db);
+		return attempt('publish', () => releases.commit(params.key, params.id));
+	},
+
+	autoPublish: async ({ request, locals, params }) => {
+		const form = await request.formData();
+		const releases = await getReleases(locals.db);
+		return attempt('autoPublish', async () => {
+			await releases.setAutoPublish(params.key, params.id, form.get('on') === 'true');
+			return { ok: true };
+		});
+	},
+
+	withdraw: async ({ locals, params }) => {
+		const releases = await getReleases(locals.db);
+		const key = await releases.getKey(params.key);
+		await releases.withdraw(params.key, params.id);
+		throw redirect(303, key.repo ? `/${key.repo.name}/releases` : `/releases/${params.key}`);
 	}
 };
