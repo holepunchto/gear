@@ -192,9 +192,10 @@ handed over.
   so: to move installed copies, release one more version on the old key with
   `"upgrade": "git+pear://<new release key>/<repo>"`, and it notes when
   package.json already points at the old key. For that last release the old
-  key is retired rather than revoked: it drops out of the badges and the
-  Clone menu like a revoked key, but can still propose and sign, and its page
-  has "Revoke now" for when the release is out.
+  key is retired rather than revoked: it can still propose and sign, it stays
+  in the badges and the Clone menu until the new key has a release, so the
+  install and its last release don't vanish mid-rotation, and its page has
+  "Revoke now" for when the release is out.
 - **A compromised key** can't be trusted with that path, since whoever holds
   it could sign their own redirect. The rotate form asks whether the old key
   is compromised; if so, the old key is revoked at once, and the flow says to

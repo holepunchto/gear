@@ -78,7 +78,7 @@ test('archiving survives a restart and is undone by unarchive', async function (
 	t.is((await releases.getKey('a'))?.archived, false);
 });
 
-test('archived, retired, revoked and old-format keys are left out of the active keys', async function (t) {
+test('archived, revoked and old-format keys are left out of the active keys', async function (t) {
 	const { releases } = await open(t, await t.tmp());
 
 	await releases.putKey(key('a', 'gear/stable'));
@@ -92,7 +92,8 @@ test('archived, retired, revoked and old-format keys are left out of the active 
 
 	t.alike(
 		(await releases.activeKeys()).map((k) => k.key),
-		['b']
+		['b', 'e'],
+		'a retired key still makes its last release'
 	);
 	t.is((await releases.listKeys()).length, 5);
 	t.is((await releases.getKey('e'))?.retiredTo, 'b');

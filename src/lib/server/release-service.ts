@@ -398,7 +398,8 @@ class Releases {
 		return Promise.all((await this.records()).map((r) => this.summary(r)));
 	}
 
-	// The keys releases come from: not archived, not revoked, not old.
+	// The keys releases come from: not archived, not revoked, not old. A
+	// retired key is one of them until its last release is out.
 	async activeKeys(): Promise<KeySummary[]> {
 		const records = (await this.store.activeKeys()) as KeyRecord[];
 		records.sort((a, b) => a.added - b.added);
@@ -406,7 +407,8 @@ class Releases {
 	}
 
 	// Release state by repo key, for every repo with an active key this device
-	// knows. A repo's first key wins.
+	// knows. A repo's first key wins, unless it is retired, or nothing is
+	// released on it and its retired key has.
 	async byRepo() {
 		return repoReleases(await this.activeKeys());
 	}
@@ -1349,33 +1351,41 @@ class Releases {
 
 export function repoReleases(keys: KeySummary[]) {
 	const out: Record<string, RepoRelease> = {};
-	for (const k of keys) {
-		if (k.format !== 'mirror' || k.revoked || k.archived || k.retiredTo) continue;
-		const repo = k.repo?.key;
-		if (!repo || out[repo]) continue;
-		const p = k.pending[0];
-		const progress = p && releaseProgress(k, p);
-		out[repo] = {
-			key: k.key,
-			name: k.name,
-			role: k.role,
-			version: k.latest?.name ?? null,
-			tag: k.latest?.tag ?? null,
-			source: k.latest ? { key: k.key, length: k.length } : null,
-			share: k.share,
-			quorum: k.quorum,
-			signers: k.signers.length,
-			pending: p
-				? {
-						id: p.id,
-						name: p.release?.name ?? null,
-						waitingOnMe: progress.at === 'sign',
-						progress
-					}
-				: null
-		};
+	const live = keys.filter((k) => k.format === 'mirror' && !k.revoked && !k.archived && k.repo);
+	for (const k of live) {
+		if (!k.retiredTo) out[k.repo!.key] ??= repoRelease(k);
+	}
+	// While a repo rotates, its new key has nothing released yet and the
+	// retired one is making its last release.
+	for (const k of live) {
+		const current = out[k.repo!.key];
+		if (k.retiredTo && k.latest && !current?.tag) out[k.repo!.key] = repoRelease(k);
 	}
 	return out;
+}
+
+function repoRelease(k: KeySummary): RepoRelease {
+	const p = k.pending[0];
+	const progress = p && releaseProgress(k, p);
+	return {
+		key: k.key,
+		name: k.name,
+		role: k.role,
+		version: k.latest?.name ?? null,
+		tag: k.latest?.tag ?? null,
+		source: k.latest ? { key: k.key, length: k.length } : null,
+		share: k.share,
+		quorum: k.quorum,
+		signers: k.signers.length,
+		pending: p
+			? {
+					id: p.id,
+					name: p.release?.name ?? null,
+					waitingOnMe: progress.at === 'sign',
+					progress
+				}
+			: null
+	};
 }
 
 // Newest first: by semver, then tag time, then name.

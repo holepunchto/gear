@@ -82,12 +82,10 @@ export default class ReleaseStore extends ReadyResource {
 
 	/**
 	 * Keys a repo's releases come from: in the mirror format, and not
-	 * archived, retired or revoked.
+	 * archived or revoked. A retired key still makes its last release.
 	 */
 	async activeKeys() {
-		return (await this.listKeys()).filter(
-			(r) => r.mirror && !r.archived && !r.revoked && !r.retiredTo
-		);
+		return (await this.listKeys()).filter((r) => r.mirror && !r.archived && !r.revoked);
 	}
 
 	/** @param {KeyRecord} record */
