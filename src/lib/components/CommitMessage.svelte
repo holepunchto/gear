@@ -28,6 +28,23 @@
 		if (!type) return DEFAULT_TYPE_CLASS;
 		return TYPE_CLASSES[type.toLowerCase()] ?? DEFAULT_TYPE_CLASS;
 	}
+
+	// `#23` issue/PR refs: a standalone token (start, space or opening bracket
+	// before it, no word character after), so URL fragments and hex colours
+	// stay plain. Same pattern and colour as refs in <CommitBody>.
+	const REF_RE = /(?<![^\s([])#\d+(?!\w)/g;
+
+	function splitRefs(text: string) {
+		const out: { text: string; ref: boolean }[] = [];
+		let last = 0;
+		for (const m of text.matchAll(REF_RE)) {
+			if (m.index > last) out.push({ text: text.slice(last, m.index), ref: false });
+			out.push({ text: m[0], ref: true });
+			last = m.index + m[0].length;
+		}
+		if (last < text.length) out.push({ text: text.slice(last), ref: false });
+		return out;
+	}
 </script>
 
 <script lang="ts">
@@ -49,7 +66,11 @@
 	} = $props();
 
 	const display = $derived(parsed.subject || parsed.header || '(no message)');
+	const parts = $derived(splitRefs(display));
 </script>
+
+{#snippet subject()}{#each parts as p}{#if p.ref}<span class="text-sky-300">{p.text}</span
+			>{:else}{p.text}{/if}{/each}{/snippet}
 
 {#if variant === 'compact'}
 	<span class="inline-flex min-w-0 items-center gap-1.5">
@@ -62,7 +83,7 @@
 				{parsed.type}{parsed.hasBreaking ? '!' : ''}
 			</span>
 		{/if}
-		<span class="truncate" title={parsed.raw}>{display}</span>
+		<span class="truncate" title={parsed.raw}>{@render subject()}</span>
 	</span>
 {:else if variant === 'inline'}
 	<span class="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -78,7 +99,9 @@
 		{#if parsed.scope}
 			<span class="font-mono text-[11px] text-neutral-500">({parsed.scope})</span>
 		{/if}
-		<span class="min-w-0 truncate font-medium text-white" title={parsed.raw}>{display}</span>
+		<span class="min-w-0 truncate font-medium text-white" title={parsed.raw}
+			>{@render subject()}</span
+		>
 	</span>
 {:else}
 	<!-- expanded -->
@@ -125,7 +148,7 @@
 			</div>
 		{/if}
 		<div class="text-[14px] font-semibold break-words text-white">
-			{display}
+			{@render subject()}
 		</div>
 	</div>
 {/if}
