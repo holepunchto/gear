@@ -4,6 +4,12 @@ A P2P Git repository manager built on [Pear](https://pears.com) / [Holepunch](ht
 
 ![Gear running on macOS and Android](demo.png)
 
+<p>
+  <img src="screenshots/library.png" alt="Library" width="32%">
+  <img src="screenshots/discover.png" alt="Discover" width="32%">
+  <img src="screenshots/releases.png" alt="Release keys" width="32%">
+</p>
+
 ## Features
 
 - **Browse repositories** — file tree, commits, branches, and tags served directly from Hypercore drives
