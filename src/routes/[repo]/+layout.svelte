@@ -220,16 +220,16 @@
 
 <main class="mx-auto max-w-[1280px] px-4 pt-4 pb-20 sm:px-8 sm:pt-9">
 	<nav class="mb-3.5 flex items-center gap-1 text-sm text-neutral-500">
-		<a href="/" class="text-neutral-500 no-underline hover:text-accent-400"> Library </a>
+		<a href="/" class="tap-44 text-neutral-500 no-underline hover:text-accent-400"> Library </a>
 		<span class="text-neutral-700">/</span>
 		{#if page.params.oid}
-			<a href="/{repo.name}" class="text-neutral-500 no-underline hover:text-accent-400">
+			<a href="/{repo.name}" class="tap-44 text-neutral-500 no-underline hover:text-accent-400">
 				{repo.name}
 			</a>
 			<span class="text-neutral-700">/</span>
 			<span class="font-mono font-medium text-white">{page.params.oid.slice(0, 10)}</span>
 		{:else if repo.ref && !repo.ref.isHead}
-			<a href="/{repo.name}" class="text-neutral-500 no-underline hover:text-accent-400">
+			<a href="/{repo.name}" class="tap-44 text-neutral-500 no-underline hover:text-accent-400">
 				{repo.name}
 			</a>
 			<span class="text-neutral-700">/</span>
@@ -315,7 +315,7 @@
 					peer{livePeers === 1 ? '' : 's'}
 				</span>
 				{#if repo.commitCount && repo.commitCount.count > 0}
-					<a href="/{repo.name}/commits{refQuery}" class="text-fg-2 no-underline hover:text-accent-300">
+					<a href="/{repo.name}/commits{refQuery}" class="tap-44 text-fg-2 no-underline hover:text-accent-300">
 						<b class="font-semibold text-fg tabular-nums">
 							{repo.commitCount.capped ? `${repo.commitCount.count}+` : repo.commitCount.count}
 						</b>
@@ -332,7 +332,7 @@
 					showForkForm = !showForkForm;
 					if (showForkForm && !forkName) forkName = `${repo.name}-fork`;
 				}}
-				class="inline-flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-surface-3 px-3.5 text-sm font-medium text-fg ring-1 ring-line-strong transition-colors ring-inset hover:bg-surface-4 sm:flex-none"
+				class="inline-flex h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-surface-3 sm:h-10 px-3.5 text-sm font-medium text-fg ring-1 ring-line-strong transition-colors ring-inset hover:bg-surface-4 sm:flex-none"
 				aria-expanded={showForkForm}
 				title="Create a writable copy of this repo"
 			>
@@ -356,7 +356,7 @@
 			<button
 				type="button"
 				onclick={() => (cloneOpen = !cloneOpen)}
-				class="inline-flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-accent-400 px-4 text-sm font-semibold text-accent-900 shadow-[inset_0_0_0_1px_rgb(201_245_223/0.4),0_8px_28px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300 sm:flex-none"
+				class="inline-flex h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-accent-400 sm:h-10 px-4 text-sm font-semibold text-accent-900 shadow-[inset_0_0_0_1px_rgb(201_245_223/0.4),0_8px_28px_rgb(35_204_148/0.35)] transition-colors hover:bg-accent-300 sm:flex-none"
 				aria-expanded={cloneOpen}
 				aria-haspopup="dialog"
 			>
@@ -514,7 +514,7 @@
 				<a
 					href={tab.href}
 					aria-current={active ? 'page' : undefined}
-					class="inline-flex h-[34px] shrink-0 items-center rounded-[9px] px-3.5 text-[13px] whitespace-nowrap no-underline transition-colors
+					class="inline-flex h-11 shrink-0 items-center rounded-[9px] px-3.5 sm:h-[34px] text-[13px] whitespace-nowrap no-underline transition-colors
 						{active
 						? 'bg-surface-4 font-semibold text-white shadow-[inset_0_0_0_1px_rgb(93_221_173/0.25),0_0_18px_rgb(35_204_148/0.15)]'
 						: 'font-medium text-fg-2 hover:text-fg'}"

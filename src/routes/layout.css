@@ -135,6 +135,21 @@
 	}
 }
 
+/* At least a 44px hit area around small controls, without changing their
+   layout. Uses ::after so it doesn't clash with before: stretched links. */
+@utility tap-44 {
+	position: relative;
+	&::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: max(100%, 44px);
+		height: max(100%, 44px);
+		transform: translate(-50%, -50%);
+	}
+}
+
 @utility text-glow {
 	text-shadow: 0 0 12px rgb(35 204 148 / 0.6);
 }

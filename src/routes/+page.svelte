@@ -446,7 +446,7 @@
 											type="button"
 											onclick={cancelDelete}
 											aria-label="Cancel delete"
-											class="cursor-pointer rounded-lg p-1.5 text-fg-3 transition-colors hover:text-fg"
+											class="tap-44 cursor-pointer rounded-lg p-1.5 text-fg-3 transition-colors hover:text-fg"
 										>
 											✕
 										</button>
@@ -457,7 +457,7 @@
 										onclick={() => copy(repo.url)}
 										title="Copy link"
 										aria-label="Copy link to {repo.name}"
-										class="cursor-pointer rounded-lg p-1.5 text-fg-3 transition-colors hover:bg-surface-4 hover:text-fg"
+										class="tap-44 cursor-pointer rounded-lg p-1.5 text-fg-3 transition-colors hover:bg-surface-4 hover:text-fg"
 									>
 										<svg
 											width="14"
@@ -479,7 +479,7 @@
 										onclick={() => armDelete(repo.name)}
 										title="Delete repository"
 										aria-label="Delete {repo.name}"
-										class="cursor-pointer rounded-lg p-1.5 text-fg-3 transition-colors hover:bg-red-500/10 hover:text-red-400"
+										class="tap-44 cursor-pointer rounded-lg p-1.5 text-fg-3 transition-colors hover:bg-red-500/10 hover:text-red-400"
 									>
 										<svg
 											width="14"
@@ -580,7 +580,7 @@
 										type="submit"
 										disabled={!!adding}
 										aria-label="Add {d.name}"
-										class="grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-lg bg-accent-400/10 text-accent-300 transition-colors hover:bg-accent-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+										class="tap-44 grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-lg bg-accent-400/10 text-accent-300 transition-colors hover:bg-accent-400/20 disabled:cursor-not-allowed disabled:opacity-40"
 									>
 										{#if adding === d.name}
 											<span

@@ -67,7 +67,7 @@
 <!-- Path breadcrumb (when drilled in) -->
 {#if segments.length}
 	<nav class="mb-3 flex flex-wrap items-center gap-1 font-mono text-sm text-neutral-400">
-		<a href="/{repoName}/{ref}/" class="text-neutral-400 no-underline hover:text-accent-400">
+		<a href="/{repoName}/{ref}/" class="tap-44 text-neutral-400 no-underline hover:text-accent-400">
 			{repoName}
 		</a>
 		{#each crumbs as crumb, i}
@@ -75,7 +75,7 @@
 			{#if i === crumbs.length - 1}
 				<span class="text-white">{crumb.name}</span>
 			{:else}
-				<a href={crumb.href} class="text-neutral-400 no-underline hover:text-accent-400">
+				<a href={crumb.href} class="tap-44 text-neutral-400 no-underline hover:text-accent-400">
 					{crumb.name}
 				</a>
 			{/if}
@@ -203,14 +203,14 @@
 		{/if}
 		<a
 			href={`/${repoName}/commits?ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(data.path)}`}
-			class="rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white no-underline hover:bg-neutral-700"
+			class="tap-44 rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white no-underline hover:bg-neutral-700"
 			title="Commits that touched this file"
 		>
 			History
 		</a>
 		<a
 			href={`/api/raw/${repoName}/${ref}/${data.path}`}
-			class="rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white no-underline hover:bg-neutral-700"
+			class="tap-44 rounded-md border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-white no-underline hover:bg-neutral-700"
 		>
 			Raw
 		</a>
