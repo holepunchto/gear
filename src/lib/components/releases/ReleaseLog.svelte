@@ -4,7 +4,7 @@
 		changesSummary,
 		multisig,
 		shortKey,
-		tagHref,
+		signedHref,
 		type Changes,
 		type KeySummary,
 		type Release
@@ -41,7 +41,7 @@
 	{/if}
 	{#each history as r (r.tag)}
 		<a
-			href={tagHref(key.key, r.tag)}
+			href={signedHref(key, r.tag)}
 			aria-label="{r.name}, signed"
 			class="-mx-2 flex gap-3.5 rounded-lg px-2 pt-1 text-fg no-underline transition-colors hover:bg-surface-2"
 		>
@@ -65,7 +65,7 @@
 		{#if changes && r.tag === key.latest?.tag}
 			<div class="mb-2 ml-[26px] flex min-w-0 flex-col gap-1 rounded-lg bg-surface-2 px-3 py-2">
 				<a
-					href={tagHref(key.key, r.tag)}
+					href={signedHref(key, r.tag)}
 					class="text-xs text-fg-2 no-underline hover:text-accent-300"
 				>
 					{changesSummary(changes, changes.count)}

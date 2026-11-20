@@ -9,6 +9,7 @@
 		avatar,
 		liveReleases,
 		progressLine,
+		proposalHref,
 		proposalName,
 		releaseProgress,
 		shortKey,
@@ -87,7 +88,7 @@
 
 	{#each waiting as { key, p } (p.id)}
 		<a
-			href="/releases/{key.key}/{p.id}"
+			href={proposalHref(key, p)}
 			class="flex flex-wrap items-center gap-4 rounded-2xl bg-linear-90 from-[#1b140c] to-[#0f0d09] px-5 py-4 text-fg no-underline shadow-[inset_0_0_0_1px_rgb(251_146_60/0.35),0_0_40px_rgb(251_146_60/0.1)]"
 		>
 			<span
@@ -262,7 +263,7 @@
 						{#if k.pending.length && !k.revoked}
 							{@const p = k.pending[0]}
 							<a
-								href="/releases/{k.key}/{p.id}"
+								href={proposalHref(k, p)}
 								class="flex items-center gap-2.5 rounded-[10px] bg-apricot-400/8 px-3 py-2.5 text-xs text-apricot-300 no-underline hover:bg-apricot-400/12"
 							>
 								<span

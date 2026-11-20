@@ -52,11 +52,36 @@ export function tagHref(key: string, tag: string) {
 	return `/releases/${key}/tag/${encodeURI(tag)}`;
 }
 
+// A release's page in its repo. `key` names the release key, for a repo
+// with more than one.
+export function repoReleaseHref(repo: string, tag: string, key?: string) {
+	return `/${repo}/releases/${encodeURI(tag)}` + (key ? `?key=${key}` : '');
+}
+
+type KeyRef = { key: string; repo: { name: string } | null };
+
+// A signed tag's page: in its repo when the key has one here.
+export function signedHref(key: KeyRef, tag: string) {
+	return key.repo ? repoReleaseHref(key.repo.name, tag) : tagHref(key.key, tag);
+}
+
+// A release in progress: in its repo once its tag is known, on the key
+// otherwise.
+export function proposalHref(key: KeyRef, p: { id: string; release: { tag: string } | null }) {
+	return key.repo && p.release
+		? repoReleaseHref(key.repo.name, p.release.tag)
+		: `/releases/${key.key}/${p.id}`;
+}
+
 // Where a repo's release badge links: the release in progress, the latest
 // release, or the key.
-export function releaseHref(r: RepoRelease) {
-	if (r.pending) return `/releases/${r.key}/${r.pending.id}`;
-	if (r.tag !== null) return tagHref(r.key, r.tag);
+export function releaseHref(r: RepoRelease, repo: string) {
+	if (r.pending) {
+		return r.pending.tag
+			? repoReleaseHref(repo, r.pending.tag)
+			: `/releases/${r.key}/${r.pending.id}`;
+	}
+	if (r.tag !== null) return repoReleaseHref(repo, r.tag);
 	return `/releases/${r.key}`;
 }
 

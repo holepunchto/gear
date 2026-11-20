@@ -7,7 +7,7 @@
 	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
 	import Revoked from '$lib/components/releases/Revoked.svelte';
 	import Retired from '$lib/components/releases/Retired.svelte';
-	import { multisig, shortKey, signerName, tagHref } from '$lib/releases';
+	import { multisig, shortKey, signedHref, signerName } from '$lib/releases';
 
 	// What this repo released. The layout keeps it live. The key itself, its
 	// links and moving away from it are on the key page.
@@ -131,7 +131,7 @@
 						<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
 							<span class="text-[13px] text-fg-2">Latest release</span>
 							<a
-								href={tagHref(key.key, key.latest.tag)}
+								href={signedHref(key, key.latest.tag)}
 								class="font-display text-lg font-semibold text-seal-200 no-underline hover:underline"
 							>
 								{key.latest.name}
