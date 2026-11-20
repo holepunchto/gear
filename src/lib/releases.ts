@@ -49,6 +49,11 @@ export function proposalName(p: Pending, fallback = 'A release') {
 	return p.release?.name ?? fallback;
 }
 
+// A key with more than one signer: its releases get the full seal.
+export function multisig(signers: number) {
+	return signers >= 2;
+}
+
 // Where a repo's release badge links: the sign view when it waits on you,
 // the latest release, or the key.
 export function releaseHref(r: RepoRelease) {

@@ -10,6 +10,7 @@
 	import SeatDots from '$lib/components/releases/SeatDots.svelte';
 	import ReleaseCard from '$lib/components/releases/ReleaseCard.svelte';
 	import ReleaseInstall from '$lib/components/releases/ReleaseInstall.svelte';
+	import { multisig } from '$lib/releases';
 
 	let { children, data }: { children: Snippet; data: { repo: any } } = $props();
 
@@ -425,7 +426,11 @@
 				</svg>
 				Clone
 				{#if repo.release?.tag}
-					<span class="rounded-md bg-accent-900/15 px-1.5 py-px font-mono text-xs">
+					<span
+						class="rounded-md px-1.5 py-px font-mono text-xs {multisig(repo.release.signers)
+							? 'bg-seal-900 text-seal-100 shadow-[0_0_12px_rgb(139_92_246/0.6)]'
+							: 'text-seal-900 ring-1 ring-seal-900/60 ring-inset'}"
+					>
 						{repo.release.tag}
 					</span>
 				{/if}
@@ -592,10 +597,14 @@
 					{/if}
 					{#if tab.release}
 						{#if tab.release.version}
-							<span class="ml-1.5 font-mono text-xs text-fg">{tab.release.version}</span>
+							<span class="ml-1.5 font-mono text-xs text-seal-200">{tab.release.version}</span>
 						{/if}
 						<span class="ml-1.5 inline-flex">
-							<SeatDots n={tab.release.signers} filled={tab.release.quorum} />
+							<SeatDots
+								n={tab.release.signers}
+								filled={tab.release.quorum}
+								seal={!!tab.release.version}
+							/>
 						</span>
 						{#if tab.release.pending}
 							<span

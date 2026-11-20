@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SeatDots from './SeatDots.svelte';
-	import { proposalName, shortKey, type KeySummary } from '$lib/releases';
+	import { multisig, proposalName, shortKey, type KeySummary } from '$lib/releases';
 
 	let { keys }: { keys: KeySummary[] } = $props();
 
@@ -62,13 +62,16 @@
 		class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3 p-0"
 	>
 		{#each rows as { k, s } (k.key)}
+			{@const sealed = s.kind === 'done' && !!k.latest}
 			<li>
 				<a
 					href={s.href}
 					class="flex h-full flex-col gap-2.5 rounded-2xl p-4 text-fg no-underline ring-1 transition-colors ring-inset {s.kind ===
 					'you'
 						? 'bg-linear-170 from-[#1a140d] to-[#0f0d09] shadow-[0_0_30px_rgb(251_146_60/0.08)] ring-apricot-400/35'
-						: 'bg-surface ring-line hover:bg-surface-2'}"
+						: sealed && multisig(k.signers.length)
+							? 'bg-surface shadow-glow-seal ring-seal-400/30 hover:bg-surface-2'
+							: 'bg-surface ring-line hover:bg-surface-2'}"
 				>
 					<div class="flex items-baseline gap-2.5">
 						<span class="min-w-0 flex-1 truncate font-mono text-xs font-medium text-fg-2">
@@ -86,7 +89,7 @@
 						<span class="font-display text-[26px] font-semibold tracking-[-0.02em]"
 							>{s.version}</span
 						>
-						<SeatDots n={k.signers.length} filled={s.filled} size={9} />
+						<SeatDots n={k.signers.length} filled={s.filled} size={9} seal={sealed} />
 					</div>
 					<span class="text-xs font-medium {s.kind === 'done' ? 'text-fg-3' : 'text-apricot-300'}">
 						{s.status}

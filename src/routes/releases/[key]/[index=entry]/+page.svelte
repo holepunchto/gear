@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { PageProps } from './$types';
-	import SeatDots from '$lib/components/releases/SeatDots.svelte';
+	import ReleaseSeal from '$lib/components/releases/ReleaseSeal.svelte';
 	import ChangeList from '$lib/components/releases/ChangeList.svelte';
 	import KeyShare from '$lib/components/releases/KeyShare.svelte';
 	import CopyInstall from '$lib/components/releases/CopyInstall.svelte';
@@ -9,6 +9,7 @@
 		avatar,
 		changesSummary,
 		liveReleases,
+		multisig,
 		shortKey,
 		signerInitials,
 		signerName
@@ -72,16 +73,15 @@
 	<section class="flex flex-col gap-2.5">
 		<div class="flex flex-wrap items-center gap-3.5">
 			<h1
-				class="m-0 font-display text-[48px] leading-none font-semibold tracking-[-0.04em] break-all text-fg sm:text-[64px]"
+				class="m-0 font-display text-[48px] leading-none font-semibold tracking-[-0.04em] break-all text-seal-100 sm:text-[64px] {multisig(
+					key.signers.length
+				)
+					? 'text-glow-seal'
+					: ''}"
 			>
 				{r.name}
 			</h1>
-			<span
-				class="inline-flex items-center gap-1.5 rounded-full bg-accent-400/12 px-3 py-[5px] text-xs font-semibold text-accent-300"
-			>
-				<SeatDots n={key.signers.length} filled={key.quorum} />
-				{key.quorum} of {key.signers.length} signed
-			</span>
+			<ReleaseSeal quorum={key.quorum} signers={key.signers.length} />
 		</div>
 		<span class="text-fg-2">
 			<span class="font-mono text-fg">{key.name}</span> · entry #{r.index} of {key.length}

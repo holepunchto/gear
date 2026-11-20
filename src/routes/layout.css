@@ -93,6 +93,15 @@
 	--color-apricot-800: #9a3412;
 	--color-apricot-900: #7c2d12;
 
+	/* Seal — violet, only for signed releases. Multisig gets the glow. */
+	--color-seal-100: #ede9fe;
+	--color-seal-200: #ddd6fe;
+	--color-seal-300: #c4b5fd;
+	--color-seal-400: #a78bfa;
+	--color-seal-500: #8b5cf6;
+	--color-seal-700: #6d28d9;
+	--color-seal-900: #2e1065;
+
 	/* Type: Space Grotesk for names and headings, Inter for UI, JetBrains
 	   Mono only for hashes, URLs and code. */
 	--font-sans: 'Inter', ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
@@ -102,6 +111,7 @@
 	/* Glow: only live things get it (peers, sync, arriving blocks). */
 	--shadow-glow: 0 0 24px rgb(35 204 148 / 0.18);
 	--shadow-glow-strong: 0 0 10px #23cc94;
+	--shadow-glow-seal: 0 0 24px rgb(139 92 246 / 0.28);
 
 	/* Radii */
 	--radius-sm: 6px;
@@ -152,6 +162,10 @@
 
 @utility text-glow {
 	text-shadow: 0 0 12px rgb(35 204 148 / 0.6);
+}
+
+@utility text-glow-seal {
+	text-shadow: 0 0 10px rgb(139 92 246 / 0.8);
 }
 
 /* Syntax highlighting (highlight.js token classes), on the app palette:
