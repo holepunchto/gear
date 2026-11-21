@@ -109,9 +109,6 @@
 		{:else if name === 'releases'}
 			<path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.5 4-1.3 7-5.1 7-9.5V6z" />
 			<path d="m9 12 2 2 4-4" />
-		{:else if name === 'search'}
-			<circle cx="11" cy="11" r="7" />
-			<path d="m20 20-3.5-3.5" />
 		{:else}
 			<path
 				d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
@@ -271,7 +268,7 @@
 
 	<nav
 		aria-label="Main"
-		class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-20 grid h-[60px] grid-cols-4 rounded-[22px] bg-surface-3/85 p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.5)] ring-1 ring-line-strong backdrop-blur-lg ring-inset sm:hidden"
+		class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-20 grid h-[60px] grid-cols-3 rounded-[22px] bg-surface-3/85 p-1.5 shadow-[0_16px_40px_rgb(0_0_0/0.5)] ring-1 ring-line-strong backdrop-blur-lg ring-inset sm:hidden"
 	>
 		<a
 			href="/"
@@ -300,13 +297,6 @@
 		>
 			{@render navIcon('releases')}Releases
 		</a>
-		<button
-			type="button"
-			onclick={() => (overlayOpen = true)}
-			class="flex cursor-pointer flex-col items-center justify-center gap-[3px] rounded-2xl text-[11px] font-medium text-fg-2"
-		>
-			{@render navIcon('search')}Search
-		</button>
 	</nav>
 
 	{#if overlayOpen}
