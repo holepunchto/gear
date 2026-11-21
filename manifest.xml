@@ -4,7 +4,7 @@
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
   <application android:label="Gear" android:usesCleartextTraffic="true" android:icon="@mipmap/ic_launcher" android:enableOnBackInvokedCallback="true">
-    <activity android:name="to.holepunch.bare.Activity" android:exported="true" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+    <activity android:name="to.holepunch.bare.Activity" android:exported="true" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
