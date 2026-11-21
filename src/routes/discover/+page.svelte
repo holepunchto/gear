@@ -339,7 +339,9 @@
 								</p>
 							{/if}
 
-							<div class="mt-1 flex items-center gap-2.5 text-xs text-fg-3 tabular-nums">
+							<div
+								class="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-fg-3 tabular-nums"
+							>
 								<!-- Log scale, so a 50-block repo still registers next to a 10,000-block one. -->
 								<span class="h-1 w-16 overflow-hidden rounded-full bg-surface-4" aria-hidden="true">
 									<span
@@ -349,7 +351,8 @@
 								</span>
 								{size.toLocaleString()} blocks
 								{#if release}
-									<span class="ml-auto min-w-0"><ReleaseLine {release} /></span>
+									<!-- Its own line when the card is too narrow; a flex box so it truncates. -->
+									<span class="flex max-w-full min-w-0 sm:ml-auto"><ReleaseLine {release} /></span>
 								{/if}
 							</div>
 
