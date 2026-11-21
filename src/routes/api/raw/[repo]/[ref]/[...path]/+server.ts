@@ -11,8 +11,22 @@ import { openRepo, openDrive } from '$lib/server/repo';
  * try to detect a content-type — the viewer uses this as a "download raw"
  * escape hatch, and `application/octet-stream` with a filename is the safe
  * default.
+ *
+ * With `?inline` an image comes back as an image instead, so a README can show
+ * it. An SVG is sandboxed: opened on its own it must not run script on the
+ * app's origin.
  */
-export const GET: RequestHandler = async ({ params, locals }) => {
+const IMAGES: Record<string, string> = {
+	png: 'image/png',
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	gif: 'image/gif',
+	webp: 'image/webp',
+	avif: 'image/avif',
+	svg: 'image/svg+xml'
+};
+
+export const GET: RequestHandler = async ({ params, locals, url }) => {
 	const remote = await openRepo(locals.db, params.repo);
 	if (!remote) throw error(404, 'Repository not found');
 
@@ -30,6 +44,18 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	if (!buf) throw error(404, 'File content unavailable');
 
 	const name = cleanPath.slice(cleanPath.lastIndexOf('/') + 1);
+
+	const image = IMAGES[name.slice(name.lastIndexOf('.') + 1).toLowerCase()];
+	if (url.searchParams.has('inline') && image) {
+		return new Response(buf, {
+			headers: {
+				'content-type': image,
+				'content-length': String(buf.length),
+				'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+				'x-content-type-options': 'nosniff'
+			}
+		});
+	}
 
 	return new Response(buf, {
 		headers: {

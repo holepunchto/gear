@@ -1,12 +1,10 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
 	import FileIcon from '$lib/components/FileIcon.svelte';
-	import Code from '$lib/components/Code.svelte';
-	import MarkdownTable from '$lib/components/MarkdownTable.svelte';
+	import Markdown from '$lib/components/Markdown.svelte';
 	import { highlightLines, languageFor } from '$lib/highlight';
 	import { initials } from '$lib/initials';
 
@@ -354,10 +352,7 @@
 					prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3
 					sm:prose-pre:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[1em]"
 			>
-				<SvelteMarkdown
-					source={data.readme.content}
-					renderers={{ code: Code, table: MarkdownTable }}
-				/>
+				<Markdown source={data.readme.content} base={{ repo: repoName ?? '', ref, dir: path }} />
 			</div>
 		</div>
 	{/if}
@@ -372,7 +367,10 @@
 					prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3
 				sm:prose-pre:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[1em]"
 		>
-			<SvelteMarkdown source={data.content} renderers={{ code: Code, table: MarkdownTable }} />
+			<Markdown
+				source={data.content}
+				base={{ repo: repoName ?? '', ref, dir: path.split('/').slice(0, -1).join('/') }}
+			/>
 		</div>
 	{:else}
 		<div class="overflow-hidden rounded-b-2xl border border-line bg-surface">
