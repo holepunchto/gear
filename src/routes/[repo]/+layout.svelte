@@ -560,24 +560,27 @@
 		hidden={repo.syncing}
 		class="-mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0"
 	>
-		<div class="inline-flex gap-0.5 rounded-xl bg-surface p-1 ring-1 ring-line ring-inset">
+		<!-- On a phone the tabs share the row, so none scrolls out of sight. -->
+		<div class="flex gap-0.5 rounded-xl bg-surface p-1 ring-1 ring-line ring-inset sm:inline-flex">
 			{#each tabs as tab}
 				{@const active = tab.match(page.url.pathname)}
 				<a
 					href={tab.href}
 					aria-current={active ? 'page' : undefined}
-					class="inline-flex h-11 shrink-0 items-center rounded-[9px] px-3.5 sm:h-[34px] text-[13px] whitespace-nowrap no-underline transition-colors
+					class="inline-flex h-11 flex-1 shrink-0 items-center justify-center rounded-[9px] px-1.5 text-[13px] whitespace-nowrap no-underline transition-colors sm:h-[34px] sm:flex-none sm:px-3.5
 						{active
 						? 'bg-surface-4 font-semibold text-white shadow-[inset_0_0_0_1px_rgb(93_221_173/0.25),0_0_18px_rgb(35_204_148/0.15)]'
 						: 'font-medium text-fg-2 hover:text-fg'}"
 				>
 					{tab.label}
 					{#if tab.count !== undefined}
-						<span class="ml-1 text-fg-3 tabular-nums">{tab.count}</span>
+						<span class="ml-1 hidden text-fg-3 tabular-nums sm:inline">{tab.count}</span>
 					{/if}
 					{#if tab.release}
 						{#if tab.release.version}
-							<span class="ml-1.5 font-mono text-xs text-seal-200">{tab.release.version}</span>
+							<span class="ml-1.5 hidden font-mono text-xs text-seal-200 sm:inline"
+								>{tab.release.version}</span
+							>
 						{/if}
 						<span class="ml-1.5 inline-flex">
 							<SeatDots
