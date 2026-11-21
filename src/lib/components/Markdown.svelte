@@ -6,10 +6,13 @@
 	import MarkdownImage from './MarkdownImage.svelte';
 	import MarkdownTable from './MarkdownTable.svelte';
 	import HtmlNodes from './HtmlNodes.svelte';
+	import MarkdownAlert from './MarkdownAlert.svelte';
+	import Markdown from './Markdown.svelte';
 	import { segments, type Base } from '$lib/markdown';
 
 	// A repo's markdown: markdown runs through the renderer, block HTML through
-	// HtmlNodes, and relative paths resolve against `base`.
+	// HtmlNodes, alerts through MarkdownAlert, and relative paths resolve
+	// against `base`.
 	const { source, base }: { source: string; base: Base } = $props();
 
 	setContext('markdown-base', () => base);
@@ -18,7 +21,11 @@
 </script>
 
 {#each parts as part, i (i)}
-	{#if part.kind === 'html'}
+	{#if part.kind === 'alert'}
+		<MarkdownAlert alert={part.alert}>
+			<Markdown source={part.source} {base} />
+		</MarkdownAlert>
+	{:else if part.kind === 'html'}
 		<HtmlNodes nodes={parseDocument(part.source).children} {base} />
 	{:else}
 		<SvelteMarkdown

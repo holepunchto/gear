@@ -1,6 +1,13 @@
-import { marked } from 'marked';
+import { marked, type Tokens } from 'marked';
 
-export type Segment = { kind: 'markdown' | 'html'; source: string };
+export type Alert = 'note' | 'tip' | 'important' | 'warning' | 'caution';
+
+export type Segment =
+	| { kind: 'markdown' | 'html'; source: string }
+	| { kind: 'alert'; alert: Alert; source: string };
+
+// GitHub's alerts: a blockquote whose first line is [!NOTE], [!WARNING]…
+const ALERT = /^\s*\[!(note|tip|important|warning|caution)\][ \t]*(?:\n|$)/i;
 
 // The markdown renderer mangles nested HTML (an <h1> wrapping a <picture>
 // comes out as the text "<h1>"), so block-level HTML is split out and
@@ -20,7 +27,17 @@ export function segments(source: string): Segment[] {
 	};
 
 	for (const token of tokens) {
-		if (token.type === 'html' && token.block) {
+		const quote = token.type === 'blockquote' ? (token as Tokens.Blockquote).text : null;
+		const alert = quote === null ? null : ALERT.exec(quote);
+		if (quote !== null && alert) {
+			flush();
+			const body = quote.slice(alert[0].length);
+			out.push({
+				kind: 'alert',
+				alert: alert[1].toLowerCase() as Alert,
+				source: defs ? `${body}\n\n${defs}\n` : body
+			});
+		} else if (token.type === 'html' && token.block) {
 			flush();
 			out.push({ kind: 'html', source: token.raw });
 		} else {
