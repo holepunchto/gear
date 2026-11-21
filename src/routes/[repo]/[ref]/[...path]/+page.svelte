@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import CommitMessage from '$lib/components/CommitMessage.svelte';
 	import FileIcon from '$lib/components/FileIcon.svelte';
-	import Code from '$lib/components/Code.svelte';
+	import Markdown from '$lib/components/Markdown.svelte';
 	import { highlightLines, languageFor } from '$lib/highlight';
 	import { initials } from '$lib/initials';
 
@@ -64,6 +64,14 @@
 
 	function isoDate(timestampSeconds: number) {
 		return new Date(timestampSeconds * 1000).toISOString();
+	}
+
+	// The whole row opens the item. A stretched link can't do it: WebKit doesn't
+	// make a <tr> the containing block, so the overlay spills onto the README.
+	function openRow(e: MouseEvent, href: string) {
+		if ((e.target as Element).closest('a')) return;
+		if (window.getSelection()?.toString()) return;
+		goto(href);
 	}
 </script>
 
@@ -241,8 +249,11 @@
 			<table class="w-full border-collapse text-[13px]">
 				<tbody>
 					{#each data.items as item (item.name)}
+						<!-- The name link is the keyboard path; the row click only widens the target. -->
+						<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 						<tr
-							class="relative border-b border-white/[0.035] transition-colors last:border-b-0 hover:bg-surface-2"
+							class="cursor-pointer border-b border-white/[0.035] transition-colors last:border-b-0 hover:bg-surface-2"
+							onclick={(e) => openRow(e, `/${repoName}/${ref}${item.path}`)}
 						>
 							<td class="w-7 py-3 pr-0 pl-3.5 align-middle sm:pl-[18px]">
 								{#if item.kind === 'dir'}
@@ -264,10 +275,9 @@
 								{/if}
 							</td>
 							<td class="w-1/3 max-w-0 py-3 pr-4 pl-3 align-middle">
-								<!-- Stretched link — the before: overlay makes the whole row navigate. -->
 								<a
 									href="/{repoName}/{ref}{item.path}"
-									class="block truncate font-medium text-fg no-underline before:absolute before:inset-0 hover:text-accent-300"
+									class="block truncate font-medium text-fg no-underline hover:text-accent-300"
 								>
 									{item.name}
 								</a>
@@ -342,7 +352,7 @@
 					prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3
 					sm:prose-pre:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[1em]"
 			>
-				<SvelteMarkdown source={data.readme.content} renderers={{ code: Code }} />
+				<Markdown source={data.readme.content} base={{ repo: repoName ?? '', ref, dir: path }} />
 			</div>
 		</div>
 	{/if}
@@ -357,7 +367,10 @@
 					prose-pre:rounded-md prose-pre:bg-neutral-950 prose-pre:p-3
 				sm:prose-pre:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[1em]"
 		>
-			<SvelteMarkdown source={data.content} renderers={{ code: Code }} />
+			<Markdown
+				source={data.content}
+				base={{ repo: repoName ?? '', ref, dir: path.split('/').slice(0, -1).join('/') }}
+			/>
 		</div>
 	{:else}
 		<div class="overflow-hidden rounded-b-2xl border border-line bg-surface">
