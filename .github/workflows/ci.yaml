@@ -15,14 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     name: Lint
     steps:
-      # Before node-base, which runs the install itself. npm resolves a
-      # git+pear:// dependency by spawning git+pear, which the gip CLI provides.
-      - name: Install pear and the gip CLI
+      - name: gip
         shell: bash
         run: |
-          curl -fsSL https://install.pears.com/pear.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/pear" install pear://gipjk71nbuj3zasm4ywczb93zqk5xbfup16c6d5j8w8yeja4ob6o
+          npx -y pear-install pear://gipjk71nbuj3zasm4ywczb93zqk5xbfup16c6d5j8w8yeja4ob6o
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "$LOCALAPPDATA\\Programs\\gip" >> "$GITHUB_PATH"
+          else
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
 
       - uses: holepunchto/actions/node-base@v1
         with:
@@ -59,24 +60,15 @@ jobs:
       - name: Setup repo
         uses: holepunchto/actions/.github/steps/setup-repo@v1
 
-      - name: Install pear and the gip CLI
-        if: runner.os != 'Windows'
+      - name: gip
         shell: bash
         run: |
-          curl -fsSL https://install.pears.com/pear.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/pear" install pear://gipjk71nbuj3zasm4ywczb93zqk5xbfup16c6d5j8w8yeja4ob6o
-
-      - name: Install pear and the gip CLI (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          irm https://install.pears.com/pear.ps1 | iex
-          $pear = Join-Path $env:LOCALAPPDATA 'Programs\pear'
-          $gip = Join-Path $env:LOCALAPPDATA 'Programs\gip'
-          $pear | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-          $gip | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-          & (Join-Path $pear 'pear.exe') install pear://gipjk71nbuj3zasm4ywczb93zqk5xbfup16c6d5j8w8yeja4ob6o
+          npx -y pear-install pear://gipjk71nbuj3zasm4ywczb93zqk5xbfup16c6d5j8w8yeja4ob6o
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "$LOCALAPPDATA\\Programs\\gip" >> "$GITHUB_PATH"
+          else
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
 
       - name: Install w/ dev deps
         run: npm install
