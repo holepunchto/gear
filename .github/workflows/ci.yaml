@@ -31,10 +31,6 @@ jobs:
       - run: npm run lint
       - run: npm run check
 
-  # One runner per host, because the packaging tools are not cross-platform:
-  # codesign and notarytool are macOS-only, MSIX needs makeappx from the
-  # Windows SDK, and bare-app-image is published as an os:linux package. Only
-  # the JS side of bare-build cross-builds.
   build:
     name: ${{ matrix.host }}
     strategy:
