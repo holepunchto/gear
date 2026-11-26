@@ -4,19 +4,19 @@ import path from 'path';
 import fs from 'fs';
 import { spawnSync } from 'child_process';
 import { isAndroid, isIOS, isWindows } from 'which-runtime';
-import Install from 'pear-install';
+import Repo from 'pear-repo';
 
 // The gip CLI and the git remote helper that comes with it, as a Pear link.
-// Installing it is pear-install fetching the prebuilt binaries for this host off
+// Installing it is pear-repo fetching the prebuilt binaries for this host off
 // the swarm, so it needs neither npm nor a toolchain — which matters because the
 // thing being installed is what makes `git clone git+pear://` work in the first
 // place, and telling someone to install Node first to get it is a worse answer.
 export const CLI_LINK = 'pear://gipjk71nbuj3zasm4ywczb93zqk5xbfup16c6d5j8w8yeja4ob6o';
 
 // The equivalent for someone who would rather run it themselves.
-export const INSTALL_COMMAND = `npx pear-install ${CLI_LINK}`;
+export const INSTALL_COMMAND = `pear install ${CLI_LINK}`;
 
-// Where pear-install puts a package's `bin` entries. On Windows it nests them
+// Where pear-repo puts a package's `bin` entries. On Windows it nests them
 // under the app's name, which is gip-transport's productName, not its name.
 const BIN_DIR = isWindows
 	? path.join(
@@ -39,7 +39,7 @@ function sh(cmd: string, timeout: number) {
 	};
 }
 
-export type CliStatus = { installed: boolean; path: string | null; npm: boolean };
+export type CliStatus = { installed: boolean; path: string | null; pear: boolean };
 
 export function cliStatus(): CliStatus | null {
 	if (isAndroid || isIOS) return null;
@@ -47,37 +47,41 @@ export function cliStatus(): CliStatus | null {
 	// Looked for in two places because they answer different questions. The file
 	// is whether it is installed; the shell is whether git will find it, which is
 	// what actually matters for cloning. They disagree right after an install:
-	// pear-install appends its bin directory to the user's PATH, and neither an
+	// pear-repo appends its bin directory to the user's PATH, and neither an
 	// already-open shell nor this process has picked that up yet — so the file
 	// check is what stops a successful install from reporting as a failure.
 	const installed = path.join(BIN_DIR, HELPER);
 	if (fs.existsSync(installed)) {
-		return { installed: true, path: installed, npm: sh('command -v npm', 10_000).ok };
+		return { installed: true, path: installed, pear: sh('command -v pear', 10_000).ok };
 	}
 
 	const helper = sh(`command -v '${HELPER}'`, 10_000);
-	const npm = sh('command -v npm', 10_000);
+	const pear = sh('command -v pear', 10_000);
 	return {
 		installed: helper.ok,
 		path: helper.ok ? (helper.stdout.split('\n').pop() ?? null) : null,
-		npm: npm.ok
+		pear: pear.ok
 	};
 }
 
 export async function installCli(): Promise<{ ok: boolean; error?: string }> {
-	// interactive: false because there is no terminal behind this — it runs inside
+	// confirm: false because there is no terminal behind this — it runs inside
 	// the packaged app, from a button. Anything the install would otherwise stop
 	// to ask would hang on a prompt nobody can see.
-	const install = new Install({ link: CLI_LINK, interactive: false });
+	const repo = new Repo({ confirm: false });
+	let failed: string | null = null;
 
 	try {
-		await install.ready();
+		for await (const { tag, data } of repo.install(CLI_LINK)) {
+			if (tag === 'error') failed = String(data.message ?? '').trim() || 'install failed';
+		}
 	} catch (err) {
-		const message = (err as Error).message?.trim();
-		return { ok: false, error: message || 'install failed' };
+		failed = (err as Error).message?.trim() || 'install failed';
 	} finally {
-		await install.close().catch(() => {});
+		await repo.close().catch(() => {});
 	}
+
+	if (failed !== null) return { ok: false, error: failed };
 
 	if (!cliStatus()?.installed) {
 		return { ok: false, error: `installed, but no ${HELPER} in ${BIN_DIR}` };

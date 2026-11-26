@@ -21,8 +21,7 @@
 		"../src/service-worker.d.ts",
 		"../src/service-worker/**/*.d.ts",
 		"../git-remote-punch-transport/**",
-		"../pear-install/**",
-		"../pear-repo-updater/**",
+		"../pear-repo/**",
 		"../pear-runtime/**",
 		"../pear-mobile/**"
 	]

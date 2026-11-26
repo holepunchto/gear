@@ -91,7 +91,7 @@ export function repoAt(store, key, length, { timeout }) {
 
 /**
  * The first length in (`from`, `to`] that ends a write and has tag `name`,
- * the way pear-repo-updater finds it: tags only accumulate, so it bisects.
+ * the way pear-repo's updater finds it: tags only accumulate, so it bisects.
  * `from` is a length known not to have it (0 for none), `to` one that does;
  * both end writes. A probe reads the end of the write its length falls in.
  * A tag that moved in between is caught later, by comparing it at the length

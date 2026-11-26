@@ -3,7 +3,14 @@ import Id from 'hypercore-id-encoding';
 import { events } from '$lib/server/events';
 import { cliStatus, installCli, INSTALL_COMMAND } from '$lib/server/cli';
 import { getReleases } from '$lib/server/release-service';
-import { getUpdateState, getBuildLog, applyUpdate, canRestart, restart } from '$lib/server/pear';
+import {
+	getUpdateState,
+	getBuildLog,
+	applyUpdate,
+	checkUpdate,
+	canRestart,
+	restart
+} from '$lib/server/pear';
 import pkg from '../../../package.json' with { type: 'json' };
 import type { Actions, PageServerLoad } from './$types';
 
@@ -84,6 +91,14 @@ export const actions: Actions = {
 		const result = await applyUpdate();
 		if (!result.ok) return fail(500, { applyUpdate: { error: result.error } });
 		return { applyUpdate: { ok: true } };
+	},
+
+	check: async () => {
+		const result = await checkUpdate();
+		if (!result.ok) {
+			return fail(500, { check: { found: null, none: null, error: result.error } });
+		}
+		return { check: { found: result.found ?? null, none: result.none ?? null, error: null } };
 	},
 
 	// Answers, then exits — so the page should not count on this response

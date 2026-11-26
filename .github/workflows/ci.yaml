@@ -91,9 +91,12 @@ jobs:
       # a macOS .app twice over: the inner Mach-O stops being executable and
       # the Frameworks symlinks vanish, invalidating the code signature and
       # the notarization staple. A tar round-trip keeps modes and links.
+      # Everything under out/ for this host: the app in out/make/<host>, which
+      # is what pear-repo collects, and on Windows the certificate in
+      # out/cer/<host>, which the release job places beside the MSIX.
       - name: Pack artifact
         shell: bash
-        run: tar -czf ${{ matrix.host }}.tar.gz -C out ${{ matrix.host }}
+        run: tar -czf ${{ matrix.host }}.tar.gz -C out .
 
       - uses: actions/upload-artifact@v4
         if: startsWith(github.ref, 'refs/tags/v')
@@ -102,8 +105,9 @@ jobs:
           path: ${{ matrix.host }}.tar.gz
 
   # Collecting every host on one runner is what makes the matrix workable:
-  # `pear build` only mirrors files into the by-arch layout, so it does not
-  # care which machine produced them.
+  # pear-build only mirrors files into the by-arch layout, so it does not care
+  # which machine produced them — and pear-repo calls it in process, so this
+  # runner needs node and nothing else.
   release:
     name: Deployment folder
     needs: build

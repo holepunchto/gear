@@ -23,11 +23,6 @@ declare module 'hyperconf' {
 	export default Hyperconf;
 }
 
-declare module 'pear-repo-updater' {
-	const PearRepoUpdater: any;
-	export default PearRepoUpdater;
-}
-
 declare module 'hyperbee2' {
 	const Hyperbee: any;
 	export default Hyperbee;
@@ -80,15 +75,78 @@ declare module 'sveltekit-adapter-bare' {
 	export const vitePlugin: any;
 }
 
-// The ../pear-install checkout, which has the source-install path the published
-// package does not. pear-repo-updater asks for `pear-install` by name and npm
-// dedupes it to this one, so the app and the updater share a single copy.
-declare module 'pear-install' {
-	export default class Install {
-		constructor(opts: { link: string; to?: string; interactive?: boolean; ref?: string });
+// Everything that is not a build: the dependency resolution, the source install,
+// the release collection — and the updater, which it holds the way pear-runtime
+// holds pear-runtime-updater.
+declare module 'pear-repo' {
+	export type Op = { tag: string; data: Record<string, unknown> };
+
+	export class Updater {
+		constructor(config: {
+			repo: Repo;
+			dir: string;
+			upgrade: string;
+			name: string;
+			version?: string;
+			app?: string;
+			bundled?: boolean;
+			delay?: number;
+			updates?: boolean;
+			skipUpdate?: ((release: { tag: string; version: string }) => boolean) | null;
+		});
+
+		readonly release: { tag: string; version: string; link: string } | null;
+		readonly updated: boolean;
+		readonly building: boolean;
+		readonly nextVersion: string | null;
 		ready(): Promise<void>;
 		close(): Promise<void>;
-		on(event: string, listener: (data: Record<string, unknown>) => void): this;
+		applyUpdate(): Promise<void>;
+		check(): Promise<{ tag: string; version: string; link: string } | null>;
+		on(event: string, listener: (...args: any[]) => void): this;
+	}
+
+	export default class Repo {
+		constructor(config?: {
+			root?: string;
+			dir?: string;
+			confirm?: boolean;
+			inherit?: boolean;
+			toolchain?: Record<string, string>;
+			lifecycle?: Record<string, unknown>;
+			hosts?: string[];
+			out?: string;
+			release?: { target?: string | null; prepare?: string | null; config?: string | false };
+			label?: string;
+			store?: unknown;
+			swarm?: unknown;
+			bootstrap?: unknown;
+			storage?: unknown;
+			home?: string;
+		});
+
+		ready(): Promise<void>;
+
+		resolve(opts?: { unmet?: string | false }): AsyncIterable<Op>;
+		release(opts?: { paths?: string[]; hosts?: string[]; to?: string }): AsyncIterable<Op>;
+		make(
+			source?: string,
+			opts?: {
+				hosts?: string[];
+				line?: string[];
+				ref?: string;
+				options?: Record<string, unknown>;
+				install?: boolean | string;
+			}
+		): AsyncIterable<Op>;
+		install(source: string, opts?: { to?: string }): AsyncIterable<Op>;
+		close(): Promise<void>;
+
+		static Updater: typeof Updater;
+		static HOSTS: Record<string, unknown>;
+		static current(): string;
+		static isLink(source: string): boolean;
+		static isPear(spec: string): boolean;
 	}
 }
 

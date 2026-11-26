@@ -11,14 +11,16 @@
 #
 # What it sets up:
 #
-#   1. pear-repo-updater is pushed to its git+pear remote, because that is where
-#      the app installs it from — local edits to it are invisible until pushed.
-#   2. Gear's working tree is pushed to gear-demo as the NEXT patch version,
+#   1. Gear's working tree is pushed to gear-demo as the NEXT patch version,
 #      tagged, in a single push. The tag has to be the last thing on that log:
 #      the updater resolves a tag to the log length it was pushed at and clones
 #      that checkout, so anything pushed afterwards would not be in the build.
-#   3. The local app is built at its CURRENT version, which is older than the
+#   2. The local app is built at its CURRENT version, which is older than the
 #      tag just pushed. That difference is the whole update.
+#
+# Gear's dependencies are not this script's to publish: a clone resolves them
+# from the registry or from their own published links, whatever is in
+# package-lock.json. Publish one from its own checkout when it needs publishing.
 #
 # Then it launches the app and waits. Nothing builds until the button is
 # clicked — that click is what starts the rebuild, which is the point of
@@ -31,10 +33,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UPDATER="$(cd "$ROOT/../pear-repo-updater" && pwd)"
-PEAR_INSTALL="$(cd "$ROOT/../pear-install" && pwd)"
 HOST="$(node -p 'process.platform + "-" + process.arch')"
-APP="$ROOT/out/$HOST/Gear.app"
+APP="$ROOT/out/make/$HOST/Gear.app"
 EXE="$APP/Contents/MacOS/Gear"
 
 STAGE="${1:-all}"
@@ -49,44 +49,10 @@ command -v gip >/dev/null || die "gip not on PATH — install gip-transport's bi
 command -v 'git-remote-git+pear' >/dev/null ||
   die "git-remote-git+pear not on PATH — git cannot speak git+pear:// without it"
 
-[ -d "$UPDATER" ] || die "pear-repo-updater not found at $UPDATER"
-[ -d "$PEAR_INSTALL" ] || die "pear-install not found at $PEAR_INSTALL"
-
-# Commit anything outstanding and push to the repo's gip remote. Both of Gear's
-# git+pear dependencies live in sibling checkouts, and the rebuild clones Gear
-# into a temp directory where no sibling exists — so whatever is not pushed is
-# not in the build, whatever it says locally.
 # The remote that speaks git+pear, whatever it is called — these repos name it
 # `pear` or `origin` depending on how they were set up.
 gip_remote() {
   git -C "$1" remote -v | awk '$3 == "(push)" && $2 ~ /^git\+pear:\/\// { print $1; exit }'
-}
-
-publish_repo() {
-  local dir="$1" name="$2"
-  local remote
-  remote="$(gip_remote "$dir")"
-  [ -n "$remote" ] || die "$name at $dir has no git+pear remote"
-  say "publishing $name"
-  cd "$dir"
-  # A push needs a commit, but it does not need to be yours. Uncommitted work
-  # goes out as a detached commit object: the demo gets the code it is about to
-  # build, and the branch is left exactly where you put it. These are real
-  # branches headed for real history — only the remote is disposable.
-  local head
-  head="$(git rev-parse HEAD)"
-  if [ -n "$(git status --porcelain)" ]; then
-    git add -A
-    head="$(git stash create)"
-    git reset -q
-    note "publishing uncommitted work as $(git rev-parse --short "$head") (branch untouched)"
-  fi
-  # Forced, like the gear-demo push below: these branches get rebased and squashed
-  # between runs, so the remote tip is routinely not an ancestor of HEAD. There is
-  # no way to tell that apart from someone else's work, which is one more reason
-  # this script is only for remotes whose history does not matter.
-  git push -q --force "$remote" "${head}:refs/heads/main"
-  note "pushed $(git rev-parse --short "$head") to $remote"
 }
 
 # The bundle layout below is macOS-specific. Linux would be Gear.AppImage and
@@ -161,9 +127,6 @@ fi
 # ── Publish ──────────────────────────────────────────────────────────────────
 
 if [ "$STAGE" = all ] || [ "$STAGE" = publish ]; then
-  publish_repo "$PEAR_INSTALL" pear-install
-  publish_repo "$UPDATER" pear-repo-updater
-
   say "publishing gear-demo $NEXT_VERSION"
   cd "$ROOT"
   if [ -n "$(git status --porcelain)" ]; then
@@ -197,36 +160,6 @@ fi
 # ── Build ────────────────────────────────────────────────────────────────────
 
 if [ "$STAGE" = all ] || [ "$STAGE" = build ]; then
-  # The app bundles whatever is in node_modules, and a push alone does not change
-  # that: npm records the resolved commit of a git+pear dependency in
-  # package-lock.json, so a later `npm install` reinstalls that same commit no
-  # matter what the remote now holds. `npm update` re-resolves the ref. Without
-  # this step, pushing a dependency and then building is exactly how a change
-  # appears to have no effect.
-  #
-  # No peer needed: the links carry no ?storage=, so this reads the same ~/.gip
-  # that was just pushed to.
-  say "re-resolving the git+pear dependencies"
-  cd "$ROOT"
-  # `npm update` keeps the locked commit when the url has not changed, so drop these
-  # from the lock and let the install resolve them again. That is the only way a push
-  # reaches the build.
-  node -e '
-    const fs = require("fs")
-    const lock = JSON.parse(fs.readFileSync("package-lock.json"))
-    for (const name of ["pear-install", "pear-repo-updater"]) {
-      for (const key of Object.keys(lock.packages)) {
-        if (key === "node_modules/" + name || key.startsWith("node_modules/" + name + "/")) {
-          delete lock.packages[key]
-        }
-      }
-    }
-    fs.writeFileSync("package-lock.json", JSON.stringify(lock, null, 2) + "\n")
-  '
-  npm i
-  note "pear-install      $(node -p "require('$ROOT/package-lock.json').packages['node_modules/pear-install'].resolved.split('#')[1].slice(0,7)")"
-  note "pear-repo-updater $(node -p "require('$ROOT/package-lock.json').packages['node_modules/pear-repo-updater'].resolved.split('#')[1].slice(0,7)")"
-
   say "building Gear $APP_VERSION for $HOST"
   cd "$ROOT"
   npm run make -- --host "$HOST"

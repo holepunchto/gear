@@ -11,6 +11,15 @@
 	let installing = $state(false);
 	let restarting = $state(false);
 	let copiedCommand = $state(false);
+	let moreOpen = $state(false);
+
+	const checkNote = $derived.by(() => {
+		const check = form?.check;
+		if (check?.found) return { text: `${check.found} found`, tone: 'text-accent-300' };
+		if (check?.none) return { text: `nothing newer than ${check.none}`, tone: 'text-neutral-400' };
+		if (check?.error) return { text: check.error, tone: 'text-red-400' };
+		return { text: 'Builds from source — this takes a few minutes.', tone: 'text-neutral-400' };
+	});
 
 	async function copyCommand() {
 		try {
@@ -53,13 +62,16 @@
 	$effect(() => {
 		// Referenced so this re-runs on every appended line.
 		buildLog.length;
-		if (logBox && logPinned) logBox.scrollTop = logBox.scrollHeight;
+		if (!logBox || !logPinned) return;
+		const box = logBox;
+		tick().then(() => requestAnimationFrame(() => (box.scrollTop = 0)));
 	});
+
+	const logLines = $derived([...buildLog].reverse());
 
 	function onLogScroll() {
 		if (!logBox) return;
-		const distance = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight;
-		logPinned = distance < 24;
+		logPinned = Math.abs(logBox.scrollTop) < 24;
 	}
 
 	const updateLabel = $derived.by(() => {
@@ -337,11 +349,11 @@
 							{copiedCommand ? 'Copied' : 'Copy'}
 						</button>
 						<p class="col-span-2 m-0 text-xs text-neutral-500">
-							Or run it yourself.{#if !data.cli.npm}&nbsp;This command needs <a
-									href="https://nodejs.org"
+							Or run it yourself.{#if !data.cli.pear}&nbsp;This command needs the <a
+									href="https://install.pears.com"
 									target="_blank"
 									rel="noreferrer"
-									class="text-accent-400">Node.js</a
+									class="text-accent-400">Pear runtime</a
 								>, which wasn't found in your shell — the button above doesn't.{/if}
 						</p>
 					</div>
@@ -392,8 +404,99 @@
 	{#if update.status !== 'idle' || data.version}
 		<section
 			id="updates"
-			class="mb-5 scroll-mt-24 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
+			class="relative mb-5 scroll-mt-24 rounded-lg border border-neutral-800 bg-neutral-900"
 		>
+				{#if update.status !== 'building' && update.status !== 'applied'}
+					{@const pending = update.status === 'available' ? update.version : null}
+					{@const stale = update.status === 'failed' ? update.version : null}
+					{@const split = stale !== null}
+					{@const skin = pending
+						? {
+								text: 'text-accent-300',
+								ring: 'ring-accent-400/40',
+								fill: 'bg-accent-400/10',
+								hover: 'hover:bg-accent-400/20'
+							}
+						: stale
+							? {
+									text: 'text-amber-300',
+									ring: 'ring-amber-400/40',
+									fill: 'bg-amber-400/10',
+									hover: 'hover:bg-amber-400/20'
+								}
+							: {
+									text: 'text-neutral-200',
+									ring: 'ring-neutral-700',
+									fill: 'bg-neutral-800',
+									hover: 'hover:bg-neutral-700'
+								}}
+					{@const open = split && moreOpen}
+					<div class="absolute top-3 right-[17px] z-20">
+						<div class="flex items-stretch">
+							<form
+								method="POST"
+								action={pending ? '?/applyUpdate' : '?/check'}
+								use:enhance
+								onsubmit={() => (moreOpen = false)}
+							>
+								<button
+									type="submit"
+									disabled={update.status === 'checking'}
+									class="cursor-pointer inline-flex h-[41px] items-center justify-center rounded-l-lg px-4 text-[15px] font-semibold ring-1 ring-inset transition-colors disabled:opacity-60 {skin.text} {skin.ring} {skin.fill} {skin.hover} {split ? '' : 'rounded-r-lg'} {open ? 'rounded-bl-none' : ''}"
+								>
+									{#if update.status === 'checking'}
+										Checking…
+									{:else if pending}
+										Install {pending}
+									{:else if stale}
+										Fix Check
+									{:else}
+										Check
+									{/if}
+								</button>
+							</form>
+							{#if split}
+								<button
+									type="button"
+									aria-label="Other update actions"
+									aria-expanded={moreOpen}
+									disabled={update.status === 'checking'}
+									onclick={() => (moreOpen = !moreOpen)}
+									class="cursor-pointer ml-px inline-flex h-[41px] items-center rounded-r-lg px-3 ring-1 ring-inset transition-colors disabled:opacity-60 {skin.text} {skin.ring} {skin.fill} {skin.hover} {open ? 'rounded-br-none' : ''}"
+								>
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="3"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										aria-hidden="true"
+									>
+										<path d="M6 9l6 6 6-6" />
+									</svg>
+								</button>
+							{/if}
+						</div>
+						{#if split}
+							<div
+								hidden={!moreOpen}
+								class="absolute top-full right-0 z-20 -mt-px w-full overflow-hidden rounded-b-lg bg-neutral-900 shadow-lg ring-1 ring-inset {skin.ring}"
+							>
+								<form method="POST" action="?/applyUpdate" use:enhance onsubmit={() => (moreOpen = false)}>
+									<button
+										type="submit"
+										class="cursor-pointer block w-full px-4 py-2.5 text-left text-[15px] font-semibold whitespace-nowrap transition-colors {skin.text} {skin.hover}"
+									>
+										Rebuild {stale ?? data.version}
+									</button>
+								</form>
+							</div>
+						{/if}
+					</div>
+				{/if}
 			<div class="border-b border-neutral-800 px-5 py-3.5">
 				<h2 class="m-0 text-[15px] font-semibold text-white">Updates</h2>
 				<p class="m-0 mt-0.5 text-xs text-neutral-400">
@@ -430,16 +533,16 @@
 					</div>
 				{/if}
 
-				{#if buildLog.length > 0 && update.status !== 'idle' && update.status !== 'checking'}
+				{#if buildLog.length > 0 && update.status !== 'idle'}
 					<!-- The build runs detached with no terminal, so this is the only
 					     place its output is visible. Scrolls itself unless the user
 					     has scrolled up to read something. -->
 					<div
 						bind:this={logBox}
 						onscroll={onLogScroll}
-						class="mt-3 max-h-44 overflow-y-auto rounded-md border border-neutral-800 bg-black/40 px-3 py-2 font-mono text-[11px] leading-relaxed text-neutral-400"
+						class="mt-3 flex max-h-44 flex-col-reverse overflow-y-auto rounded-md border border-neutral-800 bg-black/40 px-3 py-2 font-mono text-[11px] leading-relaxed text-neutral-400"
 					>
-						{#each buildLog as line, i (i)}
+						{#each logLines as line, i (i)}
 							<div class="break-all whitespace-pre-wrap">{line}</div>
 						{/each}
 					</div>
@@ -457,41 +560,27 @@
 							// default "apply the response" path has nothing to apply.
 							return async () => {};
 						}}
-						class="mt-3"
+						class="absolute top-3 right-[17px] z-20"
 					>
 						<button
 							type="submit"
 							disabled={restarting}
-							class="inline-flex items-center justify-center rounded-md bg-accent-500 px-3.5 py-2 text-sm font-semibold text-accent-900 hover:bg-accent-400 disabled:opacity-60"
+							class="cursor-pointer inline-flex h-[41px] items-center justify-center rounded-lg bg-pear-400/10 px-4 text-[15px] font-semibold text-pear-300 ring-1 ring-pear-400/40 ring-inset transition-colors hover:bg-pear-400/20 disabled:opacity-60"
 						>
 							{restarting ? 'Restarting…' : 'Restart Gear'}
 						</button>
-						{#if restarting}
-							<p class="m-0 mt-2 text-xs text-neutral-400">
-								This window closes as the new version starts.
-							</p>
-						{/if}
 					</form>
+					{#if restarting}
+						<p class="m-0 mt-2 text-xs text-neutral-400">
+							This window closes as the new version starts.
+						</p>
+					{/if}
 				{/if}
 
-				{#if update.status === 'available' || update.status === 'failed'}
-					<!-- Pressing this is what starts the build. It is also the consent
-					     that lets the build raise a Windows permission dialog for its
-					     signing certificate, which is why nothing happens until now.
-					     The request stays open for the whole rebuild; progress comes
-					     over SSE, not from its response. -->
-					<form method="POST" action="?/applyUpdate" use:enhance class="mt-3">
-						<button
-							type="submit"
-							class="inline-flex items-center justify-center rounded-md bg-accent-500 px-3.5 py-2 text-sm font-semibold text-accent-900 hover:bg-accent-400 disabled:opacity-60"
-						>
-							{update.status === 'failed' ? 'Retry update' : 'Install update'}
-						</button>
-						<p class="m-0 mt-2 text-xs text-neutral-400">
-							Builds from source — this takes a few minutes.
-						</p>
-					</form>
+				{#if update.status !== 'building' && update.status !== 'applied'}
+					<p class="m-0 mt-2 text-xs {checkNote.tone}">{checkNote.text}</p>
 				{/if}
+
 			</div>
 		</section>
 	{/if}

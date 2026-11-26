@@ -11,10 +11,20 @@
 // package.json), and runs the post-steps bare-build doesn't cover — notarizing,
 // stapling and the dmg on macOS.
 //
-// Artifacts land in out/<host>/ and are named after package.json#productName,
-// which is what `pear build` requires. scripts/release.js collects them.
+// Artifacts land in out/make/<host>/ and are named after package.json#productName,
+// which is what pear-build requires. A host directory holds the app and nothing
+// else — that is what scripts/release.js hands pear-repo to collect — so the
+// signing certificate goes to out/cer/<host>/ instead.
 
-import { existsSync, readFileSync, readSync, rmSync, mkdtempSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	readSync,
+	rmSync,
+	mkdtempSync,
+	writeFileSync
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -48,18 +58,18 @@ const HOSTS = {
 // ── Args ──────────────────────────────────────────────────────────────────────
 
 let host = `${process.platform}-${process.arch}`;
-let yes = false;
+// Answer yes to the Windows certificate prompt rather than asking. pear-repo
+// sets PEAR_MAKE_CONFIRM=0 when it spawns this step with nobody watching — an
+// OTA rebuild, where the certificate was already created and trusted by the
+// install that put the app there, and is only recreated if it has since expired
+// or been removed. -y is the same answer, given by hand.
+let yes = process.env.PEAR_MAKE_CONFIRM === '0';
 const argv = process.argv.slice(2);
 
 for (let i = 0; i < argv.length; i++) {
 	const arg = argv[i];
 	if (arg === '--host') host = argv[++i];
 	else if (arg.startsWith('--host=')) host = arg.slice('--host='.length);
-	// Answer yes to the Windows certificate prompt rather than asking. Passed by
-	// pear-install when it is driving a source install nobody is watching — an
-	// OTA rebuild, where the certificate was already created and trusted by the
-	// install that put the app there, and is only recreated if it has since
-	// expired or been removed.
 	else if (arg === '-y' || arg === '--yes') yes = true;
 	else fail(`Unknown argument: ${arg}\nUsage: node scripts/make.js [--host <host>] [-y]`);
 }
@@ -69,7 +79,8 @@ if (!HOSTS[host]) {
 }
 
 const { os, artifact } = HOSTS[host];
-const out = join(ROOT, 'out', host);
+const out = join(ROOT, 'out', 'make', host);
+const certs = join(ROOT, 'out', 'cer', host);
 
 // bare-build ships prebuilt runtimes for every host, so the JS side
 // cross-builds fine. The packaging and signing tools do not, so three of the
@@ -342,7 +353,9 @@ function isTrusted(thumbprint) {
 // time, but someone installing a prebuilt MSIX from a channel has no build to
 // do it for them and needs the file.
 function exportCertificate() {
-	const cer = join(out, `${NAME}.cer`);
+	const cer = join(certs, `${NAME}.cer`);
+
+	mkdirSync(certs, { recursive: true });
 
 	section('export certificate');
 	powershell(
@@ -397,7 +410,7 @@ function trustCertificate(cer) {
 		// Written to a file rather than nested inside Start-Process's argument
 		// list: quoting a command through two layers of PowerShell parsing is how
 		// this breaks.
-		const script = join(out, 'trust-certificate.ps1');
+		const script = join(certs, 'trust-certificate.ps1');
 		writeFileSync(script, `$ErrorActionPreference = 'Stop'\n${command}\n`);
 		// Tolerant: declining the UAC dialog makes Start-Process throw, which is
 		// a normal outcome here, not a broken build. The check below turns it
@@ -428,7 +441,7 @@ function trustCertificate(cer) {
 // Anything other than a terminal answers no: no stdin to read means nobody is
 // there to ask, and silently helping ourselves to the machine's trust store is
 // not the right default. The caller says what to do instead — for an OTA
-// rebuild that is PEAR_INSTALL_NONINTERACTIVE, which never gets this far.
+// rebuild that is PEAR_MAKE_CONFIRM=0, which never gets this far.
 function confirm(question) {
 	if (!process.stdin.isTTY) {
 		console.log(`\n${question} — no terminal to ask on; pass -y to answer yes.`);

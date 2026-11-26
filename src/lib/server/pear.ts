@@ -2,13 +2,14 @@ import process from 'process';
 import path from 'path';
 import fs from 'fs';
 import { spawn } from 'child_process';
-import PearRepoUpdater from 'pear-repo-updater';
+import Repo, { type Updater } from 'pear-repo';
 import { persistent } from 'bare-storage';
 import { isBare, platform } from 'which-runtime';
 import type { GipDB } from './gip.js';
 import { events } from './events.js';
 import { log, logError } from './log.js';
 import pkg from '../../../package.json' with { type: 'json' };
+import manifest from '../../../pear.json' with { type: 'json' };
 
 // P2P over-the-air updates for the packaged app.
 //
@@ -16,7 +17,7 @@ import pkg from '../../../package.json' with { type: 'json' };
 // config (a hyperconf block every client reseeds), this one tracks releases of
 // Gear's own source repo.
 //
-// Deliberately pear-repo-updater and not pear-runtime. Two reasons:
+// Deliberately pear-repo and not pear-runtime. Two reasons:
 //
 //   1. package.json#upgrade is a git+pear:// link, which pear-runtime cannot
 //      consume — pear-link does not parse the scheme, and a gip remote holds
@@ -27,8 +28,9 @@ import pkg from '../../../package.json' with { type: 'json' };
 //        Uncaught Error: Module protocol of version undefined is not supported
 //      That is for a run() static this app never calls.
 //
-// pear-repo-updater watches the repo over the gip stack Gear already has, and
-// rebuilds from source on a new release tag.
+// pear-repo watches the repo over the gip stack Gear already has, and rebuilds
+// from source on a new release tag — with the build steps pear.json#make.lifecycle
+// declares, which are this project's own npm scripts.
 
 const NAME = pkg.productName;
 
@@ -43,9 +45,10 @@ export type UpdateState =
 	| { status: 'current'; version: string }
 	| { status: 'building'; version: string; label: string; step: number; steps: number }
 	| { status: 'applied'; version: string }
-	| { status: 'failed'; error: string };
+	| { status: 'failed'; error: string; version?: string };
 
 let state: UpdateState = { status: 'idle' };
+let failedTag: string | null = null;
 
 export function getUpdateState(): UpdateState {
 	return state;
@@ -56,25 +59,30 @@ function setState(next: UpdateState) {
 	events.emit('update', next);
 }
 
-// What a rebuild is doing, in the order it does it. The names are
-// pear-install's own events, forwarded by the updater; the text is ours.
-// 'installing' appears twice because it fires twice — once to clone the
-// release, once for the built release directory — and the payload's link is
-// what distinguishes them.
+// What a rebuild is doing, in the order it does it. The names are the operation
+// tags pear-repo pushes, forwarded by the updater; the text is ours. A spawned
+// lifecycle step arrives as 'script' whichever step it is, so which one it is
+// comes off the payload rather than the tag.
 const STEPS = 6;
 
 function describe(phase: string, data: Record<string, unknown>): { label: string; step: number } {
 	switch (phase) {
-		case 'installing':
-			return typeof data.link === 'string' && data.link.startsWith('git+')
-				? { label: 'Cloning the release', step: 1 }
-				: { label: 'Staging the build', step: 5 };
-		case 'dependencies':
+		case 'cloning':
+			return { label: 'Cloning the release', step: 1 };
+		case 'toolchain':
+		case 'surveyed':
+			return { label: 'Resolving dependencies', step: 2 };
+		case 'script':
+			if (data.step === 'make') return { label: 'Building the app', step: 3 };
+			if (data.step === 'release') return { label: 'Packaging the release', step: 4 };
 			return { label: 'Installing dependencies', step: 2 };
 		case 'compiling':
 			return { label: 'Building the app', step: 3 };
-		case 'building':
+		case 'releasing':
 			return { label: 'Packaging the release', step: 4 };
+		case 'released':
+		case 'installing':
+			return { label: 'Staging the build', step: 5 };
 		case 'app':
 			return { label: `Placing ${data.app ?? 'the app'}`, step: 5 };
 		case 'final':
@@ -87,6 +95,7 @@ function describe(phase: string, data: Record<string, unknown>): { label: string
 			return { label: phase, step: 1 };
 	}
 }
+
 
 // The build's own output, kept so a page opened or reloaded mid-build shows
 // what has happened rather than starting blank. Bounded: a compile is noisy and
@@ -148,10 +157,16 @@ function packaged(): boolean {
 	return exe !== 'bare' && exe !== 'node';
 }
 
-const g = globalThis as unknown as { __pear?: InstanceType<typeof PearRepoUpdater> | null };
+const g = globalThis as unknown as { __pear?: { repo: Repo; updater: Updater } | null };
 
-export function startUpdater(db: GipDB): InstanceType<typeof PearRepoUpdater> | null {
-	if (g.__pear !== undefined) return g.__pear;
+function stack(db: GipDB): { store?: unknown; swarm?: unknown } {
+	const held = db as unknown as { _store?: unknown; swarm?: unknown };
+	if (!held._store || !held.swarm) return {};
+	return { store: held._store, swarm: held.swarm };
+}
+
+export function startUpdater(db: GipDB): Repo | null {
+	if (g.__pear !== undefined) return g.__pear?.repo ?? null;
 	g.__pear = null;
 
 	if (process.env.GEAR_NO_UPDATES) {
@@ -178,18 +193,36 @@ export function startUpdater(db: GipDB): InstanceType<typeof PearRepoUpdater> | 
 	// The gip stack is passed in whole: the updater tracks Gear's own repo on
 	// it, which means no second swarm, no second corestore, and the repo shows
 	// up in the library like any other.
-	const pear = new PearRepoUpdater({
-		dir: process.env.GEAR_STORAGE ?? persistent(),
-		upgrade: pkg.upgrade,
-		version: pkg.version,
-		db,
-		...t
+	//
+	// The lifecycle comes from pear.json#make, so a rebuild runs the same two
+	// scripts a release here runs, and there is one place that says so.
+	const repo = new Repo({
+		dir: storageDir(),
+		lifecycle: manifest.make.lifecycle,
+		confirm: false,
+		...stack(db)
 	});
 
-	g.__pear = pear;
+	let pear: Updater;
+
+	try {
+		pear = new Repo.Updater({
+			repo,
+			dir: storageDir(),
+			upgrade: pkg.upgrade,
+			version: pkg.version,
+			...t
+		});
+	} catch (err) {
+		log(`updates disabled — ${(err as Error).message}`);
+		repo.close().catch(() => {});
+		return null;
+	}
+
+	g.__pear = { repo, updater: pear };
 	setState({ status: 'checking' });
 
-	pear.ready().catch((err: Error) => logError('updater failed to start', err));
+	repo.ready().catch((err: Error) => logError('updater failed to start', err));
 
 	// An unhandled 'error' here takes the process down. It also has to move the
 	// UI off whatever it was showing: a rebuild that throws emits this and
@@ -197,7 +230,7 @@ export function startUpdater(db: GipDB): InstanceType<typeof PearRepoUpdater> | 
 	pear.on('error', (err: Error) => {
 		logError('updater', err);
 		if (state.status === 'checking' || state.status === 'building') {
-			setState({ status: 'failed', error: err.message });
+			setState({ status: 'failed', error: err.message, version: pear.release?.version });
 		}
 	});
 
@@ -205,9 +238,9 @@ export function startUpdater(db: GipDB): InstanceType<typeof PearRepoUpdater> | 
 	// the only place its output exists at all. It goes to the log the UI shows
 	// as well as the app log, because "what is happening" during a multi-minute
 	// build is mostly what the build itself is saying.
-	pear.on('build-output', ({ text }: { text: string }) => {
-		appendLog(text);
-		const line = text.trimEnd();
+	pear.on('build-output', ({ chunk }: { chunk: string }) => {
+		appendLog(chunk);
+		const line = chunk.trimEnd();
 		if (line) log('build:', line);
 	});
 
@@ -220,6 +253,8 @@ export function startUpdater(db: GipDB): InstanceType<typeof PearRepoUpdater> | 
 	// user asks for it.
 	pear.on('updated', ({ version, tag }: { version: string; tag: string }) => {
 		log(`update ${version} available (${tag})`);
+		failedTag = null;
+		if (state.status === 'building' || state.status === 'applied') return;
 		setState({ status: 'available', version });
 	});
 
@@ -231,7 +266,7 @@ export function startUpdater(db: GipDB): InstanceType<typeof PearRepoUpdater> | 
 	});
 
 	// Steps rather than bytes: a source rebuild has no total to divide by, so
-	// what the UI gets is pear-install's own account of which part is running.
+	// what the UI gets is pear-repo's own account of which part is running.
 	pear.on('build-progress', ({ phase, ...data }: { phase: string }) => {
 		const { label, step } = describe(phase, data as Record<string, unknown>);
 		appendLog(label);
@@ -239,8 +274,15 @@ export function startUpdater(db: GipDB): InstanceType<typeof PearRepoUpdater> | 
 		if (state.status === 'building') setState({ ...state, label, step });
 	});
 
+	recheck(pear).then(() => {
+		if (state.status !== 'checking') return;
+		const release = pear.release;
+		if (release) setState({ status: 'available', version: release.version });
+		else setState({ status: 'current', version: pkg.version });
+	});
+
 	log(`updater watching ${pkg.upgrade} (current ${pkg.version}, target ${t.name})`);
-	return pear;
+	return repo;
 }
 
 /**
@@ -251,19 +293,77 @@ export function startUpdater(db: GipDB): InstanceType<typeof PearRepoUpdater> | 
  * administrator. A UAC dialog moments after someone pressed "Install update" is
  * expected; the same dialog arriving because a tag was pushed is not.
  */
-export async function applyUpdate(): Promise<{ ok: true } | { ok: false; error: string }> {
-	const pear = g.__pear;
+const CHECK_WAIT = 15_000;
+
+async function recheck(pear: Updater) {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+
+	const waited = new Promise<void>((resolve) => {
+		timer = setTimeout(() => {
+			log('update check timed out — building the release already found');
+			resolve();
+		}, CHECK_WAIT);
+	});
+
+	try {
+		await Promise.race([pear.check(), waited]);
+	} catch (err) {
+		logError('update check failed', err);
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+export async function checkUpdate(): Promise<
+	{ ok: true; found?: string; none?: string } | { ok: false; error: string }
+> {
+	const pear = g.__pear?.updater ?? null;
 	if (!pear) return { ok: false, error: 'Updates are not enabled in this build' };
+	if (state.status === 'building') return { ok: false, error: 'An update is already building' };
+
+	const before = state;
+	const had = state.status === 'failed' ? failedTag : (pear.release?.tag ?? null);
+
+	log('checking for a newer release');
+	setState({ status: 'checking' });
+	await recheck(pear);
+
+	const release = pear.release;
+
+	if (!release) {
+		log('no release tags on the repository');
+		failedTag = null;
+		setState({ status: 'current', version: pkg.version });
+		return { ok: true, none: pkg.version };
+	}
+
+	if (release.tag !== had) {
+		log(`${release.version} found`);
+		failedTag = null;
+		setState({ status: 'available', version: release.version });
+		return { ok: true, found: release.version };
+	}
+
+	log(`nothing newer than ${release.version}`);
+	setState(before);
+	return { ok: true, none: release.version };
+}
+
+export async function applyUpdate(): Promise<{ ok: true } | { ok: false; error: string }> {
+	const pear = g.__pear?.updater ?? null;
+	if (!pear) return { ok: false, error: 'Updates are not enabled in this build' };
+	if (state.status === 'building') return { ok: false, error: 'An update is already building' };
 
 	// The pending release is the updater's, not the UI state's: after a failed
 	// build the state carries an error rather than a version, and that is exactly
 	// when the user presses this again.
 	const version = pear.release?.version as string | undefined;
+	const built = pear.release?.tag ?? null;
 	if (!version) return { ok: false, error: 'No update is waiting' };
-	if (state.status === 'building') return { ok: false, error: 'An update is already building' };
 
 	try {
 		await pear.applyUpdate();
+		failedTag = null;
 		log(`update ${version} applied — restart to run it`);
 		appendLog(`Installed ${version} — restart to run it`);
 		setState({ status: 'applied', version });
@@ -274,7 +374,17 @@ export async function applyUpdate(): Promise<{ ok: true } | { ok: false; error: 
 		appendLog(`Failed: ${error}`);
 		// applyUpdate clears its own `applied` flag on failure, so the release is
 		// still pending and pressing the button again retries it.
-		setState({ status: 'failed', error });
+		const waiting = pear.release;
+
+		if (waiting && waiting.tag !== built) {
+			failedTag = null;
+			log(`${waiting.version} arrived while ${version} was building`);
+			setState({ status: 'available', version: waiting.version });
+			return { ok: false, error };
+		}
+
+		failedTag = built;
+		setState({ status: 'failed', error, version });
 		return { ok: false, error };
 	}
 }
@@ -284,9 +394,11 @@ export async function applyUpdate(): Promise<{ ok: true } | { ok: false; error: 
  * repo on it.
  */
 export async function closeUpdater() {
-	const pear = g.__pear;
+	const held = g.__pear;
 	g.__pear = undefined;
-	if (pear) await pear.close().catch(() => {});
+	if (!held) return;
+	await held.updater.close().catch(() => {});
+	await held.repo.close().catch(() => {});
 }
 
 /**
@@ -342,7 +454,7 @@ export function canRestart(): boolean {
 }
 
 function storageDir(): string {
-	const dir = process.env.GEAR_STORAGE ?? persistent();
+	const dir = process.env.GEAR_STORAGE ?? path.join(persistent(), NAME);
 	fs.mkdirSync(dir, { recursive: true });
 	return dir;
 }
