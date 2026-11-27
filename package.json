@@ -1,7 +1,7 @@
 {
 	"name": "gear",
 	"productName": "Gear",
-	"version": "0.0.50",
+	"version": "0.0.52",
 	"upgrade": "git+pear://1h13pndj47mtiem41nrxshm6na4pggqa5wx815ok7ubbbhyoyyfo/gear-demo",
 	"type": "module",
 	"scripts": {
