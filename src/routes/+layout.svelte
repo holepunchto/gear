@@ -3,9 +3,11 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
+	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
 	import GearLogo from '$lib/GearLogo.svelte';
 	import Search from '$lib/components/Search.svelte';
+	import type { UpdateState } from '$lib/server/pear';
 
 	let { children, data } = $props();
 
@@ -23,6 +25,42 @@
 
 	// Copy-feedback — flips for ~1s after a successful copy.
 	let copiedIdentity = $state(false);
+
+	let update = $state<UpdateState>(data.update);
+	let confirmed = $state(true);
+	let restarting = $state(false);
+
+	const chip = $derived.by(() => {
+		switch (update.status) {
+			case 'available':
+				return { label: 'Update', icon: 'down', tone: 'amber', restart: false };
+			case 'building':
+				return { label: 'Building', icon: 'down', tone: 'amber pulse', restart: false };
+			case 'applied':
+				return {
+					label: data.canRestart && restarting ? 'Restarting…' : 'Restart',
+					icon: 'restart',
+					tone: 'turquoise',
+					restart: data.canRestart
+				};
+			case 'current':
+				return confirmed
+					? { label: 'Up to date', icon: 'check', tone: 'green', restart: false }
+					: null;
+			case 'failed':
+				return { label: 'Update failed', icon: 'alert', tone: 'red', restart: false };
+			default:
+				return null;
+		}
+	});
+
+	const TONES: Record<string, string> = {
+		amber: 'text-amber-300 ring-amber-400/40 bg-amber-400/10',
+		'amber pulse': 'text-amber-300 ring-amber-400/40 bg-amber-400/10 animate-pulse',
+		turquoise: 'text-pear-300 ring-pear-400/40 bg-pear-400/10',
+		green: 'text-accent-300 ring-accent-400/40 bg-accent-400/10',
+		red: 'text-red-300 ring-red-400/40 bg-red-400/10'
+	};
 
 	onMount(() => {
 		function handleGlobalKeydown(e: KeyboardEvent) {
@@ -48,7 +86,21 @@
 		// An OTA config block arrived — re-run loads so the discover manifest
 		// (the search overlay's data) reflects it immediately.
 		es.addEventListener('sources', () => invalidateAll());
+		let fade: ReturnType<typeof setTimeout> | null = null;
+		es.addEventListener('update', (e) => {
+			try {
+				update = JSON.parse((e as MessageEvent).data);
+			} catch {
+				return;
+			}
+			if (fade) clearTimeout(fade);
+			confirmed = true;
+			if (update.status === 'current') {
+				fade = setTimeout(() => (confirmed = false), 8000);
+			}
+		});
 		return () => {
+			if (fade) clearTimeout(fade);
 			es.close();
 			document.removeEventListener('keydown', handleGlobalKeydown);
 		};
@@ -112,6 +164,19 @@
 		{:else if name === 'search'}
 			<circle cx="11" cy="11" r="7" />
 			<path d="m20 20-3.5-3.5" />
+		{:else if name === 'down'}
+			<path d="M12 4v11" />
+			<path d="m7 11 5 5 5-5" />
+			<path d="M5 20h14" />
+		{:else if name === 'restart'}
+			<path d="M20 12a8 8 0 1 1-2.34-5.66" />
+			<path d="M20 4v4h-4" />
+		{:else if name === 'check'}
+			<path d="m5 13 4 4L19 7" />
+		{:else if name === 'alert'}
+			<path d="M12 8v5" />
+			<path d="M12 16.5v.5" />
+			<circle cx="12" cy="12" r="9" />
 		{:else}
 			<path
 				d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
@@ -223,6 +288,40 @@
 						</span>
 					{/if}
 				</div>
+				{#if chip}
+					{@const shape = `tap-44 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold no-underline ring-1 ring-inset transition-colors sm:h-[38px] sm:px-3 sm:text-[13px] ${TONES[chip.tone]}`}
+					{#if chip.restart}
+						<form
+							method="POST"
+							action="/settings?/restart"
+							use:enhance={() => {
+								restarting = true;
+								return async () => {};
+							}}
+						>
+							<button
+								type="submit"
+								disabled={restarting}
+								aria-label="{chip.label} Gear to run the installed version"
+								title="{chip.label} Gear to run the installed version"
+								class="{shape} cursor-pointer border-0 disabled:cursor-default"
+							>
+								{@render navIcon(chip.icon)}
+								<span class="hidden sm:inline">{chip.label}</span>
+							</button>
+						</form>
+					{:else}
+						<a
+							href="/settings#updates"
+							aria-label="{chip.label} — open Updates in Settings"
+							title="{chip.label} — open Updates in Settings"
+							class={shape}
+						>
+							{@render navIcon(chip.icon)}
+							<span class="hidden sm:inline">{chip.label}</span>
+						</a>
+					{/if}
+				{/if}
 				<a
 					href="/settings"
 					aria-label="Settings"

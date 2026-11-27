@@ -1,15 +1,32 @@
 import process from 'process';
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
 import { spawnSync } from 'child_process';
-import { isAndroid, isIOS } from 'which-runtime';
+import { isAndroid, isIOS, isWindows } from 'which-runtime';
+import Repo from 'pear-repo';
 
-// The git remote helper (git-remote-git+pear) and the gip CLI ship with the
-// gip-transport npm package — without the helper on PATH, git can't clone
-// the git+pear:// urls Gear hands out.
-//
-// GUI apps launch with launchd's minimal PATH (no homebrew, no nvm), so both
-// detection and install run through a login shell to see the user's real
-// environment.
-export const INSTALL_COMMAND = 'npm install -g gip-transport';
+// The gip CLI and the git remote helper that comes with it, as a Pear link.
+// Installing it is pear-repo fetching the prebuilt binaries for this host off
+// the swarm, so it needs neither npm nor a toolchain — which matters because the
+// thing being installed is what makes `git clone git+pear://` work in the first
+// place, and telling someone to install Node first to get it is a worse answer.
+export const CLI_LINK = 'pear://gipjk71nbuj3zasm4ywczb93zqk5xbfup16c6d5j8w8yeja4ob6o';
+
+// The equivalent for someone who would rather run it themselves.
+export const INSTALL_COMMAND = `pear install ${CLI_LINK}`;
+
+// Where pear-repo puts a package's `bin` entries. On Windows it nests them
+// under the app's name, which is gip-transport's productName, not its name.
+const BIN_DIR = isWindows
+	? path.join(
+			process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
+			'Programs',
+			'gip'
+		)
+	: path.join(os.homedir(), '.local', 'bin');
+
+const HELPER = 'git-remote-git+pear' + (isWindows ? '.exe' : '');
 
 const SHELL = process.env.SHELL || '/bin/zsh';
 
@@ -22,24 +39,53 @@ function sh(cmd: string, timeout: number) {
 	};
 }
 
-export type CliStatus = { installed: boolean; path: string | null; npm: boolean };
+export type CliStatus = { installed: boolean; path: string | null; pear: boolean };
 
 export function cliStatus(): CliStatus | null {
 	if (isAndroid || isIOS) return null;
 
-	const helper = sh("command -v 'git-remote-git+pear'", 10_000);
-	const npm = sh('command -v npm', 10_000);
+	// Looked for in two places because they answer different questions. The file
+	// is whether it is installed; the shell is whether git will find it, which is
+	// what actually matters for cloning. They disagree right after an install:
+	// pear-repo appends its bin directory to the user's PATH, and neither an
+	// already-open shell nor this process has picked that up yet — so the file
+	// check is what stops a successful install from reporting as a failure.
+	const installed = path.join(BIN_DIR, HELPER);
+	if (fs.existsSync(installed)) {
+		return { installed: true, path: installed, pear: sh('command -v pear', 10_000).ok };
+	}
+
+	const helper = sh(`command -v '${HELPER}'`, 10_000);
+	const pear = sh('command -v pear', 10_000);
 	return {
 		installed: helper.ok,
 		path: helper.ok ? (helper.stdout.split('\n').pop() ?? null) : null,
-		npm: npm.ok
+		pear: pear.ok
 	};
 }
 
-export function installCli(): { ok: boolean; error?: string } {
-	const result = sh(INSTALL_COMMAND, 180_000);
-	if (result.ok && cliStatus()?.installed) return { ok: true };
+export async function installCli(): Promise<{ ok: boolean; error?: string }> {
+	// confirm: false because there is no terminal behind this — it runs inside
+	// the packaged app, from a button. Anything the install would otherwise stop
+	// to ask would hang on a prompt nobody can see.
+	const repo = new Repo({ confirm: false });
+	let failed: string | null = null;
 
-	const detail = (result.stderr || result.stdout).split('\n').slice(-3).join('\n');
-	return { ok: false, error: detail || 'install failed' };
+	try {
+		for await (const { tag, data } of repo.install(CLI_LINK)) {
+			if (tag === 'error') failed = String(data.message ?? '').trim() || 'install failed';
+		}
+	} catch (err) {
+		failed = (err as Error).message?.trim() || 'install failed';
+	} finally {
+		await repo.close().catch(() => {});
+	}
+
+	if (failed !== null) return { ok: false, error: failed };
+
+	if (!cliStatus()?.installed) {
+		return { ok: false, error: `installed, but no ${HELPER} in ${BIN_DIR}` };
+	}
+
+	return { ok: true };
 }

@@ -3,6 +3,15 @@ import Id from 'hypercore-id-encoding';
 import { events } from '$lib/server/events';
 import { cliStatus, installCli, INSTALL_COMMAND } from '$lib/server/cli';
 import { getReleases } from '$lib/server/release-service';
+import {
+	getUpdateState,
+	getBuildLog,
+	applyUpdate,
+	checkUpdate,
+	canRestart,
+	restart
+} from '$lib/server/pear';
+import pkg from '../../../package.json' with { type: 'json' };
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -25,6 +34,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		seedReadOnly,
 		cli: cliStatus(),
 		installCommand: INSTALL_COMMAND,
+		version: pkg.version,
+		update: getUpdateState(),
+		buildLog: getBuildLog(),
+		canRestart: canRestart(),
 		stats: {
 			connections: s.peers,
 			swarmPeers: s.swarmPeers,
@@ -71,8 +84,34 @@ export const actions: Actions = {
 		return { removePeer: { ok: true } };
 	},
 
+	// Nothing is built until this is called. The rebuild takes minutes and the
+	// request stays open for all of it — progress arrives over SSE, so the page
+	// is not waiting on the response to show what is happening.
+	applyUpdate: async () => {
+		const result = await applyUpdate();
+		if (!result.ok) return fail(500, { applyUpdate: { error: result.error } });
+		return { applyUpdate: { ok: true } };
+	},
+
+	check: async () => {
+		const result = await checkUpdate();
+		if (!result.ok) {
+			return fail(500, { check: { found: null, none: null, error: result.error } });
+		}
+		return { check: { found: result.found ?? null, none: result.none ?? null, error: null } };
+	},
+
+	// Answers, then exits — so the page should not count on this response
+	// arriving. It only reports a failure that happened before the process went
+	// away, such as a platform with nothing to relaunch.
+	restart: async () => {
+		const result = restart();
+		if (!result.ok) return fail(500, { restart: { error: result.error } });
+		return { restart: { ok: true } };
+	},
+
 	installCli: async () => {
-		const result = installCli();
+		const result = await installCli();
 		if (!result.ok) return fail(500, { installCli: { error: result.error } });
 		return { installCli: { ok: true } };
 	},

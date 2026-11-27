@@ -1,0 +1,13 @@
+{
+	"updates": {
+		"minver": "0.0.1"
+	},
+	"make": {
+		"lifecycle": {
+			"resolveMet": "npm install",
+			"resolveUnmet": "npm install",
+			"make": "npm run make",
+			"release": "npm run release"
+		}
+	}
+}

@@ -55,7 +55,7 @@ Each `make:<host>` runs the vite build and packages that one platform. macOS
 builds from source are unsigned (other Macs need right-click → Open); Android
 builds are signed only if the keystore env vars below are set.
 
-Output bundles land in `out/`. The bare-build step resolves all native addons (sodium-native, utp-native, etc.) using `bare-module-resolve`, so the bundle is self-contained.
+Output bundles land in `out/make/<host>/`, one app per host, which is what `npm run release` hands pear-repo to collect. The bare-build step resolves all native addons (sodium-native, utp-native, etc.) using `bare-module-resolve`, so the bundle is self-contained.
 
 ## Releasing
 

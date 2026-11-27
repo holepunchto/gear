@@ -20,7 +20,10 @@
 		"../src/service-worker/**/*.ts",
 		"../src/service-worker.d.ts",
 		"../src/service-worker/**/*.d.ts",
-		"../git-remote-punch-transport/**"
+		"../git-remote-punch-transport/**",
+		"../pear-repo/**",
+		"../pear-runtime/**",
+		"../pear-mobile/**"
 	]
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files

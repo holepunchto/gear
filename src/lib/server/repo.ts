@@ -441,7 +441,11 @@ export function attachCommitsToTree(
  * directory; otherwise it's a file.
  */
 export async function listTree(
-	drive: { list: (folder: string) => AsyncIterable<{ key: string; value: { blob: { byteLength: number } } }> },
+	drive: {
+		list: (
+			folder: string
+		) => AsyncIterable<{ key: string; value: { blob: { byteLength: number } } }>;
+	},
 	folder: string
 ) {
 	const prefix = folder === '/' ? '/' : folder + '/';
