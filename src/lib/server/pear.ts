@@ -96,7 +96,6 @@ function describe(phase: string, data: Record<string, unknown>): { label: string
 	}
 }
 
-
 // The build's own output, kept so a page opened or reloaded mid-build shows
 // what has happened rather than starting blank. Bounded: a compile is noisy and
 // this sits in memory for the life of the process.

@@ -406,97 +406,106 @@
 			id="updates"
 			class="relative mb-5 scroll-mt-24 rounded-lg border border-neutral-800 bg-neutral-900"
 		>
-				{#if update.status !== 'building' && update.status !== 'applied'}
-					{@const pending = update.status === 'available' ? update.version : null}
-					{@const stale = update.status === 'failed' ? update.version : null}
-					{@const split = stale !== null}
-					{@const skin = pending
+			{#if update.status !== 'building' && update.status !== 'applied'}
+				{@const pending = update.status === 'available' ? update.version : null}
+				{@const stale = update.status === 'failed' ? update.version : null}
+				{@const split = stale !== null}
+				{@const skin = pending
+					? {
+							text: 'text-accent-300',
+							ring: 'ring-accent-400/40',
+							fill: 'bg-accent-400/10',
+							hover: 'hover:bg-accent-400/20'
+						}
+					: stale
 						? {
-								text: 'text-accent-300',
-								ring: 'ring-accent-400/40',
-								fill: 'bg-accent-400/10',
-								hover: 'hover:bg-accent-400/20'
+								text: 'text-amber-300',
+								ring: 'ring-amber-400/40',
+								fill: 'bg-amber-400/10',
+								hover: 'hover:bg-amber-400/20'
 							}
-						: stale
-							? {
-									text: 'text-amber-300',
-									ring: 'ring-amber-400/40',
-									fill: 'bg-amber-400/10',
-									hover: 'hover:bg-amber-400/20'
-								}
-							: {
-									text: 'text-neutral-200',
-									ring: 'ring-neutral-700',
-									fill: 'bg-neutral-800',
-									hover: 'hover:bg-neutral-700'
-								}}
-					{@const open = split && moreOpen}
-					<div class="absolute top-3 right-[17px] z-20">
-						<div class="flex items-stretch">
+						: {
+								text: 'text-neutral-200',
+								ring: 'ring-neutral-700',
+								fill: 'bg-neutral-800',
+								hover: 'hover:bg-neutral-700'
+							}}
+				{@const open = split && moreOpen}
+				<div class="absolute top-3 right-[17px] z-20">
+					<div class="flex items-stretch">
+						<form
+							method="POST"
+							action={pending ? '?/applyUpdate' : '?/check'}
+							use:enhance
+							onsubmit={() => (moreOpen = false)}
+						>
+							<button
+								type="submit"
+								disabled={update.status === 'checking'}
+								class="inline-flex h-[41px] cursor-pointer items-center justify-center rounded-l-lg px-4 text-[15px] font-semibold ring-1 transition-colors ring-inset disabled:opacity-60 {skin.text} {skin.ring} {skin.fill} {skin.hover} {split
+									? ''
+									: 'rounded-r-lg'} {open ? 'rounded-bl-none' : ''}"
+							>
+								{#if update.status === 'checking'}
+									Checking…
+								{:else if pending}
+									Install {pending}
+								{:else if stale}
+									Fix Check
+								{:else}
+									Check
+								{/if}
+							</button>
+						</form>
+						{#if split}
+							<button
+								type="button"
+								aria-label="Other update actions"
+								aria-expanded={moreOpen}
+								disabled={update.status === 'checking'}
+								onclick={() => (moreOpen = !moreOpen)}
+								class="ml-px inline-flex h-[41px] cursor-pointer items-center rounded-r-lg px-3 ring-1 transition-colors ring-inset disabled:opacity-60 {skin.text} {skin.ring} {skin.fill} {skin.hover} {open
+									? 'rounded-br-none'
+									: ''}"
+							>
+								<svg
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="3"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									aria-hidden="true"
+								>
+									<path d="M6 9l6 6 6-6" />
+								</svg>
+							</button>
+						{/if}
+					</div>
+					{#if split}
+						<div
+							hidden={!moreOpen}
+							class="absolute top-full right-0 z-20 -mt-px w-full overflow-hidden rounded-b-lg bg-neutral-900 shadow-lg ring-1 ring-inset {skin.ring}"
+						>
 							<form
 								method="POST"
-								action={pending ? '?/applyUpdate' : '?/check'}
+								action="?/applyUpdate"
 								use:enhance
 								onsubmit={() => (moreOpen = false)}
 							>
 								<button
 									type="submit"
-									disabled={update.status === 'checking'}
-									class="cursor-pointer inline-flex h-[41px] items-center justify-center rounded-l-lg px-4 text-[15px] font-semibold ring-1 ring-inset transition-colors disabled:opacity-60 {skin.text} {skin.ring} {skin.fill} {skin.hover} {split ? '' : 'rounded-r-lg'} {open ? 'rounded-bl-none' : ''}"
+									class="block w-full cursor-pointer px-4 py-2.5 text-left text-[15px] font-semibold whitespace-nowrap transition-colors {skin.text} {skin.hover}"
 								>
-									{#if update.status === 'checking'}
-										Checking…
-									{:else if pending}
-										Install {pending}
-									{:else if stale}
-										Fix Check
-									{:else}
-										Check
-									{/if}
+									Rebuild {stale ?? data.version}
 								</button>
 							</form>
-							{#if split}
-								<button
-									type="button"
-									aria-label="Other update actions"
-									aria-expanded={moreOpen}
-									disabled={update.status === 'checking'}
-									onclick={() => (moreOpen = !moreOpen)}
-									class="cursor-pointer ml-px inline-flex h-[41px] items-center rounded-r-lg px-3 ring-1 ring-inset transition-colors disabled:opacity-60 {skin.text} {skin.ring} {skin.fill} {skin.hover} {open ? 'rounded-br-none' : ''}"
-								>
-									<svg
-										width="14"
-										height="14"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="3"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										aria-hidden="true"
-									>
-										<path d="M6 9l6 6 6-6" />
-									</svg>
-								</button>
-							{/if}
 						</div>
-						{#if split}
-							<div
-								hidden={!moreOpen}
-								class="absolute top-full right-0 z-20 -mt-px w-full overflow-hidden rounded-b-lg bg-neutral-900 shadow-lg ring-1 ring-inset {skin.ring}"
-							>
-								<form method="POST" action="?/applyUpdate" use:enhance onsubmit={() => (moreOpen = false)}>
-									<button
-										type="submit"
-										class="cursor-pointer block w-full px-4 py-2.5 text-left text-[15px] font-semibold whitespace-nowrap transition-colors {skin.text} {skin.hover}"
-									>
-										Rebuild {stale ?? data.version}
-									</button>
-								</form>
-							</div>
-						{/if}
-					</div>
-				{/if}
+					{/if}
+				</div>
+			{/if}
 			<div class="border-b border-neutral-800 px-5 py-3.5">
 				<h2 class="m-0 text-[15px] font-semibold text-white">Updates</h2>
 				<p class="m-0 mt-0.5 text-xs text-neutral-400">
@@ -565,7 +574,7 @@
 						<button
 							type="submit"
 							disabled={restarting}
-							class="cursor-pointer inline-flex h-[41px] items-center justify-center rounded-lg bg-pear-400/10 px-4 text-[15px] font-semibold text-pear-300 ring-1 ring-pear-400/40 ring-inset transition-colors hover:bg-pear-400/20 disabled:opacity-60"
+							class="inline-flex h-[41px] cursor-pointer items-center justify-center rounded-lg bg-pear-400/10 px-4 text-[15px] font-semibold text-pear-300 ring-1 ring-pear-400/40 transition-colors ring-inset hover:bg-pear-400/20 disabled:opacity-60"
 						>
 							{restarting ? 'Restarting…' : 'Restart Gear'}
 						</button>
@@ -580,7 +589,6 @@
 				{#if update.status !== 'building' && update.status !== 'applied'}
 					<p class="m-0 mt-2 text-xs {checkNote.tone}">{checkNote.text}</p>
 				{/if}
-
 			</div>
 		</section>
 	{/if}
