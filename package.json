@@ -1,7 +1,7 @@
 {
 	"name": "gear",
 	"productName": "Gear",
-	"version": "0.0.51",
+	"version": "0.0.50",
 	"upgrade": "git+pear://1h13pndj47mtiem41nrxshm6na4pggqa5wx815ok7ubbbhyoyyfo/gear-demo",
 	"type": "module",
 	"scripts": {
@@ -9,7 +9,7 @@
 		"mirror": "node scripts/mirror.js",
 		"backfill": "node scripts/backfill.js",
 		"dev": "vite dev",
-		"build": "node -e \"console.error('demo: this release is deliberately unbuildable'); process.exit(1)\"",
+		"build": "vite build",
 		"make": "node scripts/make.js",
 		"release": "node scripts/release.js",
 		"make:darwin-arm64": "bare-build --name Gear --identifier io.gear.app --runtime bare-native/runtime --host darwin-arm64 --icon gear.icns --out ./out/make/darwin-arm64 build/index.js",
